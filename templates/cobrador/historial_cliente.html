@@ -1,0 +1,60 @@
+{% extends "cobrador/layout.html" %}
+{% block titulo %}
+Historial - {{ cliente.nombre }}
+{% endblock %}
+
+{% block content %}
+
+<div class="space-y-4 mt-4">
+
+    {% for credito in creditos %}
+
+    <a href="{{ url_for('detalle_credito', credito_id=credito.id) }}"
+       class="block bg-gradient-to-br from-[#123b63] to-[#0b2847]
+              rounded-2xl px-5 py-4 shadow-lg hover:scale-[1.02] transition">
+
+        <div class="flex justify-between items-center">
+
+            <div>
+                <div class="text-sm font-semibold">
+                    Crédito #{{ credito.id[:6] }}
+                </div>
+
+                <div class="text-xs opacity-70">
+                    Fecha: {{ credito.fecha }}
+                </div>
+
+                <div class="text-xs text-green-400 mt-1">
+                    Total: ${{ "{:,.0f}".format(credito.valor_total) }}
+                </div>
+
+                <div class="text-xs text-yellow-400">
+                    Saldo: ${{ "{:,.0f}".format(credito.saldo) }}
+                </div>
+            </div>
+
+            <div>
+                {% if credito.estado == "activo" %}
+                    <span class="bg-green-500 px-3 py-1 rounded-full text-xs">
+                        Activo
+                    </span>
+                {% elif credito.estado == "pagado" %}
+                    <span class="bg-blue-500 px-3 py-1 rounded-full text-xs">
+                        Pagado
+                    </span>
+                {% else %}
+                    <span class="bg-gray-500 px-3 py-1 rounded-full text-xs">
+                        {{ credito.estado }}
+                    </span>
+                {% endif %}
+            </div>
+
+        </div>
+
+    </a>
+
+    {% endfor %}
+
+</div>
+
+{% endblock %}

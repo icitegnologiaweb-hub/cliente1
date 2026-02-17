@@ -1,0 +1,272 @@
+{% extends "cobrador/layout.html" %}
+
+{% block titulo %}
+{{ credito.clientes.nombre }}
+{% endblock %}
+
+{% block content %}
+
+<!-- =========================
+     INFORMACIÓN GENERAL
+========================= -->
+<div class="bg-gradient-to-br from-[#123b63] to-[#0b2847]
+            rounded-2xl p-5 shadow-lg mb-6 text-white">
+
+    <div class="space-y-3 text-sm">
+
+        <!-- Nombre -->
+        <div class="text-lg font-semibold text-blue-200 mb-2">
+            {{ credito.clientes.nombre }}
+        </div>
+
+        <!-- Teléfono con WhatsApp -->
+        <div class="flex justify-between items-center">
+            <span class="opacity-70">Teléfono</span>
+            <a href="https://wa.me/57{{ credito.clientes.telefono_principal }}"
+               target="_blank"
+               class="text-green-400 font-semibold">
+                {{ credito.clientes.telefono_principal }}
+            </a>
+        </div>
+
+        <!-- Dirección -->
+        <div class="flex justify-between">
+            <span class="opacity-70">Dirección</span>
+            <span class="text-blue-300">
+                {{ credito.clientes.direccion }}
+            </span>
+        </div>
+
+        <!-- Tipo préstamo -->
+        <div class="flex justify-between">
+            <span class="opacity-70">Tipo Préstamo</span>
+            <span class="text-blue-300">
+                {{ credito.tipo_prestamo }}
+            </span>
+        </div>
+
+        <!-- Próxima cuota -->
+        <div class="flex justify-between">
+            <span class="opacity-70">Próxima Cuota</span>
+            <span class="text-green-400 font-semibold">
+                {{ proxima_cuota }}
+            </span>
+        </div>
+
+        <!-- Total venta -->
+        <div class="flex justify-between pt-3 border-t border-blue-500/30">
+            <span>Total Venta</span>
+            <span class="text-green-400 font-semibold">
+                ${{ "{:,.0f}".format(credito.valor_total) }}
+            </span>
+        </div>
+
+        <!-- Saldo -->
+        <div class="flex justify-between">
+            <span>Saldo Venta</span>
+            <span class="text-green-400 font-semibold">
+                ${{ "{:,.0f}".format(saldo) }}
+            </span>
+        </div>
+
+    </div>
+
+    <button class="w-full mt-5 bg-blue-600 hover:bg-blue-700
+                   py-3 rounded-xl text-sm font-semibold shadow-md transition">
+        Ver Imagen de la Venta
+    </button>
+    <a href="{{ url_for('historial_cliente', cliente_id=credito.clientes.id) }}"
+    class="w-full mt-3 block bg-indigo-600 hover:bg-indigo-700
+            py-2 rounded-xl text-sm font-semibold text-center transition">
+        Ver historial de créditos
+    </a>
+
+</div>
+
+
+
+<!-- =========================
+     LISTA DE CUOTAS
+========================= -->
+<div class="space-y-4">
+
+{% for cuota in cuotas %}
+
+<div
+    {% if cuota.estado != "pagado" %}
+        onclick="abrirModal('{{ cuota.id }}', {{ cuota.valor }})"
+        class="cursor-pointer hover:scale-[1.02] transition"
+    {% endif %}
+    class="bg-gradient-to-br from-[#123b63] to-[#0b2847]
+           rounded-2xl p-4 shadow-md">
+
+    <div class="flex justify-between items-center">
+
+        <div class="flex items-center gap-4">
+
+            <div class="text-2xl font-bold text-green-400">
+                {{ cuota.numero }}
+            </div>
+
+            <div class="text-sm space-y-1">
+
+                <div>Días de Mora: {{ cuota.dias_mora }}</div>
+
+                <div>Valor: ${{ "{:,.0f}".format(cuota.valor) }}</div>
+
+                <div>Fecha Venc: {{ cuota.fecha_pago }}</div>
+
+            </div>
+
+        </div>
+
+        <!-- Estado Visual -->
+        <div>
+
+            {% if cuota.estado == "pagado" %}
+            <div class="bg-blue-500 h-10 w-10 rounded-full flex items-center justify-center text-white font-bold shadow">
+                    ✓
+                </div>
+
+            {% elif cuota.dias_mora > 0 %}
+                <div class="bg-yellow-500 h-10 w-10 rounded-full flex items-center justify-center text-white font-bold">
+                    P
+                </div>
+
+            {% else %}
+                <div class="bg-gray-500 h-10 w-10 rounded-full flex items-center justify-center text-white font-bold">
+                    🔒
+                </div>
+            {% endif %}
+
+        </div>
+
+    </div>
+
+</div>
+
+{% endfor %}
+
+</div>
+
+
+<!-- =========================
+     MODAL DE PAGO
+========================= -->
+<!-- =========================
+     MODAL MODERNO DE PAGO
+========================= -->
+<div id="modalPago"
+     class="fixed inset-0 bg-black/70 backdrop-blur-sm hidden items-end sm:items-center justify-center z-50 transition">
+
+    <div class="bg-white w-full sm:w-[380px] rounded-t-3xl sm:rounded-3xl p-6 text-gray-800 shadow-2xl animate-fadeInUp">
+
+        <!-- Handle estilo app móvil -->
+        <div class="w-10 h-1.5 bg-gray-300 rounded-full mx-auto mb-5 sm:hidden"></div>
+
+        <!-- Título -->
+        <h3 class="text-xl font-bold text-center mb-5">
+            Registrar Pago
+        </h3>
+
+        <form method="POST" action="{{ url_for('registrar_pago') }}">
+
+            <input type="hidden" name="cuota_id" id="cuota_id">
+
+            <!-- Tarjeta resumen -->
+            <div class="bg-gray-100 rounded-2xl p-4 mb-5 text-center">
+
+                <div class="text-xs text-gray-500">Valor de la cuota</div>
+                <div id="valorCuotaTexto"
+                     class="text-2xl font-bold text-green-600 mt-1">
+                </div>
+
+                <div class="text-xs text-gray-500 mt-4">
+                    Total a pagar
+                </div>
+                <div id="totalTexto"
+                     class="text-xl font-semibold text-gray-800 mt-1">
+                </div>
+
+            </div>
+
+            <!-- Monto adicional -->
+            <div class="mb-6">
+                <label class="text-sm font-medium text-gray-600">
+                    Monto adicional
+                </label>
+
+                <input type="number"
+                       name="monto_adicional"
+                       id="montoAdicional"
+                       value="0"
+                       min="0"
+                       step="0.01"
+                       oninput="calcularTotal()"
+                       class="w-full mt-2 border border-gray-300 focus:border-green-500
+                              focus:ring-2 focus:ring-green-200
+                              rounded-xl p-3 text-center text-lg font-semibold">
+            </div>
+
+            <!-- Botones -->
+            <div class="space-y-3">
+
+                <button type="submit"
+                        class="w-full bg-green-600 hover:bg-green-700
+                               text-white py-3 rounded-xl font-semibold shadow-md transition">
+                    Confirmar Pago
+                </button>
+
+                <button type="button"
+                        onclick="cerrarModal()"
+                        class="w-full bg-gray-200 hover:bg-gray-300
+                               text-gray-700 py-3 rounded-xl font-medium transition">
+                    Cancelar
+                </button>
+
+            </div>
+
+        </form>
+
+    </div>
+
+</div>
+
+
+
+<!-- =========================
+     SCRIPT
+========================= -->
+<script>
+
+let valorBase = 0;
+
+function abrirModal(cuotaId, valor) {
+
+    valorBase = parseFloat(valor);
+
+    document.getElementById("cuota_id").value = cuotaId;
+    document.getElementById("valorCuotaTexto").innerText = "$" + valorBase.toFixed(2);
+    document.getElementById("montoAdicional").value = 0;
+
+    calcularTotal();
+
+    document.getElementById("modalPago").classList.remove("hidden");
+    document.getElementById("modalPago").classList.add("flex");
+}
+
+function cerrarModal() {
+    document.getElementById("modalPago").classList.add("hidden");
+}
+
+function calcularTotal() {
+
+    let adicional = parseFloat(document.getElementById("montoAdicional").value) || 0;
+    let total = valorBase + adicional;
+
+    document.getElementById("totalTexto").innerText = "$" + total.toFixed(2);
+}
+
+</script>
+
+{% endblock %}

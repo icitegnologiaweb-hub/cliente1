@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mis Rutas</title>
+
+<link href="{{ url_for('static', filename='css/output.css') }}" rel="stylesheet">
+
+<style>
+body {
+    background:
+        radial-gradient(circle at top, #143b63 0%, #081e33 55%, #050f1c 100%);
+    min-height: 100vh;
+}
+
+.header-card {
+    background: linear-gradient(180deg, #173c63, #0c2440);
+    border-radius: 18px;
+    box-shadow: 0 10px 30px rgba(0,0,0,.45);
+}
+
+.card-ruta {
+    background: linear-gradient(135deg, #123b63, #0b2847);
+    border-radius: 18px;
+    box-shadow:
+        inset 0 0 0 1px rgba(255,255,255,.05),
+        0 10px 22px rgba(0,0,0,.35);
+    transition: all .25s ease;
+}
+
+.card-ruta:hover {
+    transform: translateY(-3px);
+    box-shadow:
+        inset 0 0 0 1px rgba(255,255,255,.08),
+        0 18px 30px rgba(0,0,0,.5);
+}
+
+.card-icon {
+    background: linear-gradient(135deg, #d8d9db, #1b4f9c);
+    box-shadow: 0 6px 14px rgba(31,111,212,.45);
+}
+
+.logo-glow {
+    filter: drop-shadow(0 0 12px rgb(255, 255, 255));
+}
+</style>
+</head>
+
+<body class="text-white">
+
+<div class="max-w-md mx-auto p-4">
+
+    <!-- Header -->
+    <div class="header-card px-5 py-4 mb-6 flex justify-between items-center">
+        <h2 class="text-lg font-semibold tracking-wide">
+            Mis Rutas
+        </h2>
+
+        <a href="{{ url_for('login_app') }}" class="opacity-80 hover:opacity-100 transition text-lg">
+            ⎋
+        </a>
+    </div>
+
+    <!-- Logo -->
+    <div class="flex justify-center mb-10">
+        <img src="{{ url_for('static', filename='img/logo.png') }}" 
+             class="h-20 logo-glow">
+    </div>
+
+    <!-- Lista -->
+    <div class="space-y-5">
+
+        {% if rutas %}
+
+            {% for ruta in rutas %}
+
+            <a href="{{ url_for('ver_ruta', ruta_id=ruta.id) }}"
+               class="block card-ruta px-5 py-4">
+
+                <div class="flex items-center justify-between">
+
+                    <div class="flex items-center gap-4">
+                        <div class="h-11 w-11 rounded-full flex items-center justify-center card-icon">
+                            🏍
+                        </div>
+
+                        <div>
+                            <div class="text-sm font-semibold tracking-wide">
+                                {{ ruta.codigo }}
+                            </div>
+                            <div class="text-xs opacity-70 mt-0.5">
+                                {{ ruta.nombre }}
+                            </div>
+                        </div>
+                    </div>
+
+                    <span class="text-blue-400 text-xl opacity-80">
+                        ›
+                    </span>
+
+                </div>
+
+            </a>
+
+            {% endfor %}
+
+        {% else %}
+
+            <div class="text-center opacity-60 text-sm mt-20">
+                No tienes rutas asignadas
+            </div>
+
+        {% endif %}
+
+    </div>
+
+</div>
+
+</body>
+</html>

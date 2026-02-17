@@ -1,0 +1,240 @@
+{% extends "base.html" %}
+{% block content %}
+
+<style>
+
+.caja-wrapper{
+    padding:30px;
+}
+
+/* TABS */
+.tabs{
+    display:flex;
+    gap:10px;
+    align-items:center;
+    margin-bottom:20px;
+}
+
+.tab{
+    padding:8px 16px;
+    border-radius:8px;
+    font-weight:600;
+    cursor:pointer;
+    border:1px solid #dcdcdc;
+    background:#f5f7fa;
+}
+
+.tab.active{
+    background:#2c7be5;
+    color:white;
+    border:none;
+}
+
+/* GRID PRINCIPAL */
+.caja-grid{
+    display:grid;
+    grid-template-columns: 1.1fr 1fr;
+    gap:25px;
+}
+
+/* CARD IZQUIERDA */
+.card-box{
+    background:white;
+    border-radius:15px;
+    padding:20px;
+    box-shadow:0 8px 25px rgba(0,0,0,0.05);
+}
+
+/* SALDO */
+.saldo-total{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+}
+
+.saldo-total h2{
+    margin:5px 0 0;
+    font-size:24px;
+}
+
+.icon-btn{
+    width:55px;
+    height:55px;
+    border-radius:10px;
+    border:none;
+    font-size:20px;
+    font-weight:bold;
+    cursor:pointer;
+}
+
+.icon-money{
+    background:#eaf2fb;
+    color:#2c7be5;
+}
+
+.icon-refresh{
+    background:#2c7be5;
+    color:white;
+}
+
+/* SEARCH */
+.search-box{
+    margin:15px 0;
+    position:relative;
+}
+
+.search-box input{
+    width:100%;
+    padding:10px 35px 10px 12px;
+    border-radius:8px;
+    border:1px solid #ddd;
+}
+
+.search-box span{
+    position:absolute;
+    right:10px;
+    top:8px;
+    font-size:18px;
+    color:#999;
+}
+
+/* LISTA */
+.ruta-item{
+    display:flex;
+    justify-content:space-between;
+    padding:10px 5px;
+    border-bottom:1px solid #f0f0f0;
+    font-size:14px;
+}
+
+.ruta-item:hover{
+    background:#f8f9fb;
+}
+
+/* PANEL DERECHO */
+.resumen-panel{
+    background:#f8f9fa;
+    border-radius:15px;
+    padding:15px 0;
+}
+
+.resumen-item{
+    display:flex;
+    justify-content:space-between;
+    padding:15px 20px;
+    border-bottom:1px solid #e6e6e6;
+    font-size:14px;
+    align-items:center;
+}
+
+.resumen-item:last-child{
+    font-weight:bold;
+}
+
+.badge-ruta{
+    background:#2c7be5;
+    color:white;
+    padding:4px 10px;
+    border-radius:6px;
+    font-size:12px;
+}
+
+@media(max-width:900px){
+    .caja-grid{
+        grid-template-columns:1fr;
+    }
+}
+
+</style>
+
+<div class="caja-wrapper">
+
+    <!-- TABS Y RUTA -->
+    <div class="tabs">
+        <div class="tab active">Caja del Día</div>
+        <div class="tab">Caja por Fechas</div>
+
+        <div style="margin-left:auto;">
+            Ruta seleccionada:
+            <span class="badge-ruta">Ruta no seleccionada</span>
+        </div>
+    </div>
+
+    <div class="caja-grid">
+
+        <!-- IZQUIERDA -->
+        <div class="card-box">
+
+            <div class="saldo-total">
+                <div>
+                    <small>SALDO TOTAL CAJAS</small>
+                    <h2>$ {{ "{:,.2f}".format(saldo_total) }}</h2>
+                </div>
+
+                <div style="display:flex; gap:10px;">
+                    <button class="icon-btn icon-money">$</button>
+                    <button class="icon-btn icon-refresh">⟳</button>
+                </div>
+            </div>
+
+            <!-- SEARCH -->
+            <div class="search-box">
+                <input type="text" placeholder="Buscar ruta...">
+                <span>🔍</span>
+            </div>
+
+            <!-- LISTA RUTAS -->
+            {% for c in cajas %}
+            <div class="ruta-item">
+                <span>{{ c.ruta }}</span>
+                <span>$ {{ "{:,.2f}".format(c.saldo) }}</span>
+            </div>
+            {% endfor %}
+
+        </div>
+
+        <!-- DERECHA -->
+        <div class="resumen-panel">
+
+            <div class="resumen-item">
+                <span>Saldo anterior</span>
+                <span>$ {{ "{:,.2f}".format(resumen.saldo_anterior) }}</span>
+            </div>
+
+            <div class="resumen-item">
+                <span>Total recibido</span>
+                <span>$ {{ "{:,.2f}".format(resumen.total_recibido) }}</span>
+            </div>
+
+            <div class="resumen-item">
+                <span>Total cobros</span>
+                <span>$ {{ "{:,.2f}".format(resumen.total_cobros) }}</span>
+            </div>
+
+            <div class="resumen-item">
+                <span>Total préstamos</span>
+                <span>$ {{ "{:,.2f}".format(resumen.total_prestamos) }}</span>
+            </div>
+
+            <div class="resumen-item">
+                <span>Total gastos</span>
+                <span>$ {{ "{:,.2f}".format(resumen.total_gastos) }}</span>
+            </div>
+
+            <div class="resumen-item">
+                <span>Transferencias + Retiros</span>
+                <span>$ {{ "{:,.2f}".format(resumen.transferencias_retiros) }}</span>
+            </div>
+
+            <div class="resumen-item">
+                <span>Saldo actual</span>
+                <span>$ {{ "{:,.2f}".format(resumen.saldo_actual) }}</span>
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+{% endblock %}

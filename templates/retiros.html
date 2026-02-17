@@ -1,0 +1,246 @@
+{% extends "base.html" %}
+{% block content %}
+
+<style>
+
+.retiros-container {
+    padding: 30px;
+}
+
+.retiros-card {
+    background: white;
+    border-radius: 18px;
+    padding: 25px;
+    box-shadow: 0 15px 40px rgba(0,0,0,0.08);
+}
+
+/* HEADER */
+
+.retiros-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.retiros-title {
+    font-size: 20px;
+    font-weight: 700;
+    color: #2c3e50;
+}
+
+.btn-add {
+    background: #2ecc71;
+    color: white;
+    border: none;
+    padding: 8px 18px;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+/* FILTROS */
+
+.filters {
+    display: flex;
+    gap: 15px;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.filters input,
+.filters input[type="date"] {
+    padding: 8px 12px;
+    border-radius: 8px;
+    border: 1px solid #ddd;
+    font-size: 13px;
+}
+
+.btn-filter {
+    background: #27ae60;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 600;
+}
+
+/* TABLA */
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+thead {
+    background: #f5f7fa;
+}
+
+th, td {
+    padding: 12px;
+    font-size: 14px;
+    text-align: left;
+}
+
+th {
+    font-weight: 600;
+    color: #34495e;
+}
+
+tbody tr {
+    border-bottom: 1px solid #eee;
+}
+
+tbody tr:hover {
+    background: #f9fbfd;
+}
+
+.search-input {
+    width: 100%;
+    padding: 6px;
+    border-radius: 6px;
+    border: 1px solid #ddd;
+    font-size: 12px;
+}
+
+/* FOOTER */
+
+.table-footer {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 15px;
+    font-weight: 600;
+    color: #2c3e50;
+}
+
+/* BOTÓN DELETE */
+
+.btn-delete {
+    background: #e74c3c;
+    border: none;
+    padding: 6px 10px;
+    border-radius: 6px;
+    color: white;
+    cursor: pointer;
+}
+
+@media (max-width: 768px) {
+    .filters {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+}
+
+</style>
+
+<div class="retiros-container">
+
+    <div class="retiros-card">
+
+        <!-- Header -->
+        <div class="retiros-header">
+            <div class="retiros-title">
+                Retiros
+            </div>
+            <button class="btn-add">
+                + Agregar retiro
+            </button>
+        </div>
+
+        <!-- Filtros -->
+        <div class="filters">
+            <input type="text" placeholder="Buscar ruta, descripción...">
+
+            <label>Desde:</label>
+            <input type="date" value="{{ hoy }}">
+
+            <label>Hasta:</label>
+            <input type="date" value="{{ hoy }}">
+
+            <button class="btn-filter">
+                Filtrar
+            </button>
+        </div>
+
+        <!-- Tabla -->
+        <table id="retirosTable">
+
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Fecha</th>
+                    <th>Valor</th>
+                    <th>Descripción</th>
+                    <th>Ruta</th>
+                    <th>Acciones</th>
+                </tr>
+                <tr>
+                    <th></th>
+                    <th><input class="search-input" placeholder="Buscar fecha"></th>
+                    <th></th>
+                    <th><input class="search-input" placeholder="Buscar descripción"></th>
+                    <th><input class="search-input" placeholder="Buscar ruta"></th>
+                    <th></th>
+                </tr>
+            </thead>
+
+            <tbody>
+                {% for r in retiros %}
+                <tr>
+                    <td>{{ r.id }}</td>
+                    <td>{{ r.fecha }}</td>
+                    <td>$ {{ "{:,.0f}".format(r.valor) }}</td>
+                    <td>{{ r.descripcion }}</td>
+                    <td>{{ r.ruta }}</td>
+                    <td>
+                        <button class="btn-delete">🗑</button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+
+        </table>
+
+        <!-- Footer -->
+        <div class="table-footer">
+            <div>
+                Total: $ {{ "{:,.0f}".format(total) }}
+            </div>
+            <div id="rowCount">
+                Mostrando {{ retiros|length }} registros
+            </div>
+        </div>
+
+    </div>
+
+</div>
+
+<script>
+
+// 🔎 Filtro en tiempo real
+const inputs = document.querySelectorAll(".search-input");
+const table = document.getElementById("retirosTable");
+const rows = table.getElementsByTagName("tbody")[0].getElementsByTagName("tr");
+
+inputs.forEach((input, index) => {
+    input.addEventListener("keyup", () => {
+
+        for (let row of rows) {
+            let cell = row.getElementsByTagName("td")[index];
+            if (cell) {
+                let text = cell.textContent.toLowerCase();
+                row.style.display = text.includes(input.value.toLowerCase()) ? "" : "none";
+            }
+        }
+
+        let visible = [...rows].filter(r => r.style.display !== "none").length;
+        document.getElementById("rowCount").innerText =
+            "Mostrando " + visible + " registros";
+    });
+});
+
+</script>
+
+{% endblock %}

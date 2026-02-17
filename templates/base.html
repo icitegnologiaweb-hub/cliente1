@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>{% block title %}Dashboard{% endblock %}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="{{ url_for('static', filename='css/output.css') }}" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+    <!-- Bootstrap -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <!-- Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+
+</head>
+
+<style>
+
+    /* Quitar subrayado del sidebar */
+.sidebar a,
+.sidebar a:hover,
+.sidebar a:focus {
+    text-decoration: none !important;
+}
+
+/* Links del menú */
+.sidebar .nav-link {
+    color: #cbd5e1;
+    font-weight: 500;
+    transition: all .2s ease;
+}
+
+/* Hover moderno */
+.sidebar .nav-link:hover {
+    background: rgba(255,255,255,0.08);
+    color: #fff;
+    border-radius: 8px;
+}
+
+/* Activo elegante */
+.sidebar .nav-link.active {
+    background: linear-gradient(90deg, #2563eb, #1e40af);
+    color: #fff;
+    border-radius: 8px;
+}
+header {
+    backdrop-filter: blur(8px);
+}
+
+/* SIDEBAR BASE */
+#sidebar {
+    background: linear-gradient(180deg,#0f172a,#0b1220);
+    min-height: 100vh;
+}
+
+/* Quitar subrayado */
+#sidebar a {
+    text-decoration: none !important;
+}
+
+/* Usuario */
+.sidebar-user {
+    padding: 20px 18px;
+    border-bottom: 1px solid rgba(255,255,255,.06);
+}
+
+.sidebar-avatar {
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    background: linear-gradient(135deg,#2563eb,#1d4ed8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 16px;
+}
+
+/* Menú */
+.menu-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 18px;
+    border-radius: 10px;
+    color: #cbd5e1;
+    transition: all .2s ease;
+}
+
+.menu-item i {
+    font-size: 16px;
+}
+
+/* Hover */
+.menu-item:hover {
+    background: rgba(255,255,255,.05);
+    color: #fff;
+}
+
+/* Activo */
+.menu-item.active {
+    background: linear-gradient(90deg,#2563eb,#1d4ed8);
+    color: white;
+    box-shadow: 0 4px 12px rgba(37,99,235,.3);
+}
+
+/* Secciones */
+.sidebar-section {
+    font-size: 11px;
+    letter-spacing: .5px;
+    color: #64748b;
+    margin: 18px 0 8px 10px;
+}
+
+/* COLAPSADO */
+#sidebar.collapsed {
+    width: 80px !important;
+}
+
+#sidebar.collapsed .sidebar-text {
+    display: none;
+}
+
+#sidebar.collapsed .sidebar-user div:last-child {
+    display: none;
+}
+/* Scroll interno */
+.sidebar-scroll {
+    overflow-y: auto;
+}
+
+/* Scroll más elegante */
+.sidebar-scroll::-webkit-scrollbar {
+    width: 6px;
+}
+
+.sidebar-scroll::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.sidebar-scroll::-webkit-scrollbar-thumb {
+    background: rgba(255,255,255,0.15);
+    border-radius: 10px;
+}
+
+.sidebar-scroll::-webkit-scrollbar-thumb:hover {
+    background: rgba(255,255,255,0.3);
+}.oficina-selector {
+    background: transparent;
+    border: none;
+    padding: 8px 10px;
+    border-radius: 10px;
+    transition: all .2s ease;
+}
+
+.oficina-selector:hover {
+    background: rgba(0,0,0,0.05);
+}
+
+
+</style>
+<body class="bg-gray-100">
+
+<!-- TOAST NOTIFICATIONS -->
+{% with messages = get_flashed_messages(with_categories=true) %}
+{% if messages %}
+<div id="toastContainer" class="fixed top-6 right-6 space-y-4 z-[9999]">
+    {% for category, message in messages %}
+    <div class="toast px-6 py-4 rounded-xl shadow-2xl border 
+        backdrop-blur-md transition-all duration-500
+        {% if category == 'success' %}
+            bg-white border-emerald-200
+        {% elif category == 'warning' %}
+            bg-white border-yellow-200
+        {% else %}
+            bg-white border-red-200
+        {% endif %}
+    ">
+        <p class="font-medium text-gray-800">
+            {{ message }}
+        </p>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+{% endwith %}
+
+<div class="flex h-screen overflow-hidden">
+
+
+    <aside id="sidebar"
+    class="w-64 transition-all duration-300 flex flex-col shadow-lg">
+
+    <!-- USER -->
+    <div class="sidebar-user d-flex align-items-center gap-3">
+
+        <div class="sidebar-avatar text-white">
+            {{ session.get('nombre','U')[0] }}
+        </div>
+
+        <div>
+            <div class="fw-semibold text-white sidebar-text">
+                {{ session.get('nombre','') }} {{ session.get('apellido','') }}
+            </div>
+            <small class="text-secondary sidebar-text">
+                {{ session['rol']|capitalize }}
+            </small>
+        </div>
+
+    </div>
+
+    <!-- MENU (CON SCROLL) -->
+    <nav class="flex-grow-1 ps-2 pe-3 py-4 sidebar-scroll">
+
+        <div class="sidebar-section sidebar-text">MENÚ</div>
+
+        <a href="{{ url_for('listar_ventas') }}" class="menu-item">
+            <i class="bi bi-map"></i>
+            <span class="sidebar-text">Ventas Activas</span>
+        </a>
+
+        <a href="{{ url_for('clientes') }}" class="menu-item">
+            <i class="bi bi-people"></i>
+            <span class="sidebar-text">Clientes</span>
+        </a>
+
+        <a href="{{ url_for('capital') }}" class="menu-item">
+            <i class="bi bi-cash-stack"></i>
+            <span class="sidebar-text">Capital</span>
+        </a>
+
+        <a href="{{ url_for('gastos') }}" class="menu-item">
+            <i class="bi bi-wallet2"></i>
+            <span class="sidebar-text">Gastos</span>
+        </a>
+
+        <a href="{{ url_for('transferencias') }}" class="menu-item">
+            <i class="bi bi-arrow-left-right"></i>
+            <span class="sidebar-text">Transferencias</span>
+        </a>
+
+        <a href="{{ url_for('retiros') }}" class="menu-item">
+            <i class="bi bi-currency-dollar"></i>
+            <span class="sidebar-text">Retiros</span>
+        </a>
+
+        <a href="{{ url_for('caja') }}" class="menu-item">
+            <i class="bi bi-archive"></i>
+            <span class="sidebar-text">Caja</span>
+        </a>
+
+        <a href="{{ url_for('reportes') }}" class="menu-item">
+            <i class="bi bi-graph-up-arrow"></i>
+            <span class="sidebar-text">Reportes</span>
+        </a>
+
+        <a href="#" class="menu-item">
+            <i class="bi bi-calendar-week"></i>
+            <span class="sidebar-text">Liquidación</span>
+        </a>
+
+        <div class="sidebar-section sidebar-text mt-4">CONFIGURACIÓN</div>
+
+        <a  href="{{ url_for('usuarios') }}" class="menu-item">
+            <i class="bi bi-person-gear"></i>
+            <span class="sidebar-text">Usuarios</span>
+        </a>
+
+        <a href="{{ url_for('listar_rutas') }}" class="menu-item">
+            <i class="bi bi-map"></i>
+            <span class="sidebar-text">Rutas</span>
+        </a>
+
+    </nav>
+
+</aside>
+
+    <!-- CONTENIDO -->
+    <div class="flex-1 flex flex-col overflow-hidden">
+
+        <header class="bg-white bg-opacity-75 px-4 py-3 d-flex justify-content-between align-items-center shadow-sm">
+
+    <!-- Título -->
+<div class="d-flex align-items-center gap-4">
+    <!-- Toggle -->
+    <button id="toggleSidebar"
+        class="btn btn-light border-0 shadow-sm rounded-circle 
+               d-flex align-items-center justify-content-center"
+        style="width:38px;height:38px;">
+        <i class="bi bi-list fs-5"></i>
+    </button>
+        <img src="{{ url_for('static', filename='img/logo.png') }}"
+            alt="Logo"
+            class="img-fluid"
+            style="height:50px; width:auto;">
+
+    </div>
+
+
+    <!-- Derecha OFIICNA -->
+        <div class="d-flex align-items-center gap-3">
+    {% if session.get('oficina_nombre') %}
+    <div class="dropdown">
+
+        <button class="oficina-selector"
+                data-bs-toggle="dropdown">
+
+            <div class="d-flex align-items-center gap-2">
+                <i class="bi bi-buildings fs-5 text-secondary"></i>
+
+                <span class="fw-semibold">
+                    {{ session.get('oficina_nombre') }}
+                </span>
+
+                <i class="bi bi-chevron-down small text-muted"></i>
+            </div>
+
+        </button>
+
+        <ul class="dropdown-menu dropdown-menu-end shadow border-0 mt-2">
+
+            <li>
+                <a class="dropdown-item py-2" 
+                href="{{ url_for('cambiar_oficina') }}">
+                    <i class="bi bi-arrow-repeat me-2 text-primary"></i>
+                    Cambiar oficina
+                </a>
+            </li>
+
+        </ul>
+    </div>
+    {% endif %}
+
+   <!-- Usuario -->
+<div class="dropdown">
+
+    <button
+        class="btn p-0 border-0 bg-transparent"
+        data-bs-toggle="dropdown"
+        aria-expanded="false"
+    >
+        <div class="d-flex align-items-center gap-3">
+
+            <!-- Nombre y rol -->
+            <div class="text-end lh-sm">
+                <div class="fw-semibold text-dark" style="font-size:14px;">
+                    {{ session.get('nombre') }} {{ session.get('apellido') }}
+                </div>
+                <div class="text-muted" style="font-size:12px;">
+                    {{ session.get('rol') }}
+                </div>
+            </div>
+
+            <!-- Avatar -->
+            <div class="rounded-circle overflow-hidden border"
+                 style="width:40px;height:40px;">
+                <img src="{{ url_for('static', filename='img/user.png') }}"
+                     alt="Usuario"
+                     class="w-100 h-100 object-fit-cover">
+            </div>
+
+        </div>
+    </button>
+
+    <!-- Dropdown -->
+    <ul class="dropdown-menu dropdown-menu-end shadow border-0 mt-2">
+
+        <li class="px-3 py-2">
+            <div class="fw-semibold">
+                {{ session.get('nombre') }} {{ session.get('apellido') }}
+            </div>
+            <small class="text-muted">
+                {{ session.get('rol') }}
+            </small>
+        </li>
+
+        <li><hr class="dropdown-divider"></li>
+
+        <li>
+            <button class="dropdown-item text-danger"
+                    data-bs-toggle="modal"
+                    data-bs-target="#logoutModal">
+                <i class="bi bi-box-arrow-right me-2"></i>
+                Cerrar sesión
+            </button>
+        </li>
+
+    </ul>
+</div>
+
+
+    </div>
+</header>
+
+
+
+        <!-- MAIN -->
+        <main class="flex-1 overflow-y-auto p-6">
+            {% block content %}{% endblock %}
+        </main>
+
+    </div>
+
+</div>
+
+<!-- MODAL CERRAR SESIÓN -->
+<div class="modal fade" id="logoutModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header">
+        <h5 class="modal-title">Cerrar sesión</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        ¿Estás seguro que deseas cerrar sesión?
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+            Cancelar
+        </button>
+        <a href="{{ url_for('logout') }}" class="btn btn-danger">
+            Sí, cerrar sesión
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+
+    const sidebar = document.getElementById("sidebar");
+    const toggleBtn = document.getElementById("toggleSidebar");
+
+    if (!sidebar || !toggleBtn) return;
+
+    // Restaurar estado guardado
+    const isCollapsed = localStorage.getItem("sidebarCollapsed");
+
+    if (isCollapsed === "true") {
+        sidebar.classList.add("collapsed");
+    }
+
+    // Evento toggle
+    toggleBtn.addEventListener("click", function () {
+
+        sidebar.classList.toggle("collapsed");
+
+        localStorage.setItem(
+            "sidebarCollapsed",
+            sidebar.classList.contains("collapsed")
+        );
+    });
+
+});
+</script>
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+    const toasts = document.querySelectorAll(".toast");
+
+    toasts.forEach(toast => {
+        setTimeout(() => {
+            toast.style.opacity = "0";
+            toast.style.transform = "translateY(-10px)";
+            setTimeout(() => toast.remove(), 400);
+        }, 3000);
+    });
+});
+</script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+</body>
+</html>

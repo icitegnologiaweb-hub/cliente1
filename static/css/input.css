@@ -1,0 +1,12 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+
+.menu-item {
+    @apply flex items-center gap-3 px-4 py-2 rounded-lg text-gray-300 hover:bg-slate-700 hover:text-white transition;
+}
+
+.menu-item.active {
+    @apply bg-blue-600 text-white shadow-md;
+}

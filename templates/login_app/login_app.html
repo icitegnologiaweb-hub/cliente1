@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Iniciar Sesión</title>
+<link href="{{ url_for('static', filename='css/output.css') }}" rel="stylesheet">
+
+<style>
+:root {
+    --primary: #111827;
+    --primary-hover: #1F2937;
+    --bg-light: #353535;
+    --text-muted: #6B7280;
+    --border-light: #E5E7EB;
+}
+
+body {
+  background:
+        radial-gradient(circle at top, #143b63 0%, #081e33 55%, #050f1c 100%);
+    min-height: 100vh;
+}
+
+/* Card estilo app */
+.login-card {
+    background: white;
+    border-radius: 24px;
+    box-shadow: 0 10px 30px rgba(0,0,0,.06);
+}
+
+/* Inputs grandes táctiles */
+.form-control-custom {
+    border: 1px solid var(--border-light);
+    border-radius: 14px;
+    padding: 16px;
+    font-size: 16px;
+    background: #F9FAFB;
+    transition: .2s;
+}
+
+.form-control-custom:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(17,24,39,.1);
+    background: white;
+    outline: none;
+}
+
+/* Botón grande */
+.btn-primary-custom {
+    background: var(--primary);
+    border-radius: 16px;
+    padding: 16px;
+    font-size: 16px;
+    font-weight: 600;
+    transition: .2s;
+}
+
+.btn-primary-custom:hover {
+    background: var(--primary-hover);
+}
+</style>
+</head>
+
+<body class="min-h-screen flex items-center justify-center px-4">
+
+<div class="w-full max-w-sm login-card p-8">
+
+    <!-- Logo -->
+    <div class="flex justify-center mb-8">
+        <img src="{{ url_for('static', filename='img/logo.png') }}" 
+             class="h-16">
+    </div>
+
+    <h2 class="text-xl font-bold text-center mb-8 text-gray-800">
+        Acceso al Sistema
+    </h2>
+
+    <form method="POST" class="space-y-6">
+
+        <!-- Email -->
+        <div>
+            <label class="block text-sm mb-2 text-gray-500">
+                Correo electrónico
+            </label>
+            <input type="email" name="email" required
+                class="w-full form-control-custom">
+        </div>
+
+        <!-- Password -->
+        <div class="relative">
+            <label class="block text-sm mb-2 text-gray-500">
+                Contraseña
+            </label>
+
+            <input 
+                type="password" 
+                name="password" 
+                id="password"
+                required
+                class="w-full form-control-custom pr-12">
+
+            <button 
+                type="button"
+                onclick="togglePassword()"
+                class="absolute right-4 top-[45px] text-gray-400">
+
+                <!-- Ojo cerrado -->
+                <svg id="eyeClosed" xmlns="http://www.w3.org/2000/svg" 
+                    class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                    d="M13.875 18.825A10.05 10.05 0 0112 19c-5 0-9-7-9-7a17.1 17.1 0 012.805-3.565M6.18 6.18A9.953 9.953 0 0112 5c5 0 9 7 9 7a16.978 16.978 0 01-4.043 4.943M15 12a3 3 0 11-6 0 3 3 0 016 0zm6 6L3 3" />
+                </svg>
+
+                <!-- Ojo abierto -->
+                <svg id="eyeOpen" xmlns="http://www.w3.org/2000/svg" 
+                    class="h-5 w-5 hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                    d="M15 12a3 3 0 11-6 0 3 3 0 016 0zm7.938 0C21.729 14.943 17.74 18 12 18c-5.74 0-9.729-3.057-10.938-6C2.271 9.057 6.26 6 12 6c5.74 0 9.729 3.057 10.938 6z" />
+                </svg>
+
+            </button>
+        </div>
+
+        <!-- Botón -->
+        <button type="submit"
+            class="w-full text-white btn-primary-custom">
+            Ingresar
+        </button>
+
+{% if error %}
+<div class="bg-red-100 text-red-600 text-sm p-3 rounded-lg text-center">
+    {{ error }}
+</div>
+{% endif %}
+
+
+    </form>
+
+    <div class="mt-10 text-center text-xs text-gray-400">
+        © 2026 ML
+    </div>
+
+</div>
+
+<script>
+function togglePassword() {
+    const passwordInput = document.getElementById("password");
+    const eyeOpen = document.getElementById("eyeOpen");
+    const eyeClosed = document.getElementById("eyeClosed");
+
+    if (passwordInput.type === "password") {
+        passwordInput.type = "text";
+        eyeOpen.classList.remove("hidden");
+        eyeClosed.classList.add("hidden");
+    } else {
+        passwordInput.type = "password";
+        eyeOpen.classList.add("hidden");
+        eyeClosed.classList.remove("hidden");
+    }
+}
+</script>
+
+</body>
+</html>

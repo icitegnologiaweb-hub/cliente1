@@ -1,0 +1,306 @@
+{% extends "base.html" %}
+{% block content %}
+
+<style>
+
+body {
+    background: #f4f6f9;
+}
+
+/* CONTENEDOR GENERAL */
+.panel-ventas {
+    background: #ffffff;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,.06);
+    overflow: hidden;
+}
+
+/* HEADER */
+.panel-header {
+    padding: 20px 24px;
+    border-bottom: 1px solid #eef1f4;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.panel-title {
+    font-size: 20px;
+    font-weight: 600;
+    color: #1f2937;
+}
+
+.panel-sub {
+    font-size: 13px;
+    color: #6b7280;
+}
+
+/* FILTROS */
+.panel-filtros {
+    padding: 24px;
+    background: #fafbfd;
+    border-bottom: 1px solid #eef1f4;
+}
+
+.filtros-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 20px;
+    align-items: end;
+}
+
+.filtro-group label {
+    font-size: 12px;
+    font-weight: 600;
+    color: #6b7280;
+    margin-bottom: 6px;
+    display: block;
+}
+
+.input-clean {
+    width: 100%;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 14px;
+    transition: .2s;
+}
+
+.input-clean:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 2px rgba(59,130,246,.15);
+}
+
+/* SALDO */
+.saldo-box {
+    background: #eef2ff;
+    padding: 12px;
+    border-radius: 8px;
+    text-align: center;
+}
+
+.saldo-box span {
+    display: block;
+    font-size: 12px;
+    color: #6b7280;
+}
+
+.saldo-box strong {
+    font-size: 18px;
+    color: #2563eb;
+}
+
+/* BOTÓN NUEVA VENTA */
+.btn-nueva {
+    background: #16a34a;
+    color: white;
+    border: none;
+    padding: 10px 18px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    transition: .2s;
+}
+
+.btn-nueva:hover {
+    background: #15803d;
+}
+
+/* TABLA */
+.table-container {
+    padding: 0 24px 24px 24px;
+}
+
+.tabla-modern {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+}
+
+.tabla-modern thead {
+    background: #f1f5f9;
+}
+
+.tabla-modern th {
+    padding: 12px;
+    text-align: left;
+    font-weight: 600;
+    color: #374151;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.tabla-modern td {
+    padding: 12px;
+    border-bottom: 1px solid #f3f4f6;
+}
+
+.tabla-modern tbody tr:hover {
+    background: #f9fafb;
+}
+
+</style>
+
+<div class="container py-5">
+
+    <div class="panel-ventas">
+
+        <!-- HEADER -->
+        <div class="panel-header">
+            <div>
+                <div class="panel-title">Ventas Activas</div>
+                <div class="panel-sub">Gestión y control de ventas registradas</div>
+            </div>
+
+            <!-- BOTÓN NUEVA VENTA -->
+            <div>
+            <a href="{{ url_for('nueva_venta') }}"
+            class="bg-blue-600 hover:bg-blue-700 text-white text-sm px-4 py-2 rounded-lg shadow-sm transition no-underline"
+            style="text-decoration: none;">
+                + Nueva Venta
+            </a>
+
+            </div>
+        </div>
+
+        <!-- FILTROS -->
+        <form method="GET" action="{{ url_for('listar_ventas') }}">
+
+            <div class="panel-filtros">
+
+                <div class="filtros-grid">
+
+                    <!-- Ruta -->
+                    <div class="filtro-group">
+                        <label>Seleccionar Ruta</label>
+                        <select name="ruta_id"
+                                onchange="this.form.submit()"
+                                class="input-clean">
+                            <option value="">Seleccione una ruta</option>
+                            {% for ruta in rutas %}
+                                <option value="{{ ruta.id }}"
+                                    {% if ruta_id == ruta.id %} selected {% endif %}>
+                                    {{ ruta.nombre }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <!-- Buscar -->
+                    <div class="filtro-group">
+                        <label>Buscar Cliente</label>
+                        <input type="text"
+                               name="buscar"
+                               value="{{ request.args.get('buscar','') }}"
+                               class="input-clean"
+                               placeholder="Nombre, Fecha, identificación">
+                    </div>
+
+                    <!-- Filtro -->
+                    <div class="filtro-group">
+                    <label>Filtrar por Mora</label>
+                    <select name="filtro_mora"
+                            onchange="this.form.submit()"
+                            class="input-clean">
+
+                        <option value="">Todos</option>
+
+                        <option value="21"
+                            {% if request.args.get('filtro_mora') == '21' %} selected {% endif %}
+                            style="color:red;">
+                            🔴 21 días de mora
+                        </option>
+
+                        <option value="11"
+                            {% if request.args.get('filtro_mora') == '11' %} selected {% endif %}
+                            style="color:orange;">
+                            🟡 11 días de mora
+                        </option>
+
+                        <option value="0"
+                            {% if request.args.get('filtro_mora') == '0' %} selected {% endif %}
+                            style="color:green;">
+                            🟢 Sin novedad
+                        </option>
+
+                    </select>
+                </div>
+                <div class="filtro-group" style="display:flex; align-items:flex-end;">
+                    <a href="{{ url_for('listar_ventas') }}"
+                    class="bg-gray-500 hover:bg-success-600 text-white text-sm px-4 py-2 rounded-lg shadow-sm transition"
+                    style="text-decoration:none;">
+                        Limpiar filtros
+                    </a>
+                </div>
+
+                    <!-- Saldo -->
+                    <div class="saldo-box">
+                        <span>Saldo Cartera</span>
+                        <strong>$ {{ "{:,.2f}".format(saldo_total) }}</strong>
+                    </div>
+
+                </div>
+
+
+
+            </div>
+
+        </form>
+
+        <!-- TABLA -->
+        <div class="table-container">
+            <table class="tabla-modern">
+
+                <thead>
+                    <tr>
+                        <th><input type="checkbox"></th>
+                        <th>Posición</th>
+                        <th>Código</th>
+                        <th>Valor Venta</th>
+                        <th>Valor Total a Pagar</th>
+                        <th>Saldo Actual</th>
+                        <th>Cliente</th>
+                        <th>Identificación</th>
+                        <th>Fecha Registro</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+                    {% for venta in ventas %}
+                    <tr class="
+                            {% if venta.dias_mora >= 21 %} bg-red-50
+                            {% elif venta.dias_mora >= 11 %} bg-yellow-50
+                            {% elif venta.dias_mora == 0 %} bg-green-50
+                            {% endif %}
+                        ">
+                        <td><input type="checkbox"></td>
+                        <td>{{ venta.posicion }}</td>
+                        <td>{{ venta.codigo }}</td>
+                        <td>{{ venta.valor_venta }}</td>
+                        <td>{{ venta.valor_total }}</td>
+                        <td>{{ venta.saldo }}</td>
+                        <td>{{ venta.cliente }}</td>
+                        <td>{{ venta.identificacion }}</td>
+                        <td>{{ venta.fecha_registro }}</td>
+                        <td>
+
+                            <a href="{{ url_for('historial_creditos', cliente_id=venta.cliente_id) }}"
+                            class="text-blue-600 hover:text-blue-800 text-lg"
+                            title="Ver historial de créditos">
+                                👁️
+                            </a>
+                        </td>
+
+                    </tr>
+                    {% endfor %}
+                </tbody>
+
+            </table>
+        </div>
+
+    </div>
+
+</div>
+
+{% endblock %}

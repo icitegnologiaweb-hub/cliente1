@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="container-fluid mt-3">
+
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <a href="#" class="text-decoration-none">← Regresar</a>
+        <h5>Módulo de reportes</h5>
+        <span class="text-muted">Dashboard / Módulo de reportes</span>
+    </div>
+
+    <!-- Filtros -->
+    <div class="card p-3 mb-3">
+        <div class="row">
+
+            <div class="col-md-3">
+                <label>Desde</label>
+                <input type="date" class="form-control" value="{{ hoy }}">
+            </div>
+
+            <div class="col-md-3">
+                <label>Hasta</label>
+                <input type="date" class="form-control" value="{{ hoy }}">
+            </div>
+
+            <div class="col-md-3">
+                <label>Ruta</label>
+                <select class="form-control">
+                    <option>1MILAGROS VICTOR RAMON</option>
+                    <option>2MILAGROS CRISTHIAN</option>
+                </select>
+            </div>
+
+            <div class="col-md-3 d-flex align-items-end">
+                <button class="btn btn-success w-100">
+                    Consultar
+                </button>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Pestañas -->
+    <ul class="nav nav-tabs mb-3">
+
+        <li class="nav-item">
+            <a class="nav-link {% if pestaña=='ventas' %}active{% endif %}"
+               href="{{ url_for('reportes', tab='ventas') }}">
+               Ventas registradas
+            </a>
+        </li>
+
+        <li class="nav-item">
+            <a class="nav-link {% if pestaña=='liquidacion' %}active{% endif %}"
+               href="{{ url_for('reportes', tab='liquidacion') }}">
+               Liquidación Semanal
+            </a>
+        </li>
+
+    </ul>
+
+    <!-- CONTENIDO DINÁMICO -->
+
+    {% if pestaña == 'ventas' %}
+
+    <!-- TABLA VENTAS -->
+    <div class="card p-3">
+
+        <div class="table-responsive">
+            <table class="table table-bordered table-sm">
+                <thead class="table-light">
+                    <tr>
+                        <th>Cliente</th>
+                        <th>Total Venta</th>
+                        <th>Tasa Interes</th>
+                        <th>Interes</th>
+                        <th>Total</th>
+                        <th>Saldo venta</th>
+                        <th>Fecha registro</th>
+                        <th>Fecha finalización</th>
+                        <th>Registrado por</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for v in ventas %}
+                    <tr>
+                        <td>{{ v.cliente }}</td>
+                        <td>${{ "{:,.0f}".format(v.total_venta) }}</td>
+                        <td>{{ v.tasa }}</td>
+                        <td>${{ "{:,.0f}".format(v.interes) }}</td>
+                        <td>${{ "{:,.0f}".format(v.total) }}</td>
+                        <td>${{ "{:,.0f}".format(v.saldo) }}</td>
+                        <td>{{ v.fecha_registro }}</td>
+                        <td>{{ v.fecha_final }}</td>
+                        <td>{{ v.registrado }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+    </div>
+
+    {% endif %}
+
+
+    {% if pestaña == 'liquidacion' %}
+
+    <!-- TABLA LIQUIDACION -->
+    <div class="card p-3">
+
+        <div class="table-responsive">
+            <table class="table table-bordered table-sm">
+                <thead class="table-light">
+                    <tr>
+                        <th>Ruta</th>
+                        <th>Total Cobrado</th>
+                        <th>Total Préstamos</th>
+                        <th>Total Gastos</th>
+                        <th>Saldo</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for l in liquidacion %}
+                    <tr>
+                        <td>{{ l.ruta }}</td>
+                        <td>${{ "{:,.0f}".format(l.total_cobrado) }}</td>
+                        <td>${{ "{:,.0f}".format(l.total_prestamos) }}</td>
+                        <td>${{ "{:,.0f}".format(l.total_gastos) }}</td>
+                        <td>${{ "{:,.0f}".format(l.saldo) }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+    </div>
+
+    {% endif %}
+
+</div>
+
+{% endblock %}

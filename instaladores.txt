@@ -1,0 +1,9 @@
+instalar node.js
+npm install
+
+
+🚨 IMPORTANTE (Seguridad)
+
+Ahora mismo usamos password plano.
+En producción debes usar:
+bcrypt

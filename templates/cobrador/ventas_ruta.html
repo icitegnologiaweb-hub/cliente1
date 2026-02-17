@@ -1,0 +1,122 @@
+{% extends "cobrador/layout.html" %}
+
+{% block titulo %}
+{{ ruta.nombre }}
+{% endblock %}
+
+{% block content %}
+
+<div class="space-y-5 mt-4">
+
+    {% if creditos %}
+
+        {% for credito in creditos %}
+
+        <a href="{{ url_for('detalle_credito', credito_id=credito.id) }}"
+           class="block bg-gradient-to-br from-[#123b63] to-[#0b2847]
+                  rounded-2xl px-5 py-4
+                  shadow-lg hover:scale-[1.02] transition text-white">
+
+            <div class="flex items-center justify-between">
+
+                <div class="flex items-center gap-4 w-full">
+
+                    <!-- Número de posición -->
+                    <div class="h-11 w-11 rounded-full flex items-center justify-center
+                                bg-gradient-to-br from-gray-300 to-blue-600
+                                text-sm font-bold text-white">
+                        {{ credito.posicion }}
+                    </div>
+
+                    <!-- Información -->
+                    <div class="flex-1">
+
+                        <!-- Nombre -->
+                        <div class="text-sm font-semibold">
+                            {{ credito.cliente }}
+                        </div>
+
+                        <!-- Identificación -->
+                        <div class="text-xs opacity-70">
+                            {{ credito.identificacion }}
+                        </div>
+
+                        <!-- Teléfono WhatsApp -->
+                        {% if credito.telefono %}
+                        <div class="text-xs mt-1">
+                            <a href="https://wa.me/57{{ credito.telefono }}"
+                               target="_blank"
+                               onclick="event.stopPropagation();"
+                               class="text-blue-300 underline">
+                                📱 {{ credito.telefono }}
+                            </a>
+                        </div>
+                        {% endif %}
+
+                        <!-- Dirección -->
+                        {% if credito.direccion %}
+                        <div class="text-xs opacity-70">
+                            📍 {{ credito.direccion }}
+                        </div>
+                        {% endif %}
+
+                        <!-- Tipo préstamo -->
+                        {% if credito.tipo_prestamo %}
+                        <div class="text-xs opacity-70">
+                            💳 {{ credito.tipo_prestamo }}
+                        </div>
+                        {% endif %}
+
+                        <!-- Próxima cuota -->
+                        {% if credito.proxima_cuota %}
+                        <div class="text-xs text-blue-300 mt-1">
+                            📆 Próx: {{ credito.proxima_cuota }}
+                        </div>
+                        {% else %}
+                        <div class="text-xs text-green-400 mt-1">
+                            ✔ Crédito Pagado
+                        </div>
+                        {% endif %}
+
+                        <!-- Saldo -->
+                        <div class="text-xs text-green-400 mt-1">
+                            Saldo: ${{ credito.saldo }}
+                        </div>
+
+                        <!-- Estado -->
+                        {% if credito.dias_mora > 0 %}
+                            <div class="text-xs text-red-400">
+                                {{ credito.dias_mora }} días en mora
+                            </div>
+                        {% else %}
+                            <div class="text-xs text-green-400">
+                                Al día
+                            </div>
+                        {% endif %}
+
+                    </div>
+
+                </div>
+
+                <!-- Flecha -->
+                <span class="text-blue-400 text-xl opacity-80">
+                    ›
+                </span>
+
+            </div>
+
+        </a>
+
+        {% endfor %}
+
+    {% else %}
+
+        <div class="text-center opacity-60 text-sm mt-20 text-white">
+            No hay créditos en esta ruta
+        </div>
+
+    {% endif %}
+
+</div>
+
+{% endblock %}

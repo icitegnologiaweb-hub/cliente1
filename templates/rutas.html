@@ -1,0 +1,200 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="p-6">
+
+<div class="flex justify-between mb-6">
+    <h1 class="text-2xl font-semibold text-gray-700">Rutas</h1>
+
+    <button onclick="abrirModalRuta()" 
+    class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg shadow">
+        + Agregar Ruta
+    </button>
+
+</div>
+
+<div class="bg-white rounded-xl shadow overflow-hidden">
+
+<table class="min-w-full text-sm text-gray-600">
+
+<thead class="bg-gray-100 text-xs uppercase text-gray-500">
+<tr>
+    <th class="px-6 py-3">Posición</th>
+    <th class="px-6 py-3">Fecha Inicio</th>
+    <th class="px-6 py-3">Código</th>
+    <th class="px-6 py-3">Nombre</th>
+    <th class="px-6 py-3">Tasa %</th>
+    <th class="px-6 py-3">Venta Máxima</th>
+    <th class="px-6 py-3">Interés Libre</th>
+    <th class="px-6 py-3">Estado Caja</th>
+    <th class="px-6 py-3">Estado</th>
+    <th class="px-6 py-3">Cobrador</th>
+</tr>
+</thead>
+
+<tbody class="divide-y">
+
+{% for ruta in rutas %}
+<tr class="hover:bg-gray-50">
+
+<td class="px-6 py-4">{{ ruta.posicion }}</td>
+<td class="px-6 py-4">{{ ruta.fecha_inicio }}</td>
+<td class="px-6 py-4">{{ ruta.codigo }}</td>
+<td class="px-6 py-4 font-medium">{{ ruta.nombre }}</td>
+<td class="px-6 py-4">{{ ruta.tasa }}%</td>
+<td class="px-6 py-4">${{ ruta.venta_maxima }}</td>
+
+<td class="px-6 py-4">
+    {% if ruta.interes_libre %}
+        <span class="text-green-600">Sí</span>
+    {% else %}
+        <span class="text-gray-400">No</span>
+    {% endif %}
+</td>
+
+<td class="px-6 py-4">
+    <form method="POST" action="{{ url_for('toggle_ruta', id=ruta.id) }}">
+        <input type="checkbox"
+               onchange="this.form.submit()"
+               {% if ruta.estado %}checked{% endif %}>
+    </form>
+</td>
+
+<td class="px-6 py-4">
+    {% if ruta.estado %}
+        <span class="bg-green-100 text-green-600 px-2 py-1 rounded-full text-xs">
+            Activa
+        </span>
+    {% else %}
+        <span class="bg-red-100 text-red-600 px-2 py-1 rounded-full text-xs">
+            Inactiva
+        </span>
+    {% endif %}
+</td>
+
+<td class="px-6 py-4">
+    {% if ruta.usuarios %}
+        {{ ruta.usuarios.nombres }} {{ ruta.usuarios.apellidos }}
+    {% else %}
+        No asignado
+    {% endif %}
+</td>
+
+</tr>
+{% endfor %}
+
+</tbody>
+</table>
+</div>
+
+<!-- MODAL CREAR RUTA -->
+<div id="modalRuta" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+
+  <div class="bg-white w-full max-w-lg rounded-2xl shadow-2xl p-6 relative">
+
+    <h2 class="text-xl font-semibold mb-4 text-gray-700">
+      Crear Nueva Ruta
+    </h2>
+
+    <form method="POST" action="{{ url_for('crear_ruta') }}">
+
+      <!-- Posición -->
+      <div class="mb-3">
+        <label class="block text-sm text-gray-600">Posición</label>
+        <input type="number" name="posicion" min="1" required
+        class="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500">
+      </div>
+
+      <!-- Nombre -->
+      <div class="mb-3">
+        <label class="block text-sm text-gray-600">Nombre Ruta</label>
+        <input type="text" name="nombre" required
+        class="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500">
+      </div>
+
+      <!-- Tasa -->
+      <div class="mb-3">
+        <label class="block text-sm text-gray-600">Tasa %</label>
+        <select name="tasa" required
+        class="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500">
+          <option value="0">0%</option>
+          <option value="10">10%</option>
+          <option value="20">20%</option>
+        </select>
+      </div>
+
+      <!-- Venta Máxima -->
+      <div class="mb-4">
+        <label class="block text-sm text-gray-600">Venta Máxima ($)</label>
+        <input type="number" step="0.01" name="venta_maxima" required
+        class="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500">
+      </div>
+      <!-- Usuario -->
+        <div class="mb-4">
+        <label class="block text-sm text-gray-600">Asignar Usuario</label>
+
+        <select name="usuario_id" id="usuarioSelect" required
+            onchange="mostrarRolUsuario()"
+            class="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500">
+
+            <option value="">Seleccione usuario</option>
+
+            {% for usuario in usuarios %}
+            <option value="{{ usuario.id }}" data-rol="{{ usuario.rol }}">
+                {{ usuario.nombres }} {{ usuario.apellidos }} - {{ usuario.rol }}
+            </option>
+
+            {% endfor %}
+
+        </select>
+
+        <!-- Rol dinámico -->
+        <p id="rolUsuario" class="text-xs text-gray-500 mt-1"></p>
+        </div>
+
+
+      <div class="flex justify-end gap-3">
+        <button type="button" onclick="cerrarModalRuta()"
+        class="px-4 py-2 bg-gray-300 rounded-lg">
+          Cancelar
+        </button>
+
+        <button type="submit"
+        class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+          Guardar Ruta
+        </button>
+      </div>
+
+    </form>
+
+  </div>
+</div>
+<script>
+function abrirModalRuta() {
+    document.getElementById("modalRuta").classList.remove("hidden");
+    document.getElementById("modalRuta").classList.add("flex");
+}
+
+function cerrarModalRuta() {
+    document.getElementById("modalRuta").classList.remove("flex");
+    document.getElementById("modalRuta").classList.add("hidden");
+}
+</script>
+
+<script>
+function mostrarRolUsuario() {
+    const select = document.getElementById("usuarioSelect");
+    const rolTexto = document.getElementById("rolUsuario");
+
+    const selectedOption = select.options[select.selectedIndex];
+
+    if (selectedOption.dataset.rol) {
+        rolTexto.innerHTML = "Rol: <strong>" + selectedOption.dataset.rol + "</strong>";
+    } else {
+        rolTexto.innerHTML = "";
+    }
+}
+</script>
+
+</div>
+{% endblock %}

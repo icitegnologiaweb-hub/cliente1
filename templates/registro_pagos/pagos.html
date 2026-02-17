@@ -1,0 +1,175 @@
+
+<script src="https://cdn.tailwindcss.com"></script>
+<div class="min-h-screen bg-gray-100 py-10 px-4">
+
+  <div class="max-w-6xl mx-auto">
+
+    <!-- Título -->
+    <div class="mb-8">
+      <h2 class="text-3xl font-bold text-gray-800">Registrar Pagos</h2>
+      <p class="text-gray-500 text-sm">Gestión de recaudo diario</p>
+    </div>
+
+    <!-- Filtros -->
+    <div class="bg-white shadow-lg rounded-2xl p-6 mb-8">
+
+      <form method="GET" class="grid md:grid-cols-2 gap-6">
+
+        <!-- Ruta -->
+        <div>
+          <label class="block text-sm font-medium text-gray-600 mb-2">
+            Seleccionar Ruta
+          </label>
+          <select name="ruta_id"
+                  onchange="this.form.submit()"
+                  class="w-full rounded-xl border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 p-3 shadow-sm">
+            <option value="">Seleccione Ruta</option>
+            {% for r in rutas %}
+              <option value="{{ r.id }}">{{ r.nombre }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <!-- Cliente -->
+        {% if creditos %}
+        <div>
+          <label class="block text-sm font-medium text-gray-600 mb-2">
+            Seleccionar Cliente
+          </label>
+          <select name="credito_id"
+                  onchange="this.form.submit()"
+                  class="w-full rounded-xl border-gray-300 focus:ring-2 focus:ring-green-500 focus:border-green-500 p-3 shadow-sm">
+            <option value="">Seleccione Cliente</option>
+            {% for c in creditos %}
+              <option value="{{ c.id }}">{{ c.clientes.nombre }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        {% endif %}
+
+      </form>
+    </div>
+
+    {% if credito %}
+
+    <!-- Información Cliente -->
+    <div class="grid md:grid-cols-3 gap-6 mb-8">
+
+      <div class="bg-white rounded-2xl shadow-md p-6">
+        <p class="text-sm text-gray-500">Nombre</p>
+        <p class="text-lg font-semibold text-gray-800">
+          {{ credito.clientes.nombre }}
+        </p>
+      </div>
+
+      <div class="bg-white rounded-2xl shadow-md p-6">
+        <p class="text-sm text-gray-500">Identificación</p>
+        <p class="text-lg font-semibold text-gray-800">
+          {{ credito.clientes.identificacion }}
+        </p>
+      </div>
+
+      <div class="bg-white rounded-2xl shadow-md p-6">
+        <p class="text-sm text-gray-500">Fecha Inicio</p>
+        <p class="text-lg font-semibold text-gray-800">
+          {{ credito.fecha_inicio }}
+        </p>
+      </div>
+
+      <div class="bg-white rounded-2xl shadow-md p-6">
+        <p class="text-sm text-gray-500">Valor Total</p>
+        <p class="text-xl font-bold text-blue-600">
+          ${{ credito.valor_total }}
+        </p>
+      </div>
+
+      <div class="bg-white rounded-2xl shadow-md p-6">
+        <p class="text-sm text-gray-500">Saldo</p>
+        <p class="text-xl font-bold text-red-500">
+          ${{ saldo }}
+        </p>
+      </div>
+
+      <div class="bg-white rounded-2xl shadow-md p-6">
+        <p class="text-sm text-gray-500">Cuotas</p>
+        <p class="text-xl font-bold text-gray-800">
+          {{ credito.cantidad_cuotas }}
+        </p>
+      </div>
+
+    </div>
+
+    <!-- Tabla Cuotas -->
+    <div class="bg-white shadow-lg rounded-2xl overflow-hidden mb-8">
+
+      <div class="px-6 py-4 border-b">
+        <h4 class="text-lg font-semibold text-gray-700">Detalle de Cuotas</h4>
+      </div>
+
+      <div class="overflow-x-auto">
+        <table class="min-w-full text-sm text-left">
+          <thead class="bg-gray-50 text-gray-600 uppercase text-xs tracking-wider">
+            <tr>
+              <th class="px-6 py-3">#</th>
+              <th class="px-6 py-3">Fecha</th>
+              <th class="px-6 py-3">Valor</th>
+              <th class="px-6 py-3">Estado</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100">
+
+            {% for c in cuotas %}
+            <tr class="hover:bg-gray-50 transition">
+              <td class="px-6 py-4 font-medium text-gray-700">
+                {{ c.numero }}
+              </td>
+              <td class="px-6 py-4 text-gray-600">
+                {{ c.fecha_pago }}
+              </td>
+              <td class="px-6 py-4 font-semibold text-gray-800">
+                ${{ c.valor }}
+              </td>
+              <td class="px-6 py-4">
+
+                {% if c.estado == "pagado" %}
+                  <span class="px-3 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-700">
+                    Pagado
+                  </span>
+                {% elif c.estado == "pendiente" %}
+                  <span class="px-3 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-700">
+                    Pendiente
+                  </span>
+                {% else %}
+                  <span class="px-3 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-700">
+                    Vencido
+                  </span>
+                {% endif %}
+
+              </td>
+            </tr>
+            {% endfor %}
+
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Botón Pago -->
+    <div class="text-right">
+      <form method="POST"
+            action="{{ url_for('registrar_pago', credito_id=credito.id) }}">
+
+        <button type="submit"
+          class="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-8 py-3 rounded-xl font-semibold shadow-lg hover:scale-105 transition transform duration-200">
+
+          Registrar pago del día
+        </button>
+
+      </form>
+    </div>
+
+    {% endif %}
+
+  </div>
+
+</div>

@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="min-h-screen bg-gray-100 py-6 px-4">
+
+  <div class="max-w-4xl mx-auto">
+
+    <!-- HEADER CLIENTE -->
+    <div class="bg-white rounded-xl shadow p-5 mb-6 flex items-center gap-4">
+
+  <!-- FOTO CLIENTE -->
+  {% if cliente.foto_url %}
+    <img src="{{ cliente.foto_url }}"
+         alt="Foto cliente"
+         class="w-20 h-20 rounded-full object-cover border-2 border-gray-200 shadow">
+  {% else %}
+    <div class="w-20 h-20 rounded-full bg-gray-200 flex items-center justify-center text-gray-500 text-xl">
+      👤
+    </div>
+  {% endif %}
+
+  <!-- INFO CLIENTE -->
+  <div>
+    <h2 class="text-xl font-bold text-gray-800 mb-1">
+      Historial cliente
+    </h2>
+    <p class="text-sm text-gray-600">
+      {{ cliente.nombre }} | {{ cliente.identificacion }}
+    </p>
+  </div>
+
+</div>
+
+
+    {% for credito in creditos %}
+
+    <!-- TARJETA CREDITO -->
+    <div class="bg-white rounded-xl shadow mb-6 overflow-hidden">
+
+      <!-- INFO PRINCIPAL -->
+      <div class="p-5 space-y-3 text-sm">
+
+        <div class="flex justify-between">
+          <span class="text-gray-500">Estado</span>
+          <span class="bg-blue-100 text-blue-600 px-3 py-1 rounded-lg text-xs font-semibold">
+            {{ credito.estado }}
+          </span>
+        </div>
+
+        <div class="flex justify-between">
+          <span class="text-gray-500">Valor Venta</span>
+          <span>$ {{ credito.valor_venta }}</span>
+        </div>
+
+        <div class="flex justify-between">
+          <span class="text-gray-500">Valor Total</span>
+          <span>$ {{ credito.valor_total }}</span>
+        </div>
+
+        <div class="flex justify-between font-semibold">
+          <span class="text-gray-500">Saldo</span>
+          <span class="text-red-500">$ {{ credito.saldo }}</span>
+        </div>
+
+        <div class="flex justify-between">
+          <span class="text-gray-500"># Cuotas</span>
+          <span>{{ credito.numero_cuotas }}</span>
+        </div>
+
+        <div class="flex justify-between">
+          <span class="text-gray-500">Frecuencia</span>
+          <span>{{ credito.frecuencia }}</span>
+        </div>
+
+        <div class="flex justify-between">
+          <span class="text-gray-500">Fecha registro</span>
+          <span>{{ credito.fecha_inicio }}</span>
+        </div>
+
+      </div>
+
+      <!-- TABS -->
+      <div class="border-t">
+
+        <div class="flex text-sm font-medium text-gray-600">
+          <button class="flex-1 py-3 border-b-2 border-blue-500 text-blue-600">
+            Cuotas
+          </button>
+          <button class="flex-1 py-3 hover:bg-gray-50">
+            Pagos
+          </button>
+          <button class="flex-1 py-3 hover:bg-gray-50">
+            Comentarios
+          </button>
+        </div>
+
+        <!-- TABLA CUOTAS -->
+        <div class="p-4 overflow-x-auto">
+
+          <table class="w-full text-sm text-left">
+
+            <thead class="bg-gray-100 text-gray-600 text-xs uppercase">
+              <tr>
+                <th class="px-3 py-2">Fecha Venc.</th>
+                <th class="px-3 py-2">Días Mora</th>
+                <th class="px-3 py-2 text-center">Acción</th>
+              </tr>
+            </thead>
+
+            <tbody class="divide-y">
+
+              {% for cuota in credito.cuotas %}
+              <tr class="bg-gray-50">
+
+                <td class="px-3 py-2">
+                  {{ cuota.fecha_programada }}
+                </td>
+
+                <td class="px-3 py-2">
+                  {{ cuota.dias_mora }}
+                </td>
+
+                <td class="px-3 py-2 text-center">
+
+                  {% if cuota.estado == "pagado" %}
+                    <span class="text-green-500 text-lg">✔</span>
+
+                  {% elif cuota.estado == "pendiente" and cuota.dias_mora > 0 %}
+                    <span class="text-orange-500 font-bold">P</span>
+
+                  {% else %}
+                    <span class="text-gray-400">🔒</span>
+                  {% endif %}
+
+                </td>
+
+              </tr>
+              {% endfor %}
+
+            </tbody>
+
+          </table>
+
+        </div>
+
+      </div>
+
+    </div>
+
+    {% endfor %}
+
+  </div>
+
+</div>
+
+{% endblock %}

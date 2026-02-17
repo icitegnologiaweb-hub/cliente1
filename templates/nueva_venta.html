@@ -1,0 +1,308 @@
+{% extends "base.html" %}
+{% block content %}
+
+<style>
+/* ====== ESTILOS ====== */
+.page-header{
+    font-size:18px;
+    font-weight:600;
+    color:#1f2937;
+    margin-bottom:20px;
+}
+.subtitle{
+    font-size:14px;
+    color:#6b7280;
+    margin-bottom:20px;
+}
+.card-venta{
+    background:white;
+    border-radius:14px;
+    box-shadow:0 6px 20px rgba(0,0,0,.05);
+    padding:25px;
+}
+.cliente-card{
+    border:1px solid #e5e7eb;
+    border-radius:12px;
+    padding:18px;
+    background:#f9fafb;
+}
+.cliente-card .title{
+    font-weight:600;
+    margin-bottom:10px;
+    background:#eef2ff;
+    padding:6px 12px;
+    display:inline-block;
+    border-radius:6px;
+    font-size:13px;
+}
+.label{
+    font-size:13px;
+    font-weight:600;
+    color:#6b7280;
+    margin-bottom:6px;
+}
+.input-modern{
+    width:100%;
+    border:1px solid #d1d5db;
+    border-radius:8px;
+    padding:10px 12px;
+    font-size:14px;
+}
+.btn-save{
+    background:#3b82f6;
+    color:white;
+    border:none;
+    padding:10px 20px;
+    border-radius:8px;
+    font-weight:600;
+}
+.alert-pendiente{
+    background:#fff7ed;
+    border:1px solid #fdba74;
+    padding:15px 20px;
+    border-radius:12px;
+    margin-bottom:20px;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+}
+</style>
+
+<div class="container-fluid px-4 pt-3">
+
+    <div class="page-header">Nueva venta</div>
+    <div class="subtitle">Ingresa los datos para registrar la venta.</div>
+
+    <div class="card-venta">
+
+        <div class="row g-4">
+
+            <!-- ================= CLIENTE ================= -->
+            <div class="col-md-3">
+                {% if cliente %}
+                    <div class="cliente-card">
+
+                        {% if cliente.foto %}
+                            <img src="{{ cliente.foto }}"
+                                style="width:80px;height:80px;border-radius:50%;object-fit:cover;margin-bottom:10px;">
+                        {% endif %}
+
+                        <div class="title">Cliente</div>
+                        <p><strong>Nombre:</strong> {{ cliente.nombre }}</p>
+                        <p><strong>Identificación:</strong> {{ cliente.identificacion }}</p>
+
+                        <a href="{{ url_for('limpiar_cliente') }}"
+                        class="btn-save mt-3"
+                        style="background:#ef4444; display:inline-block;">
+                            Limpiar cliente
+                        </a>
+
+                    </div>
+
+                {% else %}
+                    <div class="cliente-card text-center">
+                        <p>No hay cliente seleccionado</p>
+
+                        <button class="btn-save mb-2"
+                                data-bs-toggle="modal"
+                                data-bs-target="#modalCliente">
+                            Registrar cliente
+                        </button>
+
+                        <button class="btn-save"
+                                data-bs-toggle="modal"
+                                data-bs-target="#modalRenovar">
+                            Renovar crédito cliente existente
+                        </button>
+                    </div>
+                {% endif %}
+            </div>
+
+            <!-- ================= FORMULARIO ================= -->
+            <div class="col-md-9">
+
+                <form method="POST" action="{{ url_for('guardar_venta') }}">
+
+                    <div class="row g-3">
+
+                        <div class="col-md-6">
+                            <div class="label">Tipo de Préstamo</div>
+                            <select name="tipo_prestamo" class="input-modern">
+                                <option>Semanal</option>
+                                <option>Diario Lunes a Sábado</option>
+                                <option>Diario Lunes a Viernes</option>
+                                <option>Quincenal</option>
+                                <option>Mensual</option>
+                            </select>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="label">Fecha Inicio Cobro</div>
+                            <input type="date" name="fecha_inicio" class="input-modern" required>
+                        </div>
+
+                        <div class="col-md-3">
+                            <div class="label">Posición</div>
+                            <input type="number" name="posicion" class="input-modern" value="1">
+                        </div>
+
+                        <div class="col-md-4">
+                            <div class="label">Valor venta</div>
+                            <input type="number" name="valor_venta" class="input-modern">
+                        </div>
+
+                        {% if valor_anterior %}
+                        <div class="col-md-12">
+                            <div class="alert-pendiente">
+                                Último valor otorgado:
+                                <strong>$ {{ "{:,.0f}".format(valor_anterior) }}</strong>
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        <div class="col-md-5">
+                            <div class="label">Valor Total</div>
+                            <input type="number" name="valor_total" class="input-modern" disabled>
+                        </div>
+
+                        <div class="col-md-12">
+                            <div class="label">Ruta</div>
+                            <select name="ruta_id" class="input-modern">
+                                {% for ruta in rutas %}
+                                    <option value="{{ ruta.id }}">{{ ruta.nombre }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="col-md-3">
+                            <div class="label">Tasa Interés</div>
+                            <select name="tasa" class="input-modern">
+                                <option value="0">0 %</option>
+                                <option value="20" selected>20 %</option>
+                            </select>
+                        </div>
+
+                        <div class="col-md-2">
+                            <div class="label">Cuotas</div>
+                            <input type="number" name="cuotas" class="input-modern">
+                        </div>
+
+                        <div class="col-md-3">
+                            <div class="label">Valor Cuota</div>
+                            <input type="number" name="valor_cuota" class="input-modern" disabled>
+                        </div>
+
+                    </div>
+
+                    <button class="btn-save mt-4">Registrar</button>
+
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ================= MODAL CLIENTE ================= -->
+<div class="modal fade" id="modalCliente" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="POST" action="{{ url_for('guardar_cliente') }}" enctype="multipart/form-data">
+        <div class="modal-header">
+          <h5 class="modal-title">Registrar Cliente</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <input type="text" name="identificacion" class="input-modern mb-2" placeholder="Identificación" required>
+          <input type="text" name="nombre" class="input-modern mb-2" placeholder="Nombre" required>
+          <input type="text" name="telefono_principal" class="input-modern mb-2" placeholder="Teléfono principal">
+        </div>
+        <div class="modal-footer">
+          <button type="submit" class="btn-save">Guardar cliente</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ================= MODAL RENOVAR ================= -->
+<div class="modal fade" id="modalRenovar" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="POST" action="{{ url_for('buscar_cliente_renovacion') }}">
+        <div class="modal-header">
+          <h5 class="modal-title">Renovar Crédito</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <input type="text" name="identificacion" class="input-modern" placeholder="Cédula" required>
+        </div>
+        <div class="modal-footer">
+          <button type="submit" class="btn-save">Buscar Cliente</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+    const toasts = document.querySelectorAll(".toast");
+
+    toasts.forEach(toast => {
+        setTimeout(() => {
+            toast.style.opacity = "0";
+            toast.style.transform = "translateY(-10px)";
+            setTimeout(() => toast.remove(), 400);
+        }, 3000);
+    });
+});
+</script>
+<script>
+document.addEventListener("DOMContentLoaded", function(){
+
+    const valorVenta = document.querySelector("input[name='valor_venta']");
+    const tasa = document.querySelector("select[name='tasa']");
+    const cuotas = document.querySelector("input[name='cuotas']");
+    const valorTotal = document.querySelector("input[name='valor_total']");
+    const valorCuota = document.querySelector("input[name='valor_cuota']");
+
+    function calcular() {
+        let venta = parseFloat(valorVenta.value) || 0;
+        let interes = parseFloat(tasa.value) || 0;
+        let numCuotas = parseInt(cuotas.value) || 1;
+
+        let total = venta + (venta * interes / 100);
+        let cuota = total / numCuotas;
+
+        valorTotal.value = total.toFixed(2);
+        valorCuota.value = cuota.toFixed(2);
+    }
+
+    valorVenta.addEventListener("input", calcular);
+    cuotas.addEventListener("input", calcular);
+
+    // 👇 IMPORTANTE para select
+    tasa.addEventListener("change", calcular);
+
+});
+</script>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+
+    const modalElement = document.getElementById("modalRenovar");
+
+    if (modalElement) {
+        const modal = new bootstrap.Modal(modalElement);
+
+        document.querySelectorAll('[data-bs-target="#modalRenovar"]').forEach(btn => {
+            btn.addEventListener("click", function () {
+                modal.show();
+            });
+        });
+    }
+
+});
+</script>
+
+
+{% endblock %}

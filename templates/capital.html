@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="px-8 py-6 bg-gray-100">
+
+    <!-- HEADER SUPERIOR -->
+    <div class="flex items-center justify-between mb-6">
+
+        <div>
+
+
+            <h1 class="text-2xl font-bold text-gray-800 mt-2">
+                Capital
+            </h1>
+        </div>
+
+        <div class="flex items-center gap-4">
+
+            <button class="flex items-center gap-2 text-green-600 font-medium hover:text-green-700 transition">
+                <i class="bi bi-funnel"></i>
+                Filtrar
+            </button>
+
+            <a href=""
+            class="bg-blue-600 hover:bg-blue-700 text-white text-sm px-4 py-2 rounded-lg shadow-sm transition no-underline"
+            style="text-decoration: none;">
+                + Nuevo Capital
+            </a>
+
+        </div>
+    </div>
+
+
+    <!-- FILTRO FECHAS -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-5">
+
+        <div class="flex flex-wrap items-end gap-6">
+
+            <div>
+                <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">
+                    Desde
+                </label>
+                <input type="date"
+                       class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">
+                    Hasta
+                </label>
+                <input type="date"
+                       class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <!-- TABLA -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+
+        <div class="overflow-x-auto">
+
+            <table class="min-w-full text-sm text-gray-700">
+
+                <!-- ENCABEZADO -->
+                <thead class="bg-gray-50 border-b">
+                    <tr class="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                        <th class="px-6 py-4">Ruta</th>
+                        <th class="px-6 py-4">Descripción</th>
+                        <th class="px-6 py-4">Fecha</th>
+                        <th class="px-6 py-4 text-right">Valor</th>
+                        <th class="px-6 py-4 text-center">Acciones</th>
+                    </tr>
+
+                    <!-- FILTROS POR COLUMNA -->
+                    <tr class="bg-white border-t">
+                        <th class="px-6 py-3">
+                            <input type="text"
+                                   placeholder="Buscar ruta"
+                                   class="w-full border border-gray-300 rounded-md px-2 py-1 text-xs focus:ring-1 focus:ring-blue-500 focus:outline-none">
+                        </th>
+
+                        <th class="px-6 py-3">
+                            <input type="text"
+                                   placeholder="Buscar descripción"
+                                   class="w-full border border-gray-300 rounded-md px-2 py-1 text-xs focus:ring-1 focus:ring-blue-500 focus:outline-none">
+                        </th>
+
+                        <th class="px-6 py-3">
+                            <button class="bg-gray-100 hover:bg-gray-200 px-3 py-1 rounded text-xs">
+                                Buscar
+                            </button>
+                        </th>
+
+                        <th></th>
+                        <th></th>
+                    </tr>
+                </thead>
+
+
+                <!-- BODY -->
+                <tbody class="divide-y divide-gray-100">
+
+                    {% for item in capital %}
+                    <tr class="hover:bg-gray-50 transition">
+
+                        <td class="px-6 py-4 font-medium text-gray-800">
+                            {{ item.ruta }}
+                        </td>
+
+                        <td class="px-6 py-4">
+                            {{ item.descripcion }}
+                        </td>
+
+                        <td class="px-6 py-4 text-gray-600">
+                            {{ item.fecha }}
+                        </td>
+
+                        <td class="px-6 py-4 text-right font-semibold text-gray-800">
+                            $ {{ "{:,.2f}".format(item.valor) }}
+                        </td>
+
+                        <td class="px-6 py-4 text-center">
+
+                            <button class="text-blue-600 hover:text-blue-800 transition">
+                                <i class="bi bi-eye"></i>
+                            </button>
+
+                            <button class="text-red-600 hover:text-red-700 ml-3 transition">
+                                <i class="bi bi-trash"></i>
+                            </button>
+
+                        </td>
+
+                    </tr>
+
+                    {% else %}
+                    <tr>
+                        <td colspan="5" class="px-6 py-10 text-center text-gray-400">
+                            No hay movimientos de capital
+                        </td>
+                    </tr>
+                    {% endfor %}
+
+                </tbody>
+
+            </table>
+
+        </div>
+
+    </div>
+
+</div>
+
+{% endblock %}
