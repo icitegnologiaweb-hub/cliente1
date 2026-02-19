@@ -6,7 +6,8 @@
 
 {% block content %}
 
-<div class="space-y-5 mt-4">
+<div class="max-w-md mx-auto px-4 pt-4 pb-24 space-y-4">
+<h1>Ventas/clientes</h1>
 
     {% if creditos %}
 
@@ -14,82 +15,81 @@
 
         <a href="{{ url_for('detalle_credito', credito_id=credito.id) }}"
            class="block bg-gradient-to-br from-[#123b63] to-[#0b2847]
-                  rounded-2xl px-5 py-4
-                  shadow-lg hover:scale-[1.02] transition text-white">
+                  rounded-2xl p-4 shadow-lg
+                  transition hover:scale-[1.02] text-white">
 
-            <div class="flex items-center justify-between">
+            <div class="flex gap-4 items-start">
 
-                <div class="flex items-center gap-4 w-full">
+                <!-- CÍRCULO POSICIÓN -->
+                <div class="flex-shrink-0 h-12 w-12 rounded-full
+                            bg-gradient-to-br from-gray-300 to-blue-600
+                            flex items-center justify-center
+                            text-sm font-bold text-white">
+                    {{ credito.posicion }}
+                </div>
 
-                    <!-- Número de posición -->
-                    <div class="h-11 w-11 rounded-full flex items-center justify-center
-                                bg-gradient-to-br from-gray-300 to-blue-600
-                                text-sm font-bold text-white">
-                        {{ credito.posicion }}
+                <!-- CONTENIDO -->
+                <div class="flex-1">
+
+                    <!-- HEADER -->
+                    <div class="flex justify-between items-start">
+
+                        <div>
+                            <div class="text-sm font-semibold">
+                                {{ credito.cliente }}
+                            </div>
+                            <div class="text-xs opacity-70">
+                                {{ credito.identificacion }}
+                            </div>
+                        </div>
+
+                        <span class="text-blue-400 text-lg opacity-70">
+                            ›
+                        </span>
+
                     </div>
 
-                    <!-- Información -->
-                    <div class="flex-1">
+                    <!-- INFO -->
+                    <div class="mt-2 space-y-1 text-xs">
 
-                        <!-- Nombre -->
-                        <div class="text-sm font-semibold">
-                            {{ credito.cliente }}
-                        </div>
-
-                        <!-- Identificación -->
-                        <div class="text-xs opacity-70">
-                            {{ credito.identificacion }}
-                        </div>
-
-                        <!-- Teléfono WhatsApp -->
                         {% if credito.telefono %}
-                        <div class="text-xs mt-1">
-                            <a href="https://wa.me/57{{ credito.telefono }}"
-                               target="_blank"
-                               onclick="event.stopPropagation();"
-                               class="text-blue-300 underline">
-                                📱 {{ credito.telefono }}
-                            </a>
+                        <div class="text-blue-300">
+                            📱 {{ credito.telefono }}
                         </div>
                         {% endif %}
 
-                        <!-- Dirección -->
                         {% if credito.direccion %}
-                        <div class="text-xs opacity-70">
+                        <div class="opacity-70">
                             📍 {{ credito.direccion }}
                         </div>
                         {% endif %}
 
-                        <!-- Tipo préstamo -->
                         {% if credito.tipo_prestamo %}
-                        <div class="text-xs opacity-70">
+                        <div class="opacity-70">
                             💳 {{ credito.tipo_prestamo }}
                         </div>
                         {% endif %}
 
-                        <!-- Próxima cuota -->
                         {% if credito.proxima_cuota %}
-                        <div class="text-xs text-blue-300 mt-1">
+                        <div class="text-blue-300">
                             📆 Próx: {{ credito.proxima_cuota }}
                         </div>
                         {% else %}
-                        <div class="text-xs text-green-400 mt-1">
+                        <div class="text-green-400">
                             ✔ Crédito Pagado
                         </div>
                         {% endif %}
 
-                        <!-- Saldo -->
-                        <div class="text-xs text-green-400 mt-1">
+                        <div class="text-green-400">
                             Saldo: ${{ credito.saldo }}
                         </div>
 
-                        <!-- Estado -->
                         {% if credito.dias_mora > 0 %}
-                            <div class="text-xs text-red-400">
+                            <div class="text-red-400">
                                 {{ credito.dias_mora }} días en mora
                             </div>
                         {% else %}
-                            <div class="text-xs text-green-400">
+                            <div class="text-green-400">
                                 Al día
                             </div>
                         {% endif %}
@@ -97,11 +97,6 @@
                     </div>
 
                 </div>
-
-                <!-- Flecha -->
-                <span class="text-blue-400 text-xl opacity-80">
-                    ›
-                </span>
 
             </div>
 
@@ -111,12 +106,26 @@
 
     {% else %}
 
-        <div class="text-center opacity-60 text-sm mt-20 text-white">
+        <div class="text-center text-sm opacity-60 text-white mt-20">
             No hay créditos en esta ruta
         </div>
 
     {% endif %}
 
 </div>
+
+<!-- BOTÓN FLOTANTE -->
+<a href="{{ url_for('nueva_venta_cobrador') }}"
+   class="fixed bottom-6 right-6
+          bg-blue-600 hover:bg-blue-700
+          text-white text-3xl
+          h-16 w-16
+          rounded-full
+          flex items-center justify-center
+          shadow-2xl
+          transition active:scale-95">
+
+    +
+</a>
 
 {% endblock %}

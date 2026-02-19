@@ -1,0 +1,103 @@
+{% extends "cobrador/layout.html" %}
+{% block titulo %}Todas las Ventas{% endblock %}
+
+{% block content %}
+
+<div class="max-w-md mx-auto px-4 pt-4 pb-28 space-y-4">
+
+    {% for c in creditos %}
+
+    <a href="{{ url_for('detalle_credito', credito_id=c.id) }}"
+        class="block bg-gradient-to-br from-[#123b63] to-[#0b2847]
+                rounded-2xl p-4 shadow-lg text-white
+                transition hover:scale-[1.02] active:scale-[0.98]">
+
+
+
+        <div class="flex justify-between items-start">
+
+            <!-- IZQUIERDA -->
+            <div class="flex gap-3">
+
+                <!-- POSICIÓN -->
+                <div class="h-12 w-12 rounded-full
+                            bg-gradient-to-br from-gray-300 to-blue-600
+                            flex items-center justify-center
+                            font-bold text-white">
+                    {{ c.posicion }}
+                </div>
+
+                <!-- INFO -->
+                <div>
+
+                    <div class="font-semibold text-sm">
+                        {{ c.cliente }}
+                    </div>
+
+                    <div class="text-xs text-blue-300">
+                        📱 {{ c.telefono }}
+                    </div>
+
+                    {% if c.proxima_cuota %}
+                    <div class="text-xs text-blue-300 mt-1">
+                        📆 Próx: {{ c.proxima_cuota }}
+                    </div>
+                    {% endif %}
+
+                </div>
+
+            </div>
+
+            <!-- DERECHA -->
+            <div class="text-right">
+
+                <!-- ESTADO -->
+                {% if c.pago_hoy %}
+                    <div class="h-9 w-9 bg-green-500 rounded-full
+                                flex items-center justify-center
+                                text-white text-lg shadow-md">
+                        ✓
+                    </div>
+                {% else %}
+                    <div class="h-9 w-9 bg-yellow-500 rounded-full
+                                flex items-center justify-center
+                                text-white text-lg shadow-md">
+                        !
+                    </div>
+                {% endif %}
+
+            </div>
+
+        </div>
+
+        <!-- BLOQUE FINANCIERO -->
+        <div class="mt-4 grid grid-cols-2 gap-4 text-sm">
+
+            <div class="bg-[#0b2847] rounded-xl p-3 text-center">
+                <div class="text-xs opacity-60">
+                    Cuota Hoy
+                </div>
+                <div class="font-bold text-green-400">
+                    $ {{ c.valor_hoy }}
+                </div>
+            </div>
+
+            <div class="bg-[#0b2847] rounded-xl p-3 text-center">
+                <div class="text-xs opacity-60">
+                    Total Crédito
+                </div>
+                <div class="font-bold text-white">
+                    $ {{ c.valor_total }}
+                </div>
+            </div>
+
+        </div>
+
+    </a>
+
+
+    {% endfor %}
+
+</div>
+
+{% endblock %}

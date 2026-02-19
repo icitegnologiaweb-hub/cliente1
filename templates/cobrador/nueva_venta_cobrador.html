@@ -1,0 +1,221 @@
+{% extends "cobrador/layout.html" %}
+{% block titulo %}Nueva Venta{% endblock %}
+
+{% block content %}
+
+<div class="p-4 space-y-6 text-white">
+
+    <!-- Header -->
+    <div class="text-xl font-semibold">
+        Registrar Venta
+    </div>
+
+    <form method="POST"
+          action="{{ url_for('guardar_venta_cobrador') }}"
+          enctype="multipart/form-data"
+          class="space-y-6">
+
+        <!-- ================= RUTA ================= -->
+        <div class="bg-[#123b63] rounded-2xl p-4 shadow-md space-y-3">
+
+            <div class="text-sm text-blue-200 font-semibold">
+                Ruta Actual
+            </div>
+
+            <select name="ruta_id"
+                    required
+                    class="w-full bg-[#0b2847] border border-gray-600
+                           focus:border-green-500
+                           rounded-xl p-3">
+
+                {% for ruta in rutas %}
+                    <option value="{{ ruta.id }}"
+                        {% if ruta.id == ruta_actual %}
+                            selected
+                        {% endif %}>
+                        {{ ruta.nombre }}
+                    </option>
+                {% endfor %}
+
+            </select>
+
+        </div>
+
+        <!-- ================= CLIENTE ================= -->
+        <div class="bg-[#123b63] rounded-2xl p-4 shadow-md space-y-3">
+
+            <div class="text-sm text-blue-200 font-semibold">
+                Datos del Cliente
+            </div>
+
+            <input type="text" name="identificacion"
+                   value="{{ form_data.identificacion if form_data else '' }}"
+                   placeholder="Identificación"
+                   required
+                   class="w-full bg-[#0b2847] border border-gray-600 rounded-xl p-3">
+
+            <input type="text" name="nombre"
+                   value="{{ form_data.nombre if form_data else '' }}"
+                   placeholder="Nombre completo"
+                   required
+                   class="w-full bg-[#0b2847] border border-gray-600 rounded-xl p-3">
+
+            <input type="text" name="direccion"
+                   value="{{ form_data.direccion if form_data else '' }}"
+                   placeholder="Dirección"
+                   required
+                   class="w-full bg-[#0b2847] border border-gray-600 rounded-xl p-3">
+
+            <input type="text" name="telefono"
+                   value="{{ form_data.telefono if form_data else '' }}"
+                   placeholder="Teléfono"
+                   required
+                   class="w-full bg-[#0b2847] border border-gray-600 rounded-xl p-3">
+        </div>
+
+        <!-- ================= CRÉDITO ================= -->
+        <div class="bg-[#123b63] rounded-2xl p-4 shadow-md space-y-4">
+
+            <div class="text-sm text-blue-200 font-semibold">
+                Información del Crédito
+            </div>
+            <input type="number"
+                name="posicion"
+                value="{{ form_data.posicion if form_data else '' }}"
+                placeholder="Posición en la Ruta"
+                required
+                min="1"
+                class="w-full bg-[#0b2847] border border-gray-600 rounded-xl p-3 text-lg font-semibold">
+
+            <input type="number"
+                name="valor_venta"
+                value="{{ form_data.valor_venta if form_data else '' }}"
+                id="valorVenta"
+                placeholder="Valor Préstamo"
+                required
+                class="w-full bg-[#0b2847] border border-gray-600 rounded-xl p-3 text-lg font-semibold">
+
+            <!-- Tipo préstamo -->
+                <select name="tipo_prestamo"
+                        required
+                        class="w-full bg-[#0b2847] border border-gray-600 rounded-xl p-3 mt-3">
+
+                    <option value="" disabled selected hidden>
+                        Tipo de Préstamo
+                    </option>
+
+                    <option value="Semanal">Semanal</option>
+                    <option value="Diario Lunes a Sábado">Diario Lunes a Sábado</option>
+                    <option value="Diario Lunes a Viernes">Diario Lunes a Viernes</option>
+             
+
+                </select>
+
+
+
+            <div class="grid grid-cols-2 gap-3">
+
+                <input type="number"
+                       name="cuotas"
+                        value="{{ form_data.cuotas if form_data else '' }}"
+                       id="cuotas"
+                       placeholder="Cuotas"
+                       required
+                       class="bg-[#0b2847] border border-gray-600 rounded-xl p-3">
+
+                <input type="number"
+                       name="tasa"
+                       id="tasa"
+                       value="20"
+                       placeholder="Tasa %"
+                       required
+                       class="bg-[#0b2847] border border-gray-600 rounded-xl p-3" readonly>
+
+            </div>
+
+            <!-- Totales -->
+            <div class="bg-[#0b2847] rounded-xl p-4 text-center space-y-2">
+
+                <div class="text-xs opacity-60">Total a Pagar</div>
+                <div id="valorTotalTexto"
+                     class="text-xl font-bold text-green-400">
+                    $0
+                </div>
+
+                <div class="text-xs opacity-60">Valor por Cuota</div>
+                <div id="valorCuotaTexto"
+                     class="text-lg font-semibold text-white">
+                    $0
+                </div>
+
+            </div>
+
+            <input type="date"
+                   name="fecha_inicio"
+                   required
+                   class="w-full bg-[#0b2847] border border-gray-600 rounded-xl p-3">
+
+        </div>
+
+        <!-- ================= FOTOS ================= -->
+        <div class="bg-[#123b63] rounded-2xl p-4 shadow-md space-y-4">
+
+            <div class="text-sm text-blue-200 font-semibold">
+                Fotos (Obligatorias) 
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+
+                <input type="file"
+                       name="foto_cedula"
+                       accept="image/*"
+                       required>Cedula
+
+                <input type="file"
+                       name="foto_negocio"
+                       accept="image/*"
+                       required>Local
+
+            </div>
+
+        </div>
+
+        <!-- BOTÓN -->
+        <button type="submit"
+                class="w-full bg-green-600 hover:bg-green-700
+                       py-4 rounded-2xl font-semibold shadow-lg">
+            Guardar Venta
+        </button>
+
+    </form>
+
+</div>
+
+<!-- ================= SCRIPT CALCULO ================= -->
+<script>
+
+function calcular() {
+
+    let venta = parseFloat(document.getElementById("valorVenta").value) || 0;
+    let cuotas = parseInt(document.getElementById("cuotas").value) || 1;
+    let tasa = parseFloat(document.getElementById("tasa").value) || 0;
+
+    if (cuotas <= 0) cuotas = 1;
+
+    let total = venta + (venta * tasa / 100);
+    let valorCuota = total / cuotas;
+
+    document.getElementById("valorTotalTexto").innerText =
+        "$" + total.toFixed(0);
+
+    document.getElementById("valorCuotaTexto").innerText =
+        "$" + valorCuota.toFixed(0);
+}
+
+document.getElementById("valorVenta").addEventListener("input", calcular);
+document.getElementById("cuotas").addEventListener("input", calcular);
+document.getElementById("tasa").addEventListener("input", calcular);
+
+</script>
+
+{% endblock %}

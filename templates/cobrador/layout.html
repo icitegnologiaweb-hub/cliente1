@@ -60,33 +60,103 @@ body {
 </head>
 
 <body class="text-white">
+{% with messages = get_flashed_messages(with_categories=true) %}
+{% if messages %}
+<div id="toast-container"
+     class="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 space-y-2 w-[90%] max-w-sm">
+
+    {% for category, message in messages %}
+    <div class="toast px-4 py-3 rounded-2xl text-sm font-semibold text-white shadow-xl transition-all duration-300
+        {% if category == 'success' %}
+            bg-green-600
+        {% elif category in ['danger','error'] %}
+            bg-red-600
+        {% elif category == 'warning' %}
+            bg-yellow-500 text-black
+        {% else %}
+            bg-blue-600
+        {% endif %}">
+        {{ message }}
+    </div>
+    {% endfor %}
+
+</div>
+{% endif %}
+{% endwith %}
 
 <!-- Sidebar -->
 <div id="sidebar" class="sidebar">
 
-    <!-- User Info -->
-    <div class="mb-8">
-        <div class="flex items-center gap-3 mb-3">
-            <div class="bg-green-600 px-3 py-1 rounded-lg text-xs font-bold">
-                PRO
-            </div>
-        </div>
+ <!-- ================= USER INFO ================= -->
+<div class="mb-8 bg-white/5 p-4 rounded-2xl shadow-inner">
 
+    <div class="flex items-center justify-between mb-3">
+        <!-- Título -->
+        <div class="d-flex align-items-center gap-4">
+        
+        </button>
+        <img src="{{ url_for('static', filename='img/logo.png') }}"
+            alt="Logo"
+            class="h-[50px] w-auto 
+                    drop-shadow-[0_0_10px_rgba(255,255,255,1)]
+                    drop-shadow-[0_0_25px_rgba(255,255,255,1)]">
+
+
+    </div>
+
+        {% if ruta_nombre %}
+        <div class="text-xs mt-2 text-green-400">
+            Ruta actual: {{ ruta_nombre }}
+        </div>
+        {% endif %}
+
+
+    </div>
+
+    <div class="space-y-1">
+
+        <!-- Nombre Completo -->
         <div class="font-semibold text-sm">
-            {{ session.nombre }}
+            {{ session.get('nombre_completo', session.get('nombre','')) }}
         </div>
 
-        <div class="text-xs opacity-70 mt-1">
+        <!-- Correo -->
+        <div class="text-xs opacity-70">
             {{ session.get('email','') }}
         </div>
+
+        <!-- Ruta Actual -->
+        {% if session.get("ruta_nombre") %}
+        <div class="text-xs mt-2 text-green-400">
+            Ruta actual: {{ session.get("ruta_nombre") }}
+        </div>
+        {% endif %}
+
+
     </div>
+
+</div>
+
+
 
     <!-- Menu -->
     <!-- Menu -->
 <div class="space-y-3">
 
-    <a href="{{ url_for('dashboard_cobrador') }}" class="flex items-center gap-3 menu-item">
-        <!-- Ventas -->
+    <a href="{{ url_for('ver_ruta', ruta_id=session.get('ruta_id')) }}"
+    class="flex items-center gap-3 menu-item">
+            <!-- Ventas -->
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 opacity-80"
+             fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"
+                  d="M3 3v18h18M9 17V9m4 8V5m4 12v-6"/>
+        </svg>
+        <span>Ventas</span>
+    </a>
+
+    <a href="{{ url_for('todas_las_ventas', ruta_id=session.get('ruta_id')) }}"
+    class="flex items-center gap-3 menu-item">
+            <!-- Ventas -->
         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 opacity-80"
              fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"
@@ -95,7 +165,9 @@ body {
         <span>Todas las ventas</span>
     </a>
 
-    <a href="#" class="flex items-center gap-3 menu-item">
+    <a href="{{ url_for('caja_cobrador') }}"
+        class="flex items-center gap-3 menu-item">
+
         <!-- Caja -->
         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 opacity-80"
              fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -105,7 +177,7 @@ body {
         <span>Caja</span>
     </a>
 
-    <a href="#" class="flex items-center gap-3 menu-item">
+    <a href="{{ url_for('clientes_ruta', ruta_id=session.get('ruta_id')) }}" class="flex items-center gap-3 menu-item">
         <!-- Clientes -->
         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 opacity-80"
              fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -180,6 +252,19 @@ function toggleMenu() {
     document.getElementById("sidebar").classList.toggle("active");
     document.getElementById("overlay").classList.toggle("active");
 }
+</script>
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+    const toasts = document.querySelectorAll(".toast");
+
+    setTimeout(() => {
+        toasts.forEach(t => {
+            t.style.opacity = "0";
+            t.style.transform = "translateY(20px)";
+            setTimeout(() => t.remove(), 300);
+        });
+    }, 2500);
+});
 </script>
 
 </body>

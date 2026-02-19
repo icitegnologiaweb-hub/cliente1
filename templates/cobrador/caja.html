@@ -1,0 +1,195 @@
+{% extends "cobrador/layout.html" %}
+{% block titulo %}Caja{% endblock %}
+
+{% block content %}
+
+<div class="max-w-md mx-auto px-4 pt-4 pb-32 space-y-6 text-white">
+
+    <!-- ================= SALDO ACTUAL ================= -->
+    <div class="bg-gradient-to-br from-green-600 to-green-500 rounded-3xl p-6 text-center shadow-xl">
+        <div class="text-xs opacity-80">Saldo Actual Disponible</div>
+        <div class="text-3xl font-bold mt-1">
+            $ {{ "{:,.0f}".format(saldo_actual or 0) }}
+        </div>
+    </div>
+
+    <!-- ================= RESUMEN DEL DÍA ================= -->
+    <div class="grid grid-cols-2 gap-4">
+
+        <div class="bg-[#0b2847] rounded-2xl p-4 text-center">
+            <div class="text-xs opacity-60">Saldo Anterior</div>
+            <div class="font-semibold mt-1">
+                $ {{ "{:,.0f}".format(saldo_anterior or 0) }}
+            </div>
+        </div>
+
+        <div class="bg-[#0b2847] rounded-2xl p-4 text-center">
+            <div class="text-xs opacity-60">Cobros Hoy</div>
+            <div class="font-semibold text-green-400 mt-1">
+                $ {{ "{:,.0f}".format(total_cobros or 0) }}
+            </div>
+        </div>
+
+        <div class="bg-[#0b2847] rounded-2xl p-4 text-center">
+            <div class="text-xs opacity-60">Préstamos Hoy</div>
+            <div class="font-semibold text-red-400 mt-1">
+                $ {{ "{:,.0f}".format(total_prestamos or 0) }}
+            </div>
+        </div>
+
+        <div class="bg-[#0b2847] rounded-2xl p-4 text-center">
+            <div class="text-xs opacity-60">Gastos Hoy</div>
+            <div class="font-semibold text-yellow-400 mt-1">
+                $ {{ "{:,.0f}".format(total_gastos or 0) }}
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ================= PRÉSTAMOS ================= -->
+    <div class="bg-[#123b63] rounded-3xl shadow-lg overflow-hidden">
+
+        <button onclick="toggleSection('prestamos')"
+            class="w-full flex justify-between items-center p-5">
+
+            <div class="font-semibold">Préstamos Realizados</div>
+
+            <div class="flex items-center gap-3">
+                <span class="text-red-400 font-semibold">
+                    $ {{ "{:,.0f}".format(total_prestamos or 0) }}
+                </span>
+                <span id="icon-prestamos" class="transition-transform">⌄</span>
+            </div>
+        </button>
+
+        <div id="prestamos" class="hidden px-5 pb-5">
+
+            <input type="text" id="buscarPrestamo"
+                placeholder="Buscar cliente..."
+                class="w-full bg-[#0b2847] rounded-xl p-2 text-sm mb-3">
+
+            <div class="space-y-2 text-sm max-h-52 overflow-y-auto">
+
+                {% for p in prestamos %}
+                <div class="flex justify-between prestamo-item"
+                    data-nombre="{{ p.cliente }}">
+                    <span>{{ p.cliente }}</span>
+                    <span>$ {{ "{:,.0f}".format(p.valor or 0) }}</span>
+                </div>
+                {% else %}
+                <div class="text-xs opacity-60">
+                    No hubo préstamos hoy
+                </div>
+                {% endfor %}
+
+            </div>
+        </div>
+    </div>
+
+
+    <!-- ================= COBROS ================= -->
+    <div class="bg-[#123b63] rounded-3xl shadow-lg overflow-hidden">
+
+        <button onclick="toggleSection('cobros')"
+            class="w-full flex justify-between items-center p-5">
+
+            <div class="font-semibold">Cobros Realizados</div>
+
+            <div class="flex items-center gap-3">
+                <span class="text-green-400 font-semibold">
+                    $ {{ "{:,.0f}".format(total_cobros or 0) }}
+                </span>
+                <span id="icon-cobros" class="transition-transform">⌄</span>
+            </div>
+        </button>
+
+        <div id="cobros" class="hidden px-5 pb-5">
+
+            <div class="space-y-2 text-sm max-h-52 overflow-y-auto">
+
+                {% for c in cobros %}
+                <div class="flex justify-between">
+                    <span>{{ c.cliente }}</span>
+                    <span>$ {{ "{:,.0f}".format(c.valor or 0) }}</span>
+                </div>
+                {% else %}
+                <div class="text-xs opacity-60">
+                    No hubo cobros hoy
+                </div>
+                {% endfor %}
+
+            </div>
+
+        </div>
+    </div>
+
+
+    <!-- ================= GASTOS ================= -->
+    <div class="bg-[#123b63] rounded-3xl shadow-lg overflow-hidden">
+
+        <button onclick="toggleSection('gastos')"
+            class="w-full flex justify-between items-center p-5">
+
+            <div class="font-semibold">Gastos Realizados</div>
+
+            <div class="flex items-center gap-3">
+                <span class="text-yellow-400 font-semibold">
+                    $ {{ "{:,.0f}".format(total_gastos or 0) }}
+                </span>
+                <span id="icon-gastos" class="transition-transform">⌄</span>
+            </div>
+        </button>
+
+        <div id="gastos" class="hidden px-5 pb-5">
+
+            <div class="text-xs opacity-60">
+                (Se registran al momento de liquidar)
+            </div>
+
+        </div>
+    </div>
+
+
+    <!-- ================= TOTAL RECIBIDO (TRANSFERENCIA) ================= -->
+    <div class="bg-[#0b2847] rounded-3xl p-5 text-center shadow-lg">
+        <div class="text-xs opacity-60">Total Recibido en Transferencias</div>
+        <div class="text-lg font-semibold text-blue-400 mt-1">
+            $ {{ "{:,.0f}".format(total_transferencias or 0) }}
+        </div>
+    </div>
+
+    <!-- ================= BOTÓN CERRAR DÍA ================= -->
+    <form method="POST" action="{{ url_for('cerrar_dia') }}">
+        <button type="submit"
+                class="w-full bg-red-600 hover:bg-red-700
+                       py-4 rounded-3xl font-semibold shadow-lg
+                       transition active:scale-95">
+            Cerrar Día
+        </button>
+    </form>
+
+</div>
+
+<!-- ================= SCRIPT BUSCADOR ================= -->
+<script>
+document.getElementById("buscarPrestamo").addEventListener("keyup", function() {
+    let filtro = this.value.toLowerCase();
+    let items = document.querySelectorAll(".prestamo-item");
+
+    items.forEach(item => {
+        let nombre = item.dataset.nombre.toLowerCase();
+        item.style.display = nombre.includes(filtro) ? "" : "none";
+    });
+});
+</script>
+<script>
+function toggleSection(id) {
+    const section = document.getElementById(id);
+    const icon = document.getElementById("icon-" + id);
+
+    section.classList.toggle("hidden");
+    icon.classList.toggle("rotate-180");
+}
+</script>
+
+{% endblock %}

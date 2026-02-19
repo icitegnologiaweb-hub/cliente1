@@ -2,83 +2,93 @@
 
 {% block content %}
 
-<div class="flex justify-center mt-6">
+<div class="flex justify-center mt-4">
 
-    <div class="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-6 text-gray-800">
+    <!-- TICKET REAL -->
+    <div class="bg-white w-[250px] p-4 
+                text-black font-mono text-[11px] leading-tight rounded-xl">
 
-        <!-- Check -->
-        <div class="flex justify-center">
-            <div class="bg-green-600 h-16 w-16 rounded-full flex items-center justify-center shadow-lg">
-                <span class="text-white text-3xl">✓</span>
+        <!-- LOGO PEQUEÑO -->
+        <div class="text-center mb-2 text-[10px] leading-tight">
+
+            <img src="{{ url_for('static', filename='img/logo.png') }}"
+                class="h-10 mx-auto mb-1">
+
+            <div>
+                <strong>Factura:</strong> {{ pago.id[:8] }}
             </div>
+
+            <div>
+                <strong>Fecha impresión:</strong>
+                {{ pago.fecha[:10] if pago.fecha else '' }}
+            </div>
+
         </div>
 
-        <!-- Título -->
-        <h2 class="text-center text-2xl font-bold text-green-600 mt-4">
-            ¡Pago Registrado!
-        </h2>
+        <div>------------------------------------------------------</div>
 
-        <!-- Card interna -->
-        <div class="bg-gray-100 rounded-2xl p-5 mt-6 shadow-inner text-sm">
+        <!-- DATOS -->
+        <div class="mt-1">
+            <div><strong>Datos del cliente:</strong></div>
+            <div>Cliente: {{ pago.cuotas.creditos.clientes.nombre }}</div>
+            <div>ID: {{ pago.cuotas.creditos.id }}</div>
+            <div>Ruta: {{ pago.cuotas.creditos.rutas.codigo }}</div>
+            <div>Monto crédito: ${{ "{:,.0f}".format(pago.cuotas.creditos.valor_total or 0) }}</div>
+        </div>
 
-            <div class="text-center font-semibold text-gray-700 mb-4">
-                {{ pago.cuotas.creditos.clientes.nombre }}
-            </div>
+        <div>------------------------------------------------------</div>
 
-            <div class="flex justify-between mb-2">
-                <span>Ruta</span>
-                <span class="text-green-600 font-medium">
-                    {{ pago.cuotas.creditos.rutas.codigo }} - {{ pago.cuotas.creditos.rutas.nombre }}
-                </span>
-            </div>
-
-            <div class="flex justify-between mb-2">
-                <span>Código Venta</span>
-                <span class="text-green-600 font-medium">
-                    {{ pago.cuotas.creditos.id[:6] }}
-                </span>
-            </div>
-
-            <div class="flex justify-between mb-2">
-                <span>Fecha</span>
-                <span class="text-green-600 font-medium">
-                    {{ pago.fecha[:16] }}
-                </span>
-            </div>
-
-            <div class="flex justify-between mb-2">
-                <span>Total Pagado</span>
-                <span class="text-green-600 font-semibold">
-                    $ {{ "{:,.0f}".format(pago.monto) }}
-                </span>
+        <!-- TABLA -->
+        <div class="mt-1">
+            <div class="flex justify-between">
+                <span><strong>Descripción</strong></span>
+                <span><strong>Monto</strong></span>
             </div>
 
             <div class="flex justify-between">
-                <span>Saldo Restante</span>
-                <span class="text-green-600 font-semibold">
-                    $ {{ "{:,.0f}".format(saldo_restante) }}
-                </span>
+                <span>Abono</span>
+                <span>${{ "{:,.0f}".format(pago.monto or 0) }}</span>
             </div>
 
+            <div>{{ pago.fecha[:16] if pago.fecha else '' }}</div>
         </div>
 
-        <!-- Botones -->
-        <div class="flex gap-3 mt-6">
+        <div>------------------------------------------------------</div>
 
-            <a href="{{ url_for('detalle_credito', credito_id=pago.cuotas.credito_id) }}"
-               class="w-1/2 bg-green-600 text-white py-3 rounded-xl text-center font-semibold shadow-md">
-                Aceptar
-            </a>
+        <!-- TOTAL -->
+        <div class="flex justify-between font-bold">
+            <span>Total abonado:</span>
+            <span>${{ "{:,.0f}".format(pago.monto or 0) }}</span>
+        </div>
 
-            <a href="https://wa.me/?text=Pago registrado de ${{ pago.monto }} el {{ pago.fecha[:16] }} para {{ pago.cuotas.creditos.clientes.nombre }}"
-               target="_blank"
-               class="w-1/2 bg-green-500 text-white py-3 rounded-xl text-center font-semibold shadow-md">
-                Compartir
-            </a>
+        <div class="flex justify-between">
+            <span>Saldo Restante:</span>
+            <span>${{ "{:,.0f}".format(saldo_restante or 0) }}</span>
+        </div>
 
+        <div>------------------------------------------------------</div>
+
+        <div class="text-center mt-2">
+            🗸 ¡Gracias por su pago!
         </div>
 
     </div>
+
+</div>
+
+<!-- BOTONES -->
+<div class="flex justify-center mt-6 gap-3">
+
+    <a href="{{ url_for('ver_ruta', ruta_id=session.get('ruta_id')) }}"
+       class="bg-green-800 text-white px-4 py-2 text-sm">
+        Aceptar
+    </a>
+
+    <a href="https://wa.me/?text=Pago de ${{ '{:,.0f}'.format(pago.monto or 0) }} registrado el {{ pago.fecha[:10] if pago.fecha else '' }} para {{ pago.cuotas.creditos.clientes.nombre }}"
+       target="_blank"
+       class="bg-green-600 text-white px-4 py-2 text-sm">
+        Compartir
+    </a>
 
 </div>
 

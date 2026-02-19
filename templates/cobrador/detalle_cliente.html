@@ -1,0 +1,35 @@
+{% extends "cobrador/layout.html" %}
+{% block titulo %}Detalle Cliente{% endblock %}
+
+{% block content %}
+
+<div class="bg-[#123b63] rounded-2xl p-5 space-y-3">
+
+    <div><strong>Nombre:</strong> {{ cliente.nombre }}</div>
+    <div><strong>Identificación:</strong> {{ cliente.identificacion }}</div>
+    <div><strong>Teléfono:</strong> {{ cliente.telefono_principal }}</div>
+    <div><strong>Dirección:</strong> {{ cliente.direccion }}</div>
+
+</div>
+
+<div class="mt-6">
+
+{% if tiene_credito_activo %}
+
+    <div class="bg-red-600 rounded-2xl p-4 text-center font-semibold">
+        Este cliente ya tiene un crédito activo
+    </div>
+
+{% else %}
+
+    <a href="{{ url_for('nueva_venta_cobrador') }}"
+       class="block bg-green-600 hover:bg-green-700
+              rounded-2xl p-4 text-center font-semibold mt-4">
+        Renovar Crédito
+    </a>
+
+{% endif %}
+
+</div>
+
+{% endblock %}
