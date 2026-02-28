@@ -43,12 +43,10 @@ pillow==12.1.1
 playwright==1.41.2
 postgrest==2.28.0
 propcache==0.4.1
-PyAutoGUI==0.9.54
 pycparser==3.0
 pydantic==2.12.5
 pydantic_core==2.41.5
 pyee==11.0.1
-PyGetWindow==0.0.9
 Pygments==2.19.2
 pyiceberg==0.11.0
 PyJWT==2.11.0
@@ -57,11 +55,9 @@ pyparsing==3.3.2
 pyperclip==1.11.0
 PyRect==0.2.0
 pyroaring==1.0.3
-PyScreeze==1.0.1
 PySocks==1.7.1
 python-dateutil==2.9.0.post0
 python-dotenv==1.2.1
-pytweening==1.2.0
 pytz==2025.2
 realtime==2.28.0
 reportlab==4.4.10
