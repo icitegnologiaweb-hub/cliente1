@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="px-12 py-10 bg-gray-100 min-h-screen">
+
+    <h1 class="text-2xl font-bold mb-8">
+        Categorías de Gastos
+    </h1>
+
+    <!-- FORMULARIO -->
+    <div class="bg-white p-6 rounded-xl shadow mb-8">
+
+        <form method="POST" action="{{ url_for('guardar_categoria_gasto') }}"
+              class="flex gap-4">
+
+            <input type="text" name="nombre"
+                   placeholder="Nombre Categoría"
+                   class="border rounded-lg px-4 py-2 w-60"
+                   required>
+
+            <input type="text" name="descripcion"
+                   placeholder="Descripción"
+                   class="border rounded-lg px-4 py-2 w-80">
+
+            <button class="bg-blue-600 text-white px-6 rounded-lg">
+                Guardar
+            </button>
+
+        </form>
+
+    </div>
+
+    <!-- TABLA -->
+    <div class="bg-white rounded-xl shadow">
+
+        <table class="min-w-full text-sm">
+
+            <thead class="bg-gray-100 text-xs uppercase text-gray-600">
+                <tr>
+                    <th class="px-6 py-3 text-left">Nombre</th>
+                    <th class="px-6 py-3 text-left">Descripción</th>
+                </tr>
+            </thead>
+
+            <tbody class="divide-y">
+                {% for c in categorias %}
+                <tr>
+                    <td class="px-6 py-3 font-medium">
+                        {{ c.nombre }}
+                    </td>
+                    <td class="px-6 py-3 text-gray-600">
+                        {{ c.descripcion }}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+
+        </table>
+
+    </div>
+
+</div>
+
+{% endblock %}

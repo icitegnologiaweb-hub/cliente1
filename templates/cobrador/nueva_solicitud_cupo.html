@@ -1,0 +1,116 @@
+{% extends "cobrador/layout.html" %}
+{% block titulo %}Nueva Solicitud{% endblock %}
+
+{% block content %}
+
+<div class="max-w-md mx-auto space-y-6 text-white">
+
+    <!-- HEADER -->
+    <div>
+        <h2 class="text-lg font-semibold text-blue-200">
+            Solicitar Aumento de Cupo
+        </h2>
+        <p class="text-xs text-gray-400">
+            Solo aplica para clientes existentes
+        </p>
+    </div>
+
+    <!-- TARJETA PRINCIPAL -->
+    <div class="bg-[#123b63] rounded-2xl p-5 shadow-lg space-y-4">
+
+        <form method="POST" action="{{ url_for('guardar_solicitud_cupo') }}" class="space-y-4">
+
+            <!-- CEDULA -->
+            <div>
+                <label class="text-xs text-gray-300 block mb-1">
+                    Número de Cédula
+                </label>
+
+                <div class="flex gap-2">
+                    <input type="text"
+                        id="cedula"
+                        name="cedula"
+                        placeholder="Ingrese la cédula"
+                        class="flex-1 bg-[#0b2847] text-white border border-gray-600 rounded-xl p-3">
+
+                    <button type="button"
+                            onclick="buscarCliente()"
+                            class="bg-blue-600 px-4 rounded-xl text-white">
+                        Cargar Datos
+                    </button>
+                </div>
+            </div>
+
+            <!-- NOMBRE CLIENTE -->
+            <div>
+                <label class="text-xs text-gray-300 block mb-1">
+                    Nombre del Cliente
+                </label>
+                <input type="text"
+                    id="nombre_cliente"
+                    readonly
+                    class="w-full bg-[#071c33] text-white border border-gray-600 rounded-xl p-3 !bg-[#071c33] focus:outline-none">
+            </div>
+
+            <!-- ERROR -->
+            <div id="cliente_error" class="hidden text-red-400 text-xs"></div>
+
+            <!-- MONTO -->
+            <div>
+                <label class="text-xs text-gray-300 block mb-1">
+                    Monto solicitado
+                </label>
+
+                <input type="number"
+                    name="monto"
+                    placeholder="Ej: 500000"
+                    required
+                    class="w-full bg-[#0b2847] text-white border border-gray-600 rounded-xl p-3">
+            </div>
+
+            <!-- BOTON -->
+            <button type="submit"
+                    id="btnEnviar"
+                    disabled
+                    class="w-full bg-green-600 py-3 rounded-xl font-semibold text-white disabled:opacity-50">
+                Enviar Solicitud
+            </button>
+
+        </form>
+
+    </div>
+
+</div>
+
+<script>
+function buscarCliente(){
+
+    let cedula = document.getElementById("cedula").value.trim();
+    let nombreInput = document.getElementById("nombre_cliente");
+    let errorDiv = document.getElementById("cliente_error");
+    let btnEnviar = document.getElementById("btnEnviar");
+
+    if(!cedula){
+        alert("Ingrese la cédula");
+        return;
+    }
+
+    fetch("/buscar_cliente_por_cedula/" + cedula)
+    .then(res => res.json())
+    .then(data => {
+
+        console.log("RESPUESTA DEL SERVIDOR:", data);  // 👈 AGREGA ESTO
+
+        if(data.success){
+            nombreInput.value = data.cliente.nombre;
+            btnEnviar.disabled = false;
+        } else {
+            nombreInput.value = "";
+            btnEnviar.disabled = true;
+        }
+
+    });
+
+}
+</script>
+{% endblock %}

@@ -5,34 +5,71 @@
 
 <div class="space-y-4">
 
-{% for c in clientes %}
+    <!-- ================= BUSCADOR ================= -->
+    <div class="bg-[#123b63] rounded-2xl p-3 shadow-md">
+        <input type="text"
+               id="buscarCliente"
+               placeholder="Buscar por nombre o cédula..."
+               class="w-full bg-[#0b2847] rounded-xl p-3 text-sm outline-none">
+    </div>
 
-<a href="{{ url_for('detalle_cliente', cliente_id=c.id, ruta_id=ruta_id) }}"
-   class="block bg-[#123b63] rounded-2xl p-4 shadow-md">
+    <!-- ================= LISTA CLIENTES ================= -->
+    <div id="listaClientes" class="space-y-4">
 
-    <div class="flex justify-between items-center">
+        {% for c in clientes %}
 
-        <div>
-            <div class="font-semibold">{{ c.nombre }}</div>
-            <div class="text-xs opacity-70">{{ c.identificacion }}</div>
-        </div>
+        <a href="{{ url_for('detalle_cliente', cliente_id=c.id, ruta_id=ruta_id) }}"
+           class="block bg-[#123b63] rounded-2xl p-4 shadow-md cliente-item"
+           data-nombre="{{ c.nombre|lower }}"
+           data-id="{{ c.identificacion|lower }}">
 
-        {% if c.credito_activo %}
-            <div class="text-red-400 text-xs font-semibold">
-                Crédito Activo
+            <div class="flex justify-between items-center">
+
+                <div>
+                    <div class="font-semibold">{{ c.nombre }}</div>
+                    <div class="text-xs opacity-70">{{ c.identificacion }}</div>
+                </div>
+
+                {% if c.credito_activo %}
+                    <div class="text-red-400 text-xs font-semibold">
+                        Crédito Activo
+                    </div>
+                {% else %}
+                    <div class="text-green-400 text-xs font-semibold">
+                        Sin Crédito Activo
+                    </div>
+                {% endif %}
+
             </div>
-        {% else %}
-            <div class="text-green-400 text-xs font-semibold">
-                Sin Crédito Activo
-            </div>
-        {% endif %}
+
+        </a>
+
+        {% endfor %}
 
     </div>
 
-</a>
-
-{% endfor %}
-
 </div>
+
+<!-- ================= SCRIPT BUSCADOR ================= -->
+<script>
+document.getElementById("buscarCliente").addEventListener("keyup", function() {
+
+    let filtro = this.value.toLowerCase();
+    let clientes = document.querySelectorAll(".cliente-item");
+
+    clientes.forEach(cliente => {
+
+        let nombre = cliente.dataset.nombre;
+        let identificacion = cliente.dataset.id;
+
+        if (nombre.includes(filtro) || identificacion.includes(filtro)) {
+            cliente.style.display = "";
+        } else {
+            cliente.style.display = "none";
+        }
+
+    });
+});
+</script>
 
 {% endblock %}

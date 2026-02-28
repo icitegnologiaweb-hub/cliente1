@@ -22,22 +22,20 @@
                 Ruta Actual
             </div>
 
-            <select name="ruta_id"
-                    required
-                    class="w-full bg-[#0b2847] border border-gray-600
-                           focus:border-green-500
-                           rounded-xl p-3">
+         <select name="ruta_id"
+                id="rutaSelect"
+                required
+                class="w-full bg-[#0b2847] border border-gray-600 rounded-xl p-3">
 
-                {% for ruta in rutas %}
-                    <option value="{{ ruta.id }}"
-                        {% if ruta.id == ruta_actual %}
-                            selected
-                        {% endif %}>
-                        {{ ruta.nombre }}
-                    </option>
-                {% endfor %}
+        {% for ruta in rutas %}
+            <option value="{{ ruta.id }}"
+                    data-max="{{ ruta.venta_maxima or 0 }}"
+                    {% if ruta.id == ruta_actual %}selected{% endif %}>
+                {{ ruta.nombre }}
+            </option>
+        {% endfor %}
 
-            </select>
+        </select>
 
         </div>
 
@@ -49,28 +47,37 @@
             </div>
 
             <input type="text" name="identificacion"
-                   value="{{ form_data.identificacion if form_data else '' }}"
-                   placeholder="Identificación"
-                   required
-                   class="w-full bg-[#0b2847] border border-gray-600 rounded-xl p-3">
+                value="{{ cliente_aprobado.identificacion if cliente_aprobado else '' }}"
+                {% if cliente_aprobado %}readonly{% endif %}
+                placeholder="Identificación"
+                required
+                class="w-full bg-[#0b2847] border border-gray-600 rounded-xl p-3">
 
             <input type="text" name="nombre"
-                   value="{{ form_data.nombre if form_data else '' }}"
-                   placeholder="Nombre completo"
-                   required
-                   class="w-full bg-[#0b2847] border border-gray-600 rounded-xl p-3">
+                value="{{ cliente_aprobado.nombre if cliente_aprobado else '' }}"
+                {% if cliente_aprobado %}readonly{% endif %}
+                placeholder="Nombre completo"
+                required
+                class="w-full bg-[#0b2847] border border-gray-600 rounded-xl p-3">
 
             <input type="text" name="direccion"
-                   value="{{ form_data.direccion if form_data else '' }}"
-                   placeholder="Dirección"
-                   required
-                   class="w-full bg-[#0b2847] border border-gray-600 rounded-xl p-3">
+                value="{{ cliente_aprobado.direccion if cliente_aprobado else '' }}"
+                placeholder="Dirección Domicilio"
+                required
+                class="w-full bg-[#0b2847] border border-gray-600 rounded-xl p-3">
+
+            <input type="text" name="direccion_negocio"
+                value=""
+                placeholder="Dirección Negocio"
+                required
+                class="w-full bg-[#0b2847] border border-gray-600 rounded-xl p-3">
 
             <input type="text" name="telefono"
-                   value="{{ form_data.telefono if form_data else '' }}"
-                   placeholder="Teléfono"
-                   required
-                   class="w-full bg-[#0b2847] border border-gray-600 rounded-xl p-3">
+                value="{{ cliente_aprobado.telefono_principal if cliente_aprobado else '' }}"
+                placeholder="Teléfono"
+                required
+                class="w-full bg-[#0b2847] border border-gray-600 rounded-xl p-3">
+
         </div>
 
         <!-- ================= CRÉDITO ================= -->
@@ -79,21 +86,42 @@
             <div class="text-sm text-blue-200 font-semibold">
                 Información del Crédito
             </div>
-            <input type="number"
-                name="posicion"
-                value="{{ form_data.posicion if form_data else '' }}"
-                placeholder="Posición en la Ruta"
-                required
-                min="1"
-                class="w-full bg-[#0b2847] border border-gray-600 rounded-xl p-3 text-lg font-semibold">
+           
 
             <input type="number"
                 name="valor_venta"
-                value="{{ form_data.valor_venta if form_data else '' }}"
                 id="valorVenta"
+                value="{{ monto_aprobado if monto_aprobado else '' }}"
                 placeholder="Valor Préstamo"
                 required
                 class="w-full bg-[#0b2847] border border-gray-600 rounded-xl p-3 text-lg font-semibold">
+
+            <!-- 🔥 CUPO MÁXIMO DINÁMICO -->
+            <div class="bg-[#0b2847] rounded-xl p-3 text-center mt-2">
+
+                <div class="text-xs opacity-60">
+                    {% if monto_aprobado %}
+                        Monto aprobado para aumento de cupo
+                    {% else %}
+                        Monto máximo permitido en esta ruta
+                    {% endif %}
+                </div>
+
+                <div id="ventaMaximaTexto"
+                    class="text-lg font-bold text-green-400">
+                    {% if monto_aprobado %}
+                        ${{ "{:,.0f}".format(monto_aprobado|float) }}
+                    {% else %}
+                        $0
+                    {% endif %}
+                </div>
+
+                <div id="alertaCupo"
+                    class="text-xs text-red-400 mt-1 hidden">
+                    ⚠ El valor supera el cupo permitido
+                </div>
+
+            </div>
 
             <!-- Tipo préstamo -->
                 <select name="tipo_prestamo"
@@ -151,9 +179,10 @@
             </div>
 
             <input type="date"
-                   name="fecha_inicio"
-                   required
-                   class="w-full bg-[#0b2847] border border-gray-600 rounded-xl p-3">
+                name="fecha_inicio"
+                id="fechaInicio"
+                required
+                class="w-full bg-[#0b2847] border border-gray-600 rounded-xl p-3">
 
         </div>
 
@@ -161,28 +190,105 @@
         <div class="bg-[#123b63] rounded-2xl p-4 shadow-md space-y-4">
 
             <div class="text-sm text-blue-200 font-semibold">
-                Fotos (Obligatorias) 
+                Fotos (Obligatorias)
             </div>
+
+            <div class="space-y-3">
+
+                <div>
+                    <label class="text-xs text-gray-300 block mb-1">
+                        Foto Cliente (rostro)
+                    </label>
+                    <input type="file"
+                        name="foto_cliente"
+                        accept="image/*"
+                        required
+                        class="w-full text-sm">
+                </div>
+
+                <div>
+                    <label class="text-xs text-gray-300 block mb-1">
+                        Foto Cédula
+                    </label>
+                    <input type="file"
+                        name="foto_cedula"
+                        accept="image/*"
+                        required
+                        class="w-full text-sm">
+                </div>
+
+                <div>
+                    <label class="text-xs text-gray-300 block mb-1">
+                        Foto Negocio
+                    </label>
+                    <input type="file"
+                        name="foto_negocio"
+                        accept="image/*"
+                        required
+                        class="w-full text-sm">
+                </div>
+
+            </div>
+
+        </div>
+        <!-- ================= FIRMA DIGITAL ================= -->
+        <div class="bg-[#123b63] rounded-2xl p-4 shadow-md space-y-4">
+
+            <div class="text-sm text-blue-200 font-semibold">
+                Firma del Cliente
+            </div>
+
+            <canvas id="firmaCanvas"
+                    class="border border-gray-600 rounded-xl w-full h-40 bg-white"></canvas>
+
+            <input type="hidden" name="firma_cliente" id="firmaCliente">
 
             <div class="grid grid-cols-2 gap-3">
 
-                <input type="file"
-                       name="foto_cedula"
-                       accept="image/*"
-                       required>Cedula
+                <button type="button"
+                        onclick="limpiarFirma()"
+                        class="bg-gray-500 hover:bg-gray-600 py-2 rounded-xl">
+                    Limpiar
+                </button>
 
-                <input type="file"
-                       name="foto_negocio"
-                       accept="image/*"
-                       required>Local
+                <button type="button"
+                        onclick="guardarFirma()"
+                        class="bg-blue-600 hover:bg-blue-700 py-2 rounded-xl">
+                    Guardar Firma
+                </button>
 
             </div>
 
         </div>
 
+                <!-- ================= UBICACIÓN ================= -->
+        <div class="bg-[#123b63] rounded-2xl p-4 shadow-md space-y-4">
+
+            <div class="text-sm text-blue-200 font-semibold">
+                Ubicación del Cliente
+            </div>
+
+            <button type="button"
+                    onclick="obtenerUbicacion()"
+                    class="bg-blue-600 hover:bg-blue-800 py-2 w-full rounded-xl">
+                📍 Registrar Ubicación Actual
+            </button>
+
+            <div id="mapPreview"
+                class="hidden border border-gray-600 rounded-xl h-40 overflow-hidden">
+            </div>
+
+            <input type="hidden" name="latitud" id="latitud">
+            <input type="hidden" name="longitud" id="longitud">
+
+            <div id="ubicacionTexto"
+                class="text-xs text-center opacity-70">
+            </div>
+
+        </div>
         <!-- BOTÓN -->
         <button type="submit"
-                class="w-full bg-green-600 hover:bg-green-700
+                class="w-full bg-blue-600 hover:bg-blue-700
                        py-4 rounded-2xl font-semibold shadow-lg">
             Guardar Venta
         </button>
@@ -191,6 +297,145 @@
 
 </div>
 
+<script>
+window.addEventListener("DOMContentLoaded", function() {
+    const hoy = new Date();
+    hoy.setDate(hoy.getDate() + 1); // 🔥 Mañana
+
+    const año = hoy.getFullYear();
+    const mes = String(hoy.getMonth() + 1).padStart(2, '0');
+    const dia = String(hoy.getDate()).padStart(2, '0');
+
+    const fechaFormateada = `${año}-${mes}-${dia}`;
+
+    document.getElementById("fechaInicio").value = fechaFormateada;
+});
+</script>
+<script>
+/* ================= FIRMA CORREGIDA ================= */
+
+let canvas = document.getElementById("firmaCanvas");
+let ctx = canvas.getContext("2d");
+let dibujando = false;
+
+/* Ajustar tamaño real del canvas */
+function ajustarCanvas() {
+    canvas.width = canvas.offsetWidth;
+    canvas.height = canvas.offsetHeight;
+}
+ajustarCanvas();
+window.addEventListener("resize", ajustarCanvas);
+
+/* Mouse */
+canvas.addEventListener("mousedown", (e) => {
+    dibujando = true;
+    ctx.beginPath();
+    ctx.moveTo(e.offsetX, e.offsetY);
+});
+
+canvas.addEventListener("mousemove", (e) => {
+    if (!dibujando) return;
+    ctx.lineWidth = 2;
+    ctx.lineCap = "round";
+    ctx.strokeStyle = "#000";
+    ctx.lineTo(e.offsetX, e.offsetY);
+    ctx.stroke();
+});
+
+canvas.addEventListener("mouseup", () => {
+    dibujando = false;
+    ctx.beginPath(); // 🔥 IMPORTANTE
+});
+
+canvas.addEventListener("mouseout", () => {
+    dibujando = false;
+    ctx.beginPath(); // 🔥 IMPORTANTE
+});
+
+/* Touch */
+canvas.addEventListener("touchstart", (e) => {
+    e.preventDefault();
+    dibujando = true;
+
+    const rect = canvas.getBoundingClientRect();
+    const x = e.touches[0].clientX - rect.left;
+    const y = e.touches[0].clientY - rect.top;
+
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+});
+
+canvas.addEventListener("touchmove", (e) => {
+    e.preventDefault();
+    if (!dibujando) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const x = e.touches[0].clientX - rect.left;
+    const y = e.touches[0].clientY - rect.top;
+
+    ctx.lineWidth = 2;
+    ctx.lineCap = "round";
+    ctx.strokeStyle = "#000";
+    ctx.lineTo(x, y);
+    ctx.stroke();
+});
+
+canvas.addEventListener("touchend", () => {
+    dibujando = false;
+    ctx.beginPath(); // 🔥 IMPORTANTE
+});
+
+/* Limpiar */
+function limpiarFirma() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.beginPath();
+}
+
+/* Guardar */
+function guardarFirma() {
+    let dataURL = canvas.toDataURL("image/png");
+    document.getElementById("firmaCliente").value = dataURL;
+    alert("Firma guardada correctamente");
+}
+
+
+/* ================= UBICACIÓN ================= */
+
+function obtenerUbicacion() {
+
+    if (!navigator.geolocation) {
+        alert("Tu navegador no soporta geolocalización");
+        return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+        function(position) {
+
+            const lat = position.coords.latitude;
+            const lng = position.coords.longitude;
+
+            document.getElementById("latitud").value = lat;
+            document.getElementById("longitud").value = lng;
+
+            document.getElementById("ubicacionTexto").innerText =
+                "Ubicación registrada: " + lat.toFixed(6) + ", " + lng.toFixed(6);
+
+            const mapDiv = document.getElementById("mapPreview");
+            mapDiv.classList.remove("hidden");
+
+            mapDiv.innerHTML =
+                `<iframe width="100%" height="100%" frameborder="0"
+                    src="https://www.google.com/maps?q=${lat},${lng}&z=16&output=embed">
+                </iframe>`;
+        },
+        function() {
+            alert("No se pudo obtener la ubicación");
+        },
+        { enableHighAccuracy: true }
+    );
+}
+
+</script>
 <!-- ================= SCRIPT CALCULO ================= -->
 <script>
 
@@ -216,6 +461,67 @@ document.getElementById("valorVenta").addEventListener("input", calcular);
 document.getElementById("cuotas").addEventListener("input", calcular);
 document.getElementById("tasa").addEventListener("input", calcular);
 
+</script>
+<script>
+const montoAprobado = {{ monto_aprobado|float if monto_aprobado else 0 }};
+
+function actualizarCupo() {
+
+    const texto = document.getElementById("ventaMaximaTexto");
+
+    if (montoAprobado > 0) {
+        // 🔥 MODO AUMENTO APROBADO
+        texto.innerText = "$" + montoAprobado.toLocaleString("es-CO");
+        return;
+    }
+
+    // 🔹 MODO NORMAL
+    const rutaSelect = document.getElementById("rutaSelect");
+    const selectedOption = rutaSelect.options[rutaSelect.selectedIndex];
+
+    let ventaMaxima = parseFloat(selectedOption.getAttribute("data-max")) || 0;
+
+    texto.innerText = "$" + ventaMaxima.toLocaleString("es-CO");
+}
+
+function validarCupo() {
+
+    const valorVenta = parseFloat(document.getElementById("valorVenta").value) || 0;
+
+    let limite;
+
+    if (montoAprobado > 0) {
+        // 🔥 Validar contra monto aprobado
+        limite = montoAprobado;
+    } else {
+        const rutaSelect = document.getElementById("rutaSelect");
+        const selectedOption = rutaSelect.options[rutaSelect.selectedIndex];
+        limite = parseFloat(selectedOption.getAttribute("data-max")) || 0;
+    }
+
+    const alerta = document.getElementById("alertaCupo");
+
+    if (valorVenta > limite) {
+        alerta.classList.remove("hidden");
+        document.getElementById("valorVenta").classList.add("border-red-500");
+    } else {
+        alerta.classList.add("hidden");
+        document.getElementById("valorVenta").classList.remove("border-red-500");
+    }
+}
+
+document.getElementById("rutaSelect").addEventListener("change", function(){
+    if (montoAprobado === 0) {
+        actualizarCupo();
+    }
+});
+
+document.getElementById("valorVenta").addEventListener("input", validarCupo);
+
+window.addEventListener("DOMContentLoaded", function(){
+    actualizarCupo();
+    validarCupo();
+});
 </script>
 
 {% endblock %}

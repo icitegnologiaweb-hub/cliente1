@@ -2,6 +2,7 @@
 
 {% block titulo %}
 {{ credito.clientes.nombre }}
+
 {% endblock %}
 
 {% block content %}
@@ -44,7 +45,13 @@
                 {{ credito.tipo_prestamo }}
             </span>
         </div>
-
+        <!-- Fecha Registro Crédito -->
+        <div class="flex justify-between">
+            <span class="opacity-70">Fecha Registro Credito</span>
+            <span class="text-blue-300">
+                {{ credito.created_at[8:10] }}/{{ credito.created_at[5:7] }}/{{ credito.created_at[:4] }}
+            </span>
+        </div>
         <!-- Próxima cuota -->
         <div class="flex justify-between">
             <span class="opacity-70">Próxima Cuota</span>
@@ -71,8 +78,9 @@
 
     </div>
 
-    <button class="w-full mt-5 bg-blue-600 hover:bg-blue-700
-                   py-3 rounded-xl text-sm font-semibold shadow-md transition">
+    <button onclick="abrirGaleria()"
+            class="w-full mt-5 bg-blue-600 hover:bg-blue-700
+                py-3 rounded-xl text-sm font-semibold shadow-md transition">
         Ver Imagen de la Venta
     </button>
     <a href="{{ url_for('historial_cliente', cliente_id=credito.clientes.id) }}"
@@ -80,11 +88,110 @@
             py-2 rounded-xl text-sm font-semibold text-center transition">
         Ver historial de créditos
     </a>
+    <a href="javascript:void(0);"
+    onclick="verUbicacion()"
+    class="w-full mt-3 block bg-green-600 hover:bg-green-700
+            py-2 rounded-xl text-sm font-semibold text-center transition">
+        📍 Ir a ubicación del cliente
+    </a>
+
+<!-- ================= MODAL GALERÍA MODERNO ================= -->
+<div id="modalGaleria"
+     class="fixed inset-0 bg-black/40 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
+
+    <div class="relative w-full max-w-md 
+            bg-gradient-to-br from-[#123b63] to-[#0b2847]
+            rounded-3xl shadow-2xl overflow-hidden text-white">
+
+        <!-- Header -->
+        <div class="flex items-center justify-between px-5 py-4 border-b border-white/10">
+
+            <div class="text-sm font-semibold text-blue-200">
+                Documentos del Crédito
+            </div>
+
+            <button onclick="cerrarGaleria()"
+                    class="h-8 w-8 rounded-full bg-gray-100 hover:bg-gray-200
+                           flex items-center justify-center text-gray-600 transition">
+                ✕
+            </button>
+
+        </div>
+
+        <!-- Contenedor imágenes -->
+        <div class="relative bg-transparent">
+
+            <div id="sliderImagenes"
+                 class="flex transition-transform duration-300">
+
+                {% if credito.foto_cliente %}
+                <div class="w-full flex-shrink-0 p-6">
+                    <img src="{{ credito.foto_cliente }}"
+                         class="w-full h-72 object-contain rounded-xl shadow">
+                    <div class="text-center text-xs text-gray-500 mt-2">
+                        Foto Cliente
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if credito.foto_cedula %}
+                <div class="w-full flex-shrink-0 p-6">
+                    <img src="{{ credito.foto_cedula }}"
+                         class="w-full h-72 object-contain rounded-xl shadow">
+                    <div class="text-center text-xs text-gray-500 mt-2">
+                        Foto Cédula
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if credito.foto_negocio %}
+                <div class="w-full flex-shrink-0 p-6">
+                    <img src="{{ credito.foto_negocio }}"
+                         class="w-full h-72 object-contain rounded-xl shadow">
+                    <div class="text-center text-xs text-gray-500 mt-2">
+                        Foto Negocio
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if credito.firma_cliente %}
+                <div class="w-full flex-shrink-0 p-6">
+                    <img src="{{ credito.firma_cliente }}"
+                         class="w-full h-48 object-contain bg-white rounded-xl shadow">
+                    <div class="text-center text-xs text-gray-500 mt-2">
+                        Firma Cliente
+                    </div>
+                </div>
+                {% endif %}
+
+            </div>
+
+        </div>
+
+        <!-- Footer navegación -->
+        <div class="flex items-center justify-between px-6 py-4 border-t border-white/10 bg-transparent">
+
+            <button onclick="prevImagen()"
+                   class="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-xl transition">
+                ← Anterior
+            </button>
+
+            <div id="contadorImagen"
+                 class="text-xs text-gray-500">
+                1 / 3
+            </div>
+
+            <button onclick="nextImagen()"
+                    class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition">
+                Siguiente →
+            </button>
+
+        </div>
+
+    </div>
 
 </div>
-
-
-
+     </div>
 <!-- =========================
      LISTA DE CUOTAS
 ========================= -->
@@ -94,7 +201,7 @@
 
 <div
     {% if cuota.estado != "pagado" %}
-        onclick="abrirModal('{{ cuota.id }}', {{ cuota.valor }})"
+        onclick="handleCardClick(event, '{{ cuota.id }}', {{ cuota.valor }})"
         class="cursor-pointer hover:scale-[1.02] transition"
     {% endif %}
     class="bg-gradient-to-br from-[#123b63] to-[#0b2847]
@@ -231,9 +338,141 @@
     </div>
 
 </div>
+<div id="modalPagos"
+     class="fixed inset-0 bg-black/70 hidden items-center justify-center z-50 p-4">
+
+    <div class="bg-white w-full max-w-md rounded-2xl p-5 max-h-[80vh] overflow-y-auto">
+
+        <h3 class="text-lg font-bold mb-4">Pagos realizados</h3>
+
+        {% for pago in historial_pagos %}
+        <div class="bg-gray-100 rounded-xl p-4 mb-3 shadow">
+
+            <div class="text-sm text-gray-500">
+                {{ pago.fecha }}
+            </div>
+
+            <div class="font-semibold text-green-600">
+                ${{ "{:,.0f}".format(pago.monto) }}
+            </div>
+
+            <div class="text-xs text-gray-600 mt-1">
+                Registrado por: {{ pago.registrado_por or "Cobrador" }}
+            </div>
+
+        </div>
+        {% endfor %}
+
+        <button onclick="cerrarPagos()"
+                class="w-full mt-3 bg-gray-200 py-2 rounded-xl">
+            Cerrar
+        </button>
+
+    </div>
+</div>
+<script>
+function handleCardClick(e, cuotaId, valor) {
+
+    // Si el click viene del botón de menú o del menú, no hacer nada
+    if (e.target.closest('#menuOpciones') || e.target.closest('[onclick*="toggleMenu"]')) {
+        return;
+    }
+
+    abrirModal(cuotaId, valor);
+}
+</script>
+
+<script>
+function toggleAcciones() {
+    const menu = document.getElementById("accionesMenu");
+    const icon = document.getElementById("iconAcciones");
+
+    menu.classList.toggle("hidden");
+
+    if(menu.classList.contains("hidden")){
+        icon.innerText = "▾";
+    } else {
+        icon.innerText = "▴";
+    }
+}
 
 
 
+function verPagos(){
+    document.getElementById("modalPagos").classList.remove("hidden");
+    document.getElementById("modalPagos").classList.add("flex");
+}
+
+function cerrarPagos(){
+    document.getElementById("modalPagos").classList.add("hidden");
+}
+
+function verUbicacion(){
+    const lat = "{{ credito.latitud }}";
+    const lng = "{{ credito.longitud }}";
+
+    if(lat && lng){
+        window.open(`https://www.google.com/maps?q=${lat},${lng}`, '_blank');
+    } else {
+        alert("Este crédito no tiene ubicación registrada.");
+    }
+}
+
+function intentarRenovar(){
+    const puede = {{ 'true' if puede_renovar else 'false' }};
+
+    if(puede){
+        window.location.href = "/renovar_credito/{{ credito.clientes.id }}/{{ ruta_id }}";
+    } else {
+        alert("No se puede renovar hasta que pague todas las cuotas.");
+    }
+}
+
+function verFicha(){
+    window.location.href = "/ficha_cliente/{{ credito.clientes.id }}";
+}
+
+</script>
+<script>
+
+let indexImagen = 0;
+
+function abrirGaleria() {
+    document.getElementById("modalGaleria").classList.remove("hidden");
+    document.getElementById("modalGaleria").classList.add("flex");
+    actualizarSlider();
+}
+
+function cerrarGaleria() {
+    document.getElementById("modalGaleria").classList.add("hidden");
+}
+
+function actualizarSlider() {
+    const slider = document.getElementById("sliderImagenes");
+    const total = document.querySelectorAll("#sliderImagenes > div").length;
+
+    slider.style.transform = `translateX(-${indexImagen * 100}%)`;
+
+    document.getElementById("contadorImagen").innerText =
+        (indexImagen + 1) + " / " + total;
+}
+
+function nextImagen() {
+    const total = document.querySelectorAll("#sliderImagenes > div").length;
+    if (indexImagen < total - 1) {
+        indexImagen++;
+        actualizarSlider();
+    }
+}
+
+function prevImagen() {
+    if (indexImagen > 0) {
+        indexImagen--;
+        actualizarSlider();
+    }
+}
+
+</script>
 <!-- =========================
      SCRIPT
 ========================= -->

@@ -1,240 +1,236 @@
 {% extends "base.html" %}
 {% block content %}
 
-<style>
+<div class="px-12 py-10 bg-slate-100 min-h-screen">
 
-.caja-wrapper{
-    padding:30px;
-}
-
-/* TABS */
-.tabs{
-    display:flex;
-    gap:10px;
-    align-items:center;
-    margin-bottom:20px;
-}
-
-.tab{
-    padding:8px 16px;
-    border-radius:8px;
-    font-weight:600;
-    cursor:pointer;
-    border:1px solid #dcdcdc;
-    background:#f5f7fa;
-}
-
-.tab.active{
-    background:#2c7be5;
-    color:white;
-    border:none;
-}
-
-/* GRID PRINCIPAL */
-.caja-grid{
-    display:grid;
-    grid-template-columns: 1.1fr 1fr;
-    gap:25px;
-}
-
-/* CARD IZQUIERDA */
-.card-box{
-    background:white;
-    border-radius:15px;
-    padding:20px;
-    box-shadow:0 8px 25px rgba(0,0,0,0.05);
-}
-
-/* SALDO */
-.saldo-total{
-    display:flex;
-    justify-content:space-between;
-    align-items:center;
-}
-
-.saldo-total h2{
-    margin:5px 0 0;
-    font-size:24px;
-}
-
-.icon-btn{
-    width:55px;
-    height:55px;
-    border-radius:10px;
-    border:none;
-    font-size:20px;
-    font-weight:bold;
-    cursor:pointer;
-}
-
-.icon-money{
-    background:#eaf2fb;
-    color:#2c7be5;
-}
-
-.icon-refresh{
-    background:#2c7be5;
-    color:white;
-}
-
-/* SEARCH */
-.search-box{
-    margin:15px 0;
-    position:relative;
-}
-
-.search-box input{
-    width:100%;
-    padding:10px 35px 10px 12px;
-    border-radius:8px;
-    border:1px solid #ddd;
-}
-
-.search-box span{
-    position:absolute;
-    right:10px;
-    top:8px;
-    font-size:18px;
-    color:#999;
-}
-
-/* LISTA */
-.ruta-item{
-    display:flex;
-    justify-content:space-between;
-    padding:10px 5px;
-    border-bottom:1px solid #f0f0f0;
-    font-size:14px;
-}
-
-.ruta-item:hover{
-    background:#f8f9fb;
-}
-
-/* PANEL DERECHO */
-.resumen-panel{
-    background:#f8f9fa;
-    border-radius:15px;
-    padding:15px 0;
-}
-
-.resumen-item{
-    display:flex;
-    justify-content:space-between;
-    padding:15px 20px;
-    border-bottom:1px solid #e6e6e6;
-    font-size:14px;
-    align-items:center;
-}
-
-.resumen-item:last-child{
-    font-weight:bold;
-}
-
-.badge-ruta{
-    background:#2c7be5;
-    color:white;
-    padding:4px 10px;
-    border-radius:6px;
-    font-size:12px;
-}
-
-@media(max-width:900px){
-    .caja-grid{
-        grid-template-columns:1fr;
-    }
-}
-
-</style>
-
-<div class="caja-wrapper">
-
-    <!-- TABS Y RUTA -->
-    <div class="tabs">
-        <div class="tab active">Caja del Día</div>
-        <div class="tab">Caja por Fechas</div>
-
-        <div style="margin-left:auto;">
-            Ruta seleccionada:
-            <span class="badge-ruta">Ruta no seleccionada</span>
+    <!-- ============================================= -->
+    <!-- HEADER -->
+    <!-- ============================================= -->
+    <div class="flex justify-between items-center mb-12">
+        <div>
+            <h1 class="text-3xl font-bold text-slate-800">
+                Caja General Oficina
+            </h1>
+            <p class="text-slate-500 text-sm mt-1">
+                Resumen financiero consolidado
+            </p>
         </div>
     </div>
 
-    <div class="caja-grid">
+    <!-- ============================================= -->
+    <!-- TOGGLE + FILTRO -->
+    <!-- ============================================= -->
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 mb-10">
 
-        <!-- IZQUIERDA -->
-        <div class="card-box">
+        <div class="flex items-center gap-4 mb-6">
 
-            <div class="saldo-total">
-                <div>
-                    <small>SALDO TOTAL CAJAS</small>
-                    <h2>$ {{ "{:,.2f}".format(saldo_total) }}</h2>
-                </div>
+            <a href="{{ url_for('caja_oficina') }}"
+               class="px-6 py-2 rounded-lg font-semibold transition
+               {% if not fecha_inicio %}
+                    bg-blue-600 text-white shadow
+               {% else %}
+                    bg-slate-200 text-slate-700
+               {% endif %}">
+                Caja del Día
+            </a>
 
-                <div style="display:flex; gap:10px;">
-                    <button class="icon-btn icon-money">$</button>
-                    <button class="icon-btn icon-refresh">⟳</button>
-                </div>
-            </div>
-
-            <!-- SEARCH -->
-            <div class="search-box">
-                <input type="text" placeholder="Buscar ruta...">
-                <span>🔍</span>
-            </div>
-
-            <!-- LISTA RUTAS -->
-            {% for c in cajas %}
-            <div class="ruta-item">
-                <span>{{ c.ruta }}</span>
-                <span>$ {{ "{:,.2f}".format(c.saldo) }}</span>
-            </div>
-            {% endfor %}
+            <button onclick="toggleFechas()"
+                    class="px-6 py-2 rounded-lg font-semibold transition
+                    {% if fecha_inicio %}
+                        bg-blue-600 text-white shadow
+                    {% else %}
+                        bg-slate-200 text-slate-700
+                    {% endif %}">
+                Caja por Fechas
+            </button>
 
         </div>
 
-        <!-- DERECHA -->
-        <div class="resumen-panel">
+        <form method="GET"
+              id="filtroFechas"
+              class="{% if not fecha_inicio %}hidden{% endif %} flex items-end gap-4">
 
-            <div class="resumen-item">
-                <span>Saldo anterior</span>
-                <span>$ {{ "{:,.2f}".format(resumen.saldo_anterior) }}</span>
+            <div>
+                <label class="text-xs text-slate-500">Desde</label>
+                <input type="date"
+                       name="fecha_inicio"
+                       value="{{ fecha_inicio }}"
+                       class="border border-slate-300 rounded-lg px-4 py-2 w-48 focus:ring-2 focus:ring-blue-500">
             </div>
 
-            <div class="resumen-item">
-                <span>Total recibido</span>
-                <span>$ {{ "{:,.2f}".format(resumen.total_recibido) }}</span>
+            <div>
+                <label class="text-xs text-slate-500">Hasta</label>
+                <input type="date"
+                       name="fecha_fin"
+                       value="{{ fecha_fin }}"
+                       class="border border-slate-300 rounded-lg px-4 py-2 w-48 focus:ring-2 focus:ring-blue-500">
             </div>
 
-            <div class="resumen-item">
-                <span>Total cobros</span>
-                <span>$ {{ "{:,.2f}".format(resumen.total_cobros) }}</span>
+            <button class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg shadow">
+                Filtrar
+            </button>
+
+        </form>
+    </div>
+
+    <!-- ============================================= -->
+    <!-- RESUMEN GENERAL + GRÁFICA -->
+    <!-- ============================================= -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12">
+
+        <!-- SALDO TOTAL -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-8">
+            <div class="text-xs uppercase tracking-wide text-slate-500">
+                Saldo Total Consolidado
             </div>
 
-            <div class="resumen-item">
-                <span>Total préstamos</span>
-                <span>$ {{ "{:,.2f}".format(resumen.total_prestamos) }}</span>
+            <div class="mt-4 text-5xl font-bold
+                {% if saldo_total >= 0 %}
+                    text-emerald-600
+                {% else %}
+                    text-red-600
+                {% endif %}">
+                $ {{ "{:,.0f}".format(saldo_total or 0) }}
             </div>
 
-            <div class="resumen-item">
-                <span>Total gastos</span>
-                <span>$ {{ "{:,.2f}".format(resumen.total_gastos) }}</span>
+            <div class="mt-3 text-sm text-slate-400">
+                Total de todas las rutas asignadas
             </div>
-
-            <div class="resumen-item">
-                <span>Transferencias + Retiros</span>
-                <span>$ {{ "{:,.2f}".format(resumen.transferencias_retiros) }}</span>
-            </div>
-
-            <div class="resumen-item">
-                <span>Saldo actual</span>
-                <span>$ {{ "{:,.2f}".format(resumen.saldo_actual) }}</span>
-            </div>
-
         </div>
+
+        <!-- GRÁFICA -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+            <canvas id="graficaCaja"></canvas>
+        </div>
+
+    </div>
+
+    <!-- ============================================= -->
+    <!-- TABLA BANCARIA -->
+    <!-- ============================================= -->
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+
+        <div class="px-6 py-4 border-b bg-slate-50">
+            <h2 class="text-sm font-semibold text-slate-600 uppercase tracking-wide">
+                Movimientos por Ruta
+            </h2>
+        </div>
+
+        {% if rutas and rutas|length > 0 %}
+
+        <div class="overflow-x-auto">
+        <table class="min-w-full text-sm">
+
+            <thead class="bg-slate-800 text-white text-xs uppercase tracking-wide">
+                <tr>
+                    <th class="px-6 py-4 text-left">Ruta</th>
+                    <th class="px-6 py-4 text-right">Cobros</th>
+                    <th class="px-6 py-4 text-right">Préstamos</th>
+                    <th class="px-6 py-4 text-right">Gastos</th>
+                    <th class="px-6 py-4 text-right">Saldo</th>
+                    <th class="px-6 py-4 text-center">Detalle</th>
+                </tr>
+            </thead>
+
+            <tbody class="divide-y divide-slate-200">
+
+                {% for ruta in rutas %}
+                <tr class="hover:bg-slate-50 transition">
+
+                    <td class="px-6 py-4 font-semibold text-slate-800">
+                        {{ ruta.ruta_nombre }}
+                    </td>
+
+                    <td class="px-6 py-4 text-right text-emerald-600 font-semibold">
+                        $ {{ "{:,.0f}".format(ruta.total_cobros or 0) }}
+                    </td>
+
+                    <td class="px-6 py-4 text-right text-blue-600 font-semibold">
+                        $ {{ "{:,.0f}".format(ruta.total_prestamos or 0) }}
+                    </td>
+
+                    <td class="px-6 py-4 text-right text-red-600 font-semibold">
+                        $ {{ "{:,.0f}".format(ruta.total_gastos or 0) }}
+                    </td>
+
+                    <td class="px-6 py-4 text-right font-bold
+                        {% if ruta.saldo_actual >= 0 %}
+                            text-emerald-600
+                        {% else %}
+                            text-red-600
+                        {% endif %}">
+                        $ {{ "{:,.0f}".format(ruta.saldo_actual or 0) }}
+                    </td>
+
+                    <td class="px-6 py-4 text-center">
+                        <a href="{{ url_for('detalle_caja_ruta',
+                                            ruta_id=ruta.ruta_id,
+                                            fecha_inicio=fecha_inicio,
+                                            fecha_fin=fecha_fin) }}"
+                           class="text-blue-600 hover:text-blue-800 font-medium">
+                            Ver detalle →
+                        </a>
+                    </td>
+
+                </tr>
+                {% endfor %}
+
+            </tbody>
+
+        </table>
+        </div>
+
+        {% else %}
+
+        <div class="p-12 text-center text-slate-500">
+            No hay rutas registradas para esta oficina.
+        </div>
+
+        {% endif %}
 
     </div>
 
 </div>
+
+<!-- ============================================= -->
+<!-- CHART.JS -->
+<!-- ============================================= -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+function toggleFechas(){
+    document.getElementById("filtroFechas").classList.toggle("hidden")
+}
+
+const ctx = document.getElementById('graficaCaja');
+
+new Chart(ctx, {
+    type: 'bar',
+    data: {
+        labels: [{% for r in rutas %}"{{ r.ruta_nombre }}",{% endfor %}],
+        datasets: [{
+            label: 'Saldo por Ruta',
+            data: [{% for r in rutas %}{{ r.saldo_actual or 0 }},{% endfor %}],
+            backgroundColor: 'rgba(37,99,235,0.6)',
+            borderRadius: 6
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: {
+            legend: { display: false }
+        },
+        scales: {
+            y: {
+                ticks: {
+                    callback: function(value) {
+                        return '$ ' + value.toLocaleString();
+                    }
+                }
+            }
+        }
+    }
+});
+</script>
 
 {% endblock %}

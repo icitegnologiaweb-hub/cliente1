@@ -1,0 +1,101 @@
+{% extends "cobrador/layout.html" %}
+{% block titulo %}Liquidación{% endblock %}
+{% block content %}
+
+<div class="max-w-md mx-auto px-4 pt-4 pb-32 space-y-6 text-white">
+
+    <!-- ================= FILTRO ================= -->
+    <form method="POST" class="bg-[#123b63] rounded-3xl p-5 space-y-4 shadow-lg">
+
+        <div>
+            <label class="text-xs opacity-70">Fecha Inicial</label>
+            <input type="date" name="fecha_inicio"
+                value="{{ fecha_inicio }}"
+                class="w-full bg-[#0b2847] rounded-xl p-2 mt-1">
+        </div>
+
+        <div>
+            <label class="text-xs opacity-70">Fecha Final</label>
+            <input type="date" name="fecha_fin"
+                value="{{ fecha_fin }}"
+                class="w-full bg-[#0b2847] rounded-xl p-2 mt-1">
+        </div>
+
+        <button type="submit"
+                class="w-full bg-blue-600 hover:bg-blue-700
+                       rounded-2xl py-3 font-semibold">
+            Consultar Liquidación
+        </button>
+    </form>
+
+    <!-- ================= RESUMEN ================= -->
+    <div class="grid grid-cols-2 gap-4">
+
+        <div class="bg-[#123b63] rounded-2xl p-4 text-center">
+            <div class="text-xs opacity-60">Saldo Anterior</div>
+            <div class="font-semibold mt-1">
+                $ {{ "{:,.0f}".format(resumen.saldo_anterior) }}
+            </div>
+        </div>
+
+        <div class="bg-[#123b63] rounded-2xl p-4 text-center">
+            <div class="text-xs opacity-60">Recibido</div>
+            <div class="font-semibold text-blue-400 mt-1">
+                $ {{ "{:,.0f}".format(resumen.recibido) }}
+            </div>
+        </div>
+
+        <div class="bg-[#123b63] rounded-2xl p-4 text-center">
+            <div class="text-xs opacity-60">Cobros</div>
+            <div class="font-semibold text-green-400 mt-1">
+                $ {{ "{:,.0f}".format(resumen.cobros) }}
+            </div>
+        </div>
+
+        <div class="bg-[#123b63] rounded-2xl p-4 text-center">
+            <div class="text-xs opacity-60">Ventas</div>
+            <div class="font-semibold text-red-400 mt-1">
+                $ {{ "{:,.0f}".format(resumen.ventas) }}
+            </div>
+        </div>
+
+        <div class="bg-[#123b63] rounded-2xl p-4 text-center col-span-2">
+            <div class="text-xs opacity-60">Saldo Actual</div>
+            <div class="text-xl font-bold mt-1">
+                $ {{ "{:,.0f}".format(resumen.saldo_actual) }}
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ================= DETALLE VENTAS ================= -->
+    {% if detalle_ventas %}
+    <div class="bg-[#123b63] rounded-3xl p-5 mt-6">
+        <h3 class="font-semibold mb-3">Ventas en el rango</h3>
+
+        {% for v in detalle_ventas %}
+        <div class="flex justify-between text-sm border-b border-white/10 py-2">
+            <span>{{ v.fecha }} - {{ v.cliente }}</span>
+            <span>$ {{ "{:,.0f}".format(v.valor) }}</span>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- ================= DETALLE COBROS ================= -->
+    {% if detalle_cobros %}
+    <div class="bg-[#123b63] rounded-3xl p-5 mt-6">
+        <h3 class="font-semibold mb-3">Cobros en el rango</h3>
+
+        {% for c in detalle_cobros %}
+        <div class="flex justify-between text-sm border-b border-white/10 py-2">
+            <span>{{ c.fecha }} - {{ c.cliente }}</span>
+            <span>$ {{ "{:,.0f}".format(c.valor) }}</span>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+</div>
+
+{% endblock %}

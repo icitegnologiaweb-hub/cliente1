@@ -1,306 +1,341 @@
 {% extends "base.html" %}
 {% block content %}
 
-<style>
+<div class="px-10 py-8 bg-gradient-to-br from-gray-100 to-gray-200 min-h-screen">
 
-body {
-    background: #f4f6f9;
-}
+    <!-- ================= HEADER ================= -->
+    <div class="flex items-center justify-between mb-10">
 
-/* CONTENEDOR GENERAL */
-.panel-ventas {
-    background: #ffffff;
-    border-radius: 12px;
-    box-shadow: 0 4px 12px rgba(0,0,0,.06);
-    overflow: hidden;
-}
+        <div>
+            <h1 class="text-3xl font-extrabold text-gray-800">
+                Ventas Activas
+            </h1>
+            <p class="text-sm text-gray-600 mt-1">
+                Gestión y control de créditos registrados
+            </p>
+        </div>
 
-/* HEADER */
-.panel-header {
-    padding: 20px 24px;
-    border-bottom: 1px solid #eef1f4;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
+        <a href="{{ url_for('nueva_venta') }}"
+           class="bg-gradient-to-r from-blue-700 to-blue-600 
+                  hover:scale-105 text-white px-6 py-3 
+                  rounded-xl shadow-xl transition-all duration-200">
+            + Nueva Venta
+        </a>
 
-.panel-title {
-    font-size: 20px;
-    font-weight: 600;
-    color: #1f2937;
-}
+    </div>
 
-.panel-sub {
-    font-size: 13px;
-    color: #6b7280;
-}
 
-/* FILTROS */
-.panel-filtros {
-    padding: 24px;
-    background: #fafbfd;
-    border-bottom: 1px solid #eef1f4;
-}
+    <!-- ================= TARJETAS RESUMEN ================= -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
 
-.filtros-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    gap: 20px;
-    align-items: end;
-}
-
-.filtro-group label {
-    font-size: 12px;
-    font-weight: 600;
-    color: #6b7280;
-    margin-bottom: 6px;
-    display: block;
-}
-
-.input-clean {
-    width: 100%;
-    border: 1px solid #d1d5db;
-    border-radius: 8px;
-    padding: 10px 12px;
-    font-size: 14px;
-    transition: .2s;
-}
-
-.input-clean:focus {
-    outline: none;
-    border-color: #3b82f6;
-    box-shadow: 0 0 0 2px rgba(59,130,246,.15);
-}
-
-/* SALDO */
-.saldo-box {
-    background: #eef2ff;
-    padding: 12px;
-    border-radius: 8px;
-    text-align: center;
-}
-
-.saldo-box span {
-    display: block;
-    font-size: 12px;
-    color: #6b7280;
-}
-
-.saldo-box strong {
-    font-size: 18px;
-    color: #2563eb;
-}
-
-/* BOTÓN NUEVA VENTA */
-.btn-nueva {
-    background: #16a34a;
-    color: white;
-    border: none;
-    padding: 10px 18px;
-    border-radius: 8px;
-    font-size: 14px;
-    font-weight: 600;
-    transition: .2s;
-}
-
-.btn-nueva:hover {
-    background: #15803d;
-}
-
-/* TABLA */
-.table-container {
-    padding: 0 24px 24px 24px;
-}
-
-.tabla-modern {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 14px;
-}
-
-.tabla-modern thead {
-    background: #f1f5f9;
-}
-
-.tabla-modern th {
-    padding: 12px;
-    text-align: left;
-    font-weight: 600;
-    color: #374151;
-    border-bottom: 1px solid #e5e7eb;
-}
-
-.tabla-modern td {
-    padding: 12px;
-    border-bottom: 1px solid #f3f4f6;
-}
-
-.tabla-modern tbody tr:hover {
-    background: #f9fafb;
-}
-
-</style>
-
-<div class="container py-5">
-
-    <div class="panel-ventas">
-
-        <!-- HEADER -->
-        <div class="panel-header">
-            <div>
-                <div class="panel-title">Ventas Activas</div>
-                <div class="panel-sub">Gestión y control de ventas registradas</div>
-            </div>
-
-            <!-- BOTÓN NUEVA VENTA -->
-            <div>
-            <a href="{{ url_for('nueva_venta') }}"
-            class="bg-blue-600 hover:bg-blue-700 text-white text-sm px-4 py-2 rounded-lg shadow-sm transition no-underline"
-            style="text-decoration: none;">
-                + Nueva Venta
-            </a>
-
+        <div class="bg-white rounded-3xl shadow-lg p-6">
+            <div class="text-xs uppercase text-gray-500">Total Ventas</div>
+            <div class="text-3xl font-bold text-gray-800 mt-2">
+                {{ ventas|length }}
             </div>
         </div>
 
-        <!-- FILTROS -->
-        <form method="GET" action="{{ url_for('listar_ventas') }}">
+        <div class="bg-white rounded-3xl shadow-lg p-6">
+            <div class="text-xs uppercase text-gray-500">Saldo Cartera</div>
+            <div class="text-2xl font-bold text-blue-600 mt-2">
+                $ {{ "{:,.2f}".format(saldo_total) }}
+            </div>
+        </div>
 
-            <div class="panel-filtros">
+        <div class="bg-white rounded-3xl shadow-lg p-6">
+            <div class="text-xs uppercase text-gray-500">En Mora</div>
+            <div class="text-2xl font-bold text-red-600 mt-2">
+                {{ ventas | selectattr("dias_mora", "gt", 0) | list | length }}
+            </div>
+        </div>
 
-                <div class="filtros-grid">
+        <div class="bg-white rounded-3xl shadow-lg p-6">
+            <div class="text-xs uppercase text-gray-500">Al Día</div>
+            <div class="text-2xl font-bold text-green-600 mt-2">
+                {{ ventas | selectattr("dias_mora", "equalto", 0) | list | length }}
+            </div>
+        </div>
 
-                    <!-- Ruta -->
-                    <div class="filtro-group">
-                        <label>Seleccionar Ruta</label>
-                        <select name="ruta_id"
-                                onchange="this.form.submit()"
-                                class="input-clean">
-                            <option value="">Seleccione una ruta</option>
-                            {% for ruta in rutas %}
-                                <option value="{{ ruta.id }}"
-                                    {% if ruta_id == ruta.id %} selected {% endif %}>
-                                    {{ ruta.nombre }}
-                                </option>
-                            {% endfor %}
-                        </select>
-                    </div>
+    </div>
 
-                    <!-- Buscar -->
-                    <div class="filtro-group">
-                        <label>Buscar Cliente</label>
-                        <input type="text"
-                               name="buscar"
-                               value="{{ request.args.get('buscar','') }}"
-                               class="input-clean"
-                               placeholder="Nombre, Fecha, identificación">
-                    </div>
 
-                    <!-- Filtro -->
-                    <div class="filtro-group">
-                    <label>Filtrar por Mora</label>
+    <!-- ================= FILTROS ================= -->
+    <form method="GET" action="{{ url_for('listar_ventas') }}">
+
+        <div class="bg-white rounded-3xl shadow-lg p-6 mb-8">
+
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+
+                <!-- Ruta -->
+                <div>
+                    <label class="block text-xs font-semibold text-gray-500 uppercase mb-2">
+                        Ruta
+                    </label>
+                    <select name="ruta_id"
+                            onchange="this.form.submit()"
+                            class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500">
+                        <option value="">Seleccione una ruta</option>
+                        {% for ruta in rutas %}
+                            <option value="{{ ruta.id }}"
+                                {% if ruta_id == ruta.id %} selected {% endif %}>
+                                {{ ruta.nombre }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Buscar -->
+                <div>
+                    <label class="block text-xs font-semibold text-gray-500 uppercase mb-2">
+                        Buscar Cliente
+                    </label>
+                    <input type="text"
+                           name="buscar"
+                           value="{{ request.args.get('buscar','') }}"
+                           placeholder="Nombre o identificación"
+                           class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500">
+                </div>
+
+                <!-- Filtro Mora -->
+                <div>
+                    <label class="block text-xs font-semibold text-gray-500 uppercase mb-2">
+                        Estado Mora
+                    </label>
                     <select name="filtro_mora"
                             onchange="this.form.submit()"
-                            class="input-clean">
+                            class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500">
 
                         <option value="">Todos</option>
-
-                        <option value="21"
-                            {% if request.args.get('filtro_mora') == '21' %} selected {% endif %}
-                            style="color:red;">
-                            🔴 21 días de mora
+                        <option value="21" {% if request.args.get('filtro_mora') == '21' %} selected {% endif %}>
+                            🔴 21 días
                         </option>
-
-                        <option value="11"
-                            {% if request.args.get('filtro_mora') == '11' %} selected {% endif %}
-                            style="color:orange;">
-                            🟡 11 días de mora
+                        <option value="11" {% if request.args.get('filtro_mora') == '11' %} selected {% endif %}>
+                            🟡 11 días
                         </option>
-
-                        <option value="0"
-                            {% if request.args.get('filtro_mora') == '0' %} selected {% endif %}
-                            style="color:green;">
+                        <option value="0" {% if request.args.get('filtro_mora') == '0' %} selected {% endif %}>
                             🟢 Sin novedad
                         </option>
 
                     </select>
                 </div>
-                <div class="filtro-group" style="display:flex; align-items:flex-end;">
+
+                <!-- Limpiar -->
+                <div class="flex items-end">
                     <a href="{{ url_for('listar_ventas') }}"
-                    class="bg-gray-500 hover:bg-success-600 text-white text-sm px-4 py-2 rounded-lg shadow-sm transition"
-                    style="text-decoration:none;">
-                        Limpiar filtros
+                       class="w-full text-center bg-gray-500 hover:bg-gray-600
+                              text-white px-4 py-3 rounded-xl shadow transition">
+                        Limpiar
                     </a>
                 </div>
 
-                    <!-- Saldo -->
-                    <div class="saldo-box">
-                        <span>Saldo Cartera</span>
-                        <strong>$ {{ "{:,.2f}".format(saldo_total) }}</strong>
-                    </div>
-
-                </div>
-
-
-
             </div>
 
-        </form>
+        </div>
 
-        <!-- TABLA -->
-        <div class="table-container">
-            <table class="tabla-modern">
+    </form>
 
-                <thead>
+
+    <!-- ================= TABLA PREMIUM ================= -->
+    <div class="bg-white rounded-3xl shadow-2xl overflow-hidden border border-gray-200">
+
+        <div class="overflow-x-auto">
+
+            <table class="min-w-full text-sm">
+
+                <thead class="bg-[#0B3C5D] text-white text-xs uppercase tracking-wider">
                     <tr>
-                        <th><input type="checkbox"></th>
-                        <th>Posición</th>
-                        <th>Código</th>
-                        <th>Valor Venta</th>
-                        <th>Valor Total a Pagar</th>
-                        <th>Saldo Actual</th>
-                        <th>Cliente</th>
-                        <th>Identificación</th>
-                        <th>Fecha Registro</th>
-                        <th>Acciones</th>
+                        <th class="px-6 py-5 text-left">Pos</th>
+                        <th class="px-6 py-5 text-left">Código</th>
+                        <th class="px-6 py-5 text-left">Valor Venta</th>
+                        <th class="px-6 py-5 text-left">Total a Pagar</th>
+                        <th class="px-6 py-5 text-left">Saldo</th>
+                        <th class="px-6 py-5 text-left">Cliente</th>
+                        <th class="px-6 py-5 text-left">Identificación</th>
+                        <th class="px-6 py-5 text-left">Fecha</th>
+                        <th class="px-6 py-5 text-center">Dias de Mora</th>
+                        <th class="px-6 py-5 text-center">Ver Creditos</th>
                     </tr>
                 </thead>
 
-                <tbody>
-                    {% for venta in ventas %}
-                    <tr class="
-                            {% if venta.dias_mora >= 21 %} bg-red-50
-                            {% elif venta.dias_mora >= 11 %} bg-yellow-50
-                            {% elif venta.dias_mora == 0 %} bg-green-50
-                            {% endif %}
-                        ">
-                        <td><input type="checkbox"></td>
-                        <td>{{ venta.posicion }}</td>
-                        <td>{{ venta.codigo }}</td>
-                        <td>{{ venta.valor_venta }}</td>
-                        <td>{{ venta.valor_total }}</td>
-                        <td>{{ venta.saldo }}</td>
-                        <td>{{ venta.cliente }}</td>
-                        <td>{{ venta.identificacion }}</td>
-                        <td>{{ venta.fecha_registro }}</td>
-                        <td>
+                <tbody class="divide-y divide-gray-100">
 
-                            <a href="{{ url_for('historial_creditos', cliente_id=venta.cliente_id) }}"
-                            class="text-blue-600 hover:text-blue-800 text-lg"
-                            title="Ver historial de créditos">
-                                👁️
-                            </a>
+                    {% for venta in ventas %}
+                    <tr class="hover:bg-gray-50 transition">
+
+                         <!-- POSICIÓN -->
+                        <td class="px-6 py-4">
+                            <div class="flex items-center gap-3">
+                                <span class="font-bold text-gray-800 text-lg">
+                                    {{ venta.posicion }}
+                                </span>
+
+                                <button onclick="editarPosicion('{{ venta.credito_id }}',
+                                                                 '{{ venta.cliente }}',
+                                                                 '{{ venta.posicion }}')"
+                                        class="text-blue-500 hover:text-blue-700 text-sm">
+                                    <i class="bi bi-pencil-square"></i>
+                                </button>
+                            </div>
+                        </td>
+
+                        <td class="px-6 py-4">
+                            {{ venta.codigo }}
+                        </td>
+
+                        <td class="px-6 py-4 font-semibold text-blue-600">
+                            $ {{ venta.valor_venta }}
+                        </td>
+
+                        <td class="px-6 py-4">
+                            $ {{ venta.valor_total }}
+                        </td>
+
+                        <td class="px-6 py-4 font-bold">
+                            $ {{ venta.saldo }}
+                        </td>
+
+                        <td class="px-6 py-4 font-medium">
+                            {{ venta.cliente }}
+                        </td>
+
+                        <td class="px-6 py-4">
+                            {{ venta.identificacion }}
+                        </td>
+
+                        <td class="px-6 py-4">
+                            {{ venta.fecha_registro }}
+                        </td>
+                        <!-- MORA -->
+                        <td class="px-6 py-4 text-center">
+                            {% if venta.dias_mora > 0 %}
+                                <span class="px-4 py-1 text-xs rounded-full 
+                                             bg-red-600 text-white font-semibold shadow-md">
+                                    {{ venta.dias_mora }} días
+                                </span>
+                            {% else %}
+                                <span class="px-4 py-1 text-xs rounded-full 
+                                             bg-green-600 text-white font-semibold shadow-md">
+                                    0
+                                </span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 text-center">
+                            <div class="flex items-center justify-center gap-4">
+
+                                <!-- Ver historial -->
+                                <a href="{{ url_for('historial_creditos', cliente_id=venta.cliente_id) }}"
+                                class="text-blue-600 hover:text-blue-800 text-xl transition"
+                                title="Ver historial de créditos">
+                                    <i class="bi bi-eye-fill"></i>
+                                </a>
+
+                                <!-- Ubicación -->
+                                <button type="button"
+                                        onclick="verUbicacion('{{ venta.latitud }}','{{ venta.longitud }}')"
+                                        class="text-red-600 hover:text-red-800 text-xl transition">
+                                    <i class="bi bi-geo-alt-fill"></i>
+                                </button>
+
+                            </div>
                         </td>
 
                     </tr>
                     {% endfor %}
+
                 </tbody>
 
             </table>
+
         </div>
 
     </div>
 
 </div>
+
+
+<!-- ================= MODAL PRO ================= -->
+<div id="modalPosicion"
+     class="fixed inset-0 bg-black/60 backdrop-blur-sm hidden items-center justify-center z-50">
+
+    <div class="bg-white rounded-3xl w-full max-w-lg p-8 shadow-2xl relative">
+
+        <button onclick="cerrarModal()"
+                class="absolute top-4 right-5 text-gray-400 hover:text-gray-700 text-xl">
+            ✕
+        </button>
+
+        <h2 class="text-xl font-bold mb-6 text-gray-800">
+            Editar Posición del Cliente
+        </h2>
+
+        <form method="POST" action="{{ url_for('actualizar_posicion_cliente_ventas') }}">
+
+            <input type="hidden" name="credito_id" id="credito_id">
+
+            <div class="space-y-5">
+
+                <div>
+                    <label class="block text-sm font-semibold text-gray-600 mb-2">
+                        Cliente
+                    </label>
+                    <input type="text"
+                           id="cliente_nombre"
+                           class="w-full border border-gray-300 rounded-xl px-4 py-3 bg-gray-100"
+                           readonly>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-semibold text-gray-600 mb-2">
+                        Nueva Posición
+                    </label>
+                    <input type="number"
+                           name="posicion"
+                           id="cliente_posicion"
+                           class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500"
+                           required>
+                </div>
+
+                <button type="submit"
+                        class="w-full bg-gradient-to-r from-blue-600 to-blue-500
+                               hover:scale-105 text-white py-3 rounded-xl font-semibold transition-all">
+                    Guardar Cambios
+                </button>
+
+            </div>
+
+        </form>
+
+    </div>
+</div>
+
+
+<script>
+function editarPosicion(id, nombre, posicion){
+    document.getElementById("credito_id").value = id;
+    document.getElementById("cliente_nombre").value = nombre;
+    document.getElementById("cliente_posicion").value = posicion;
+
+    document.getElementById("modalPosicion").classList.remove("hidden");
+    document.getElementById("modalPosicion").classList.add("flex");
+}
+
+function cerrarModal(){
+    document.getElementById("modalPosicion").classList.add("hidden");
+}
+</script>
+<script>
+function verUbicacion(lat, lng){
+
+    if(lat && lng && lat !== "None" && lng !== "None"){
+        window.open(
+            `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`,
+            '_blank'
+        );
+    } else {
+        alert("Este cliente no tiene ubicación registrada.");
+    }
+
+}
+</script>
 
 {% endblock %}

@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="p-8">
+
+<h1 class="text-2xl font-bold mb-6">
+Solicitudes de Aumento de Cupo
+</h1>
+
+<div class="bg-white rounded-xl shadow overflow-hidden">
+
+<table class="min-w-full text-sm">
+
+<thead class="bg-gray-100 text-gray-600 uppercase text-xs">
+<tr>
+    <th class="px-4 py-3">Cliente</th>
+    <th class="px-4 py-3">Cédula</th>
+    <th class="px-4 py-3">Monto</th>
+    <th class="px-4 py-3">Estado</th>
+    <th class="px-4 py-3">Fecha</th>
+    <th class="px-4 py-3 text-center">Acción</th>
+</tr>
+</thead>
+
+<tbody class="divide-y">
+
+{% for s in solicitudes %}
+<tr>
+
+<td class="px-4 py-3">
+    {{ s.cliente_nombre }} {{ s.cliente_apellido }}
+</td>
+
+<td class="px-4 py-3">
+    {{ s.cedula }}
+</td>
+
+<td class="px-4 py-3 font-semibold text-green-600">
+    $ {{ "{:,.0f}".format(s.monto_solicitado) }}
+</td>
+
+<td class="px-4 py-3">
+    {% if s.estado == "pendiente" %}
+        <span class="bg-yellow-100 text-yellow-700 px-2 py-1 rounded-full text-xs">
+            Pendiente
+        </span>
+    {% elif s.estado == "aprobado" %}
+        <span class="bg-green-100 text-green-700 px-2 py-1 rounded-full text-xs">
+            Aprobado
+        </span>
+    {% else %}
+        <span class="bg-red-100 text-red-700 px-2 py-1 rounded-full text-xs">
+            Rechazado
+        </span>
+    {% endif %}
+</td>
+
+<td class="px-4 py-3">
+    {{ s.fecha[:10] if s.fecha }}
+</td>
+
+<td class="px-4 py-3 text-center space-x-2">
+
+{% if s.estado == "pendiente" %}
+
+<a href="{{ url_for('procesar_solicitud', id=s.id, accion='aprobado') }}"
+   class="bg-green-600 text-white px-3 py-1 rounded text-xs">
+    Aprobar
+</a>
+
+<a href="{{ url_for('procesar_solicitud', id=s.id, accion='rechazado') }}"
+   class="bg-red-600 text-white px-3 py-1 rounded text-xs">
+    Rechazar
+</a>
+
+{% endif %}
+
+</td>
+
+</tr>
+{% endfor %}
+
+</tbody>
+</table>
+
+</div>
+
+</div>
+
+{% endblock %}

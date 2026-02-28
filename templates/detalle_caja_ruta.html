@@ -1,0 +1,317 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="px-14 py-10 bg-gray-100 min-h-screen">
+
+    <!-- ===================================================== -->
+    <!-- HEADER -->
+    <!-- ===================================================== -->
+    <div class="flex justify-between items-center mb-10">
+
+        <div>
+            <h1 class="text-3xl font-bold text-gray-800">
+                Extracto Caja - Ruta
+            </h1>
+            <p class="text-sm text-gray-500 mt-1">
+                Periodo: {{ fecha_inicio }} al {{ fecha_fin }}
+            </p>
+        </div>
+
+        <a href="{{ url_for('caja_oficina',
+                            fecha_inicio=fecha_inicio,
+                            fecha_fin=fecha_fin) }}"
+           class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-5 py-2 rounded-lg shadow-sm">
+            ← Volver
+        </a>
+    </div>
+
+    <!-- ===================================================== -->
+    <!-- RESUMEN FINANCIERO -->
+    <!-- ===================================================== -->
+    <div class="bg-white rounded-xl shadow mb-12">
+
+        <div class="border-b px-8 py-4 bg-gray-50">
+            <h2 class="text-sm font-semibold text-gray-600 uppercase tracking-wide">
+                Resumen Financiero
+            </h2>
+        </div>
+
+        <div class="grid grid-cols-6 text-center text-sm">
+
+            <div class="py-6 border-r">
+                <div class="text-gray-500 text-xs uppercase">Saldo Anterior</div>
+                <div class="mt-2 font-bold text-gray-800">
+                    $ {{ "{:,.0f}".format(saldo_anterior) }}
+                </div>
+            </div>
+
+            <div class="py-6 border-r">
+                <div class="text-gray-500 text-xs uppercase">Cobros</div>
+                <div class="mt-2 font-bold text-green-600">
+                    + $ {{ "{:,.0f}".format(total_cobros) }}
+                </div>
+            </div>
+
+            <div class="py-6 border-r">
+                <div class="text-gray-500 text-xs uppercase">Préstamos</div>
+                <div class="mt-2 font-bold text-blue-600">
+                    - $ {{ "{:,.0f}".format(total_prestamos) }}
+                </div>
+            </div>
+
+            <div class="py-6 border-r">
+                <div class="text-gray-500 text-xs uppercase">Gastos</div>
+                <div class="mt-2 font-bold text-red-600">
+                    - $ {{ "{:,.0f}".format(total_gastos) }}
+                </div>
+            </div>
+
+            <div class="py-6 border-r">
+                <div class="text-gray-500 text-xs uppercase">Transferencias</div>
+                <div class="mt-2 font-bold text-purple-600">
+                    + $ {{ "{:,.0f}".format(total_transferencias) }}
+                </div>
+            </div>
+
+            <div class="py-6">
+                <div class="text-gray-500 text-xs uppercase">Saldo Final</div>
+                <div class="mt-2 text-lg font-bold
+                    {% if saldo_actual >= 0 %}
+                        text-green-600
+                    {% else %}
+                        text-red-600
+                    {% endif %}">
+                    $ {{ "{:,.0f}".format(saldo_actual) }}
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- ===================================================== -->
+    <!-- COBROS -->
+    <!-- ===================================================== -->
+    <div class="bg-white rounded-xl shadow mb-8">
+
+        <button onclick="toggleSection('tablaCobros')"
+            class="w-full flex justify-between items-center px-8 py-4 bg-gray-50 border-b hover:bg-gray-100 transition">
+
+            <h2 class="text-sm font-semibold text-gray-700 uppercase tracking-wide">
+                Cobros Registrados
+            </h2>
+
+            <span class="text-green-600 font-bold">
+                $ {{ "{:,.0f}".format(total_cobros) }}
+            </span>
+        </button>
+
+        <div id="tablaCobros" class="hidden">
+
+            <table class="min-w-full text-sm">
+
+                <thead class="bg-gray-100 text-xs uppercase text-gray-600">
+                    <tr>
+                        <th class="px-6 py-3 text-left">Cliente</th>
+                        <th class="px-6 py-3 text-left">Fecha</th>
+                        <th class="px-6 py-3 text-left">Hora</th>
+                        <th class="px-6 py-3 text-right">Valor</th>
+                        <th class="px-6 py-3 text-center">Cobrador</th>
+                    </tr>
+                </thead>
+
+                <tbody class="divide-y">
+                    {% for c in cobros %}
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-6 py-3 font-medium">
+                            {{ c.creditos.clientes.nombre }}
+                        </td>
+                        <td class="px-6 py-3">
+                            {{ c.fecha[:10] }}
+                        </td>
+                        <td class="px-6 py-3">
+                            {{ c.fecha[11:19] }}
+                        </td>
+                        <td class="px-6 py-3 text-right text-green-600 font-semibold">
+                            $ {{ "{:,.0f}".format(c.monto) }}
+                        </td>
+                        <td class="px-6 py-3 text-center">
+                            {{ c.cobrador_nombre }}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+
+            </table>
+
+        </div>
+
+    </div>
+
+    <!-- ===================================================== -->
+    <!-- PRESTAMOS -->
+    <!-- ===================================================== -->
+    <div class="bg-white rounded-xl shadow mb-8">
+
+        <button onclick="toggleSection('tablaPrestamos')"
+            class="w-full flex justify-between items-center px-8 py-4 bg-gray-50 border-b hover:bg-gray-100 transition">
+
+            <h2 class="text-sm font-semibold text-gray-700 uppercase tracking-wide">
+                Préstamos Realizados
+            </h2>
+
+            <span class="text-blue-600 font-bold">
+                $ {{ "{:,.0f}".format(total_prestamos) }}
+            </span>
+        </button>
+
+        <div id="tablaPrestamos" class="hidden">
+
+            <table class="min-w-full text-sm">
+
+                <thead class="bg-gray-100 text-xs uppercase text-gray-600">
+                    <tr>
+                        <th class="px-6 py-3 text-left">Cliente</th>
+                        <th class="px-6 py-3 text-left">Fecha</th>
+                        <th class="px-6 py-3 text-left">Hora</th>
+                        <th class="px-6 py-3 text-left">Tipo</th>
+                        <th class="px-6 py-3 text-right">Valor</th>
+                    </tr>
+                </thead>
+
+                <tbody class="divide-y">
+                    {% for p in prestamos %}
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-6 py-3 font-medium">
+                            {{ p.clientes.nombre }}
+                        </td>
+                        <td class="px-6 py-3">
+                            {{ p.created_at[:10] }}
+                        </td>
+                        <td class="px-6 py-3">
+                            {{ p.created_at[11:19] }}
+                        </td>
+                        <td class="px-6 py-3 text-blue-600 font-medium">
+                            {{ p.tipo_prestamo }}
+                        </td>
+                        <td class="px-6 py-3 text-right font-semibold">
+                            $ {{ "{:,.0f}".format(p.valor_venta) }}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+
+            </table>
+
+        </div>
+
+    </div>
+
+    <!-- ===================================================== -->
+    <!-- GASTOS -->
+    <!-- ===================================================== -->
+    <div class="bg-white rounded-xl shadow mb-8">
+
+        <button onclick="toggleSection('tablaGastos')"
+            class="w-full flex justify-between items-center px-8 py-4 bg-gray-50 border-b hover:bg-gray-100 transition">
+
+            <h2 class="text-sm font-semibold text-gray-700 uppercase tracking-wide">
+                Gastos
+            </h2>
+
+            <span class="text-red-600 font-bold">
+                $ {{ "{:,.0f}".format(total_gastos) }}
+            </span>
+        </button>
+
+        <div id="tablaGastos" class="hidden">
+
+            <table class="min-w-full text-sm">
+
+                <thead class="bg-gray-100 text-xs uppercase text-gray-600">
+                    <tr>
+                        <th class="px-6 py-3 text-left">Descripción</th>
+                        <th class="px-6 py-3 text-left">Categoría</th>
+                        <th class="px-6 py-3 text-left">Fecha</th>
+                        <th class="px-6 py-3 text-right">Valor</th>
+                    </tr>
+                </thead>
+
+                <tbody class="divide-y">
+                    {% for g in gastos %}
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-6 py-3">{{ g.descripcion }}</td>
+                        <td class="px-6 py-3 text-gray-600">{{ g.categoria }}</td>
+                        <td class="px-6 py-3">{{ g.created_at[:10] }}</td>
+                        <td class="px-6 py-3 text-right text-red-600 font-semibold">
+                            $ {{ "{:,.0f}".format(g.valor) }}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+
+            </table>
+
+        </div>
+
+    </div>
+
+    <div class="bg-white rounded-xl shadow mb-8">
+
+    <button onclick="toggleSection('tablaTransferencias')"
+        class="w-full flex justify-between items-center px-8 py-4 bg-gray-50 border-b hover:bg-gray-100 transition">
+
+        <h2 class="text-sm font-semibold text-gray-700 uppercase tracking-wide">
+            Transferencias Entre Rutas
+        </h2>
+
+        <span class="text-purple-600 font-bold">
+            $ {{ "{:,.0f}".format(total_transferencias) }}
+        </span>
+    </button>
+
+    <div id="tablaTransferencias" class="hidden">
+
+        <table class="min-w-full text-sm">
+
+            <thead class="bg-gray-100 text-xs uppercase text-gray-600">
+                <tr>
+                    <th class="px-6 py-3 text-left">Fecha</th>
+                    <th class="px-6 py-3 text-left">Origen</th>
+                    <th class="px-6 py-3 text-left">Descripción</th>
+                    <th class="px-6 py-3 text-right">Valor</th>
+                </tr>
+            </thead>
+
+            <tbody class="divide-y">
+                {% for t in transferencias %}
+                <tr class="hover:bg-gray-50">
+                    <td class="px-6 py-3">
+                        {{ t.fecha[:10] }}
+                    </td>
+                    <td class="px-6 py-3">
+                        {{ t.origen if t.origen else "Ruta Interna" }}
+                    </td>
+                    <td class="px-6 py-3 text-gray-600">
+                        {{ t.descripcion }}
+                    </td>
+                    <td class="px-6 py-3 text-right text-purple-600 font-semibold">
+                        $ {{ "{:,.0f}".format(t.valor) }}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+
+        </table>
+
+    </div>
+
+</div>
+
+</div>
+<script>
+function toggleSection(id){
+    const el = document.getElementById(id);
+    el.classList.toggle("hidden");
+}
+</script>
+{% endblock %}

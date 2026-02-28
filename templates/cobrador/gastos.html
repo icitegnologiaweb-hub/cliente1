@@ -1,0 +1,113 @@
+{% extends "cobrador/layout.html" %}
+{% block titulo %}Registrar Gasto{% endblock %}
+
+{% block content %}
+
+
+<div class="max-w-md mx-auto p-4 space-y-4">
+
+    <!-- Botón -->
+    <button onclick="abrirModal()"
+            class="w-full bg-[#123b63] text-white py-3 rounded-xl shadow">
+        + Registrar Gasto
+    </button>
+
+    <!-- Lista -->
+    {% for gasto in gastos %}
+    <div class="bg-white rounded-xl shadow p-4">
+
+        <div class="flex justify-between items-center">
+            <div class="font-semibold">
+                {{ gasto.categoria }}
+            </div>
+            <div class="text-red-600 font-bold">
+                $ {{ "{:,.0f}".format(gasto.valor) }}
+            </div>
+        </div>
+
+        <div class="text-sm text-gray-500 mt-1">
+            {{ gasto.descripcion }}
+        </div>
+
+        <div class="text-xs text-gray-400 mt-2">
+            {{ gasto.fecha_formateada }}        
+        </div>
+
+    </div>
+    {% endfor %}
+
+</div>
+
+<!-- MODAL -->
+<div id="modalGasto"
+     class="fixed inset-0 bg-black/60 backdrop-blur-sm hidden items-center justify-center z-50">
+
+    <div class="bg-white rounded-3xl w-full max-w-sm p-6 shadow-2xl relative animate-scaleIn">
+
+        <!-- Cerrar -->
+        <button onclick="cerrarModal()"
+                class="absolute top-4 right-4 text-gray-400 hover:text-gray-700">
+            ✕
+        </button>
+
+        <h2 class="text-xl font-bold text-gray-800 mb-6 text-center">
+            Registrar Gasto
+        </h2>
+
+        <form method="POST" action="{{ url_for('guardar_gasto_cobrador') }}">
+
+            <div class="space-y-4">
+
+                <select name="categoria"
+                    class="w-full border border-gray-300 bg-white text-gray-800 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    required>
+                    <option value="">Seleccionar categoría</option>
+                    <option>Gasolina</option>
+                    <option>Almuerzo</option>
+                    <option>Sueldo</option>
+                    <option>Policía</option>
+                    <option>Imprevisto</option>
+                    <option>Varada</option>
+                    <option>Aguinaldo</option>
+                    <option>Vacuna</option>
+                    <option>Compra de Moto</option>
+                    <option>GPS</option>
+                    <option>Intereses</option>
+                </select>
+
+                <input type="text"
+                    name="descripcion"
+                    placeholder="Descripción"
+                    class="w-full border border-gray-300 bg-white text-gray-800 placeholder-gray-400 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+
+                <input type="number"
+                    step="0.01"
+                    name="valor"
+                    placeholder="Valor $"
+                    class="w-full border border-gray-300 bg-white text-gray-800 placeholder-gray-400 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    required>
+
+                <button class="w-full bg-[#123b63] hover:bg-[#184a78] text-white py-3 rounded-xl font-semibold transition">
+                    Guardar Gasto
+                </button>
+
+            </div>
+
+        </form>
+    </div>
+</div>
+
+<script>
+function abrirModal(){
+    const modal = document.getElementById("modalGasto")
+    modal.classList.remove("hidden")
+    modal.classList.add("flex")
+}
+
+function cerrarModal(){
+    const modal = document.getElementById("modalGasto")
+    modal.classList.remove("flex")
+    modal.classList.add("hidden")
+}
+</script>
+{% endblock %}

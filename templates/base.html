@@ -164,29 +164,46 @@ header {
 <!-- TOAST NOTIFICATIONS -->
 {% with messages = get_flashed_messages(with_categories=true) %}
 {% if messages %}
-<div id="toastContainer" class="fixed top-6 right-6 space-y-4 z-[9999]">
+<div class="fixed top-6 right-6 space-y-4 z-[9999]">
     {% for category, message in messages %}
-    <div class="toast px-6 py-4 rounded-xl shadow-2xl border 
-        backdrop-blur-md transition-all duration-500
+    <div class="custom-toast
+        flex items-center gap-3
+        px-5 py-4
+        rounded-2xl
+        shadow-xl
+        border
+        backdrop-blur-md
+        animate-slideIn
+        transition-all duration-500
+
         {% if category == 'success' %}
-            bg-white border-emerald-200
+            bg-emerald-600 text-white border-emerald-700
         {% elif category == 'warning' %}
-            bg-white border-yellow-200
+            bg-yellow-500 text-white border-yellow-600
         {% else %}
-            bg-white border-red-200
+            bg-red-600 text-white border-red-700
         {% endif %}
     ">
-        <p class="font-medium text-gray-800">
+        <i class="
+            {% if category == 'success' %}
+                bi bi-check-circle-fill
+            {% elif category == 'warning' %}
+                bi bi-exclamation-triangle-fill
+            {% else %}
+                bi bi-x-circle-fill
+            {% endif %}
+        "></i>
+
+        <span class="font-medium text-sm">
             {{ message }}
-        </p>
+        </span>
     </div>
     {% endfor %}
 </div>
 {% endif %}
 {% endwith %}
 
-<div class="flex h-screen overflow-hidden">
-
+<div class="flex min-h-screen">
 
     <aside id="sidebar"
     class="w-64 transition-all duration-300 flex flex-col shadow-lg">
@@ -224,6 +241,12 @@ header {
             <span class="sidebar-text">Clientes</span>
         </a>
 
+        
+        <a href="{{ url_for('ver_solicitudes_cupo') }}" class="menu-item">
+            <i class="bi bi-people"></i>
+            <span class="sidebar-text">Solicitudes Aumento de Cupo</span>
+        </a>
+
         <a href="{{ url_for('capital') }}" class="menu-item">
             <i class="bi bi-cash-stack"></i>
             <span class="sidebar-text">Capital</span>
@@ -244,12 +267,12 @@ header {
             <span class="sidebar-text">Retiros</span>
         </a>
 
-        <a href="{{ url_for('caja') }}" class="menu-item">
+        <a href="{{ url_for('caja_oficina') }}" class="menu-item">
             <i class="bi bi-archive"></i>
             <span class="sidebar-text">Caja</span>
         </a>
 
-        <a href="{{ url_for('reportes') }}" class="menu-item">
+        <a href="{{ url_for('caja_reportes') }}" class="menu-item">
             <i class="bi bi-graph-up-arrow"></i>
             <span class="sidebar-text">Reportes</span>
         </a>
@@ -270,14 +293,17 @@ header {
             <i class="bi bi-map"></i>
             <span class="sidebar-text">Rutas</span>
         </a>
+        <a href="{{ url_for('categorias_gastos') }}" class="menu-item">
+            <i class="bi bi-grid"></i>
+            <span class="sidebar-text">Categorías Gastos</span>
+        </a>
 
     </nav>
 
 </aside>
 
     <!-- CONTENIDO -->
-    <div class="flex-1 flex flex-col overflow-hidden">
-
+    <div class="flex-1 flex flex-col">
         <header class="bg-white bg-opacity-75 px-4 py-3 d-flex justify-content-between align-items-center shadow-sm">
 
     <!-- Título -->
@@ -328,6 +354,16 @@ header {
             </li>
 
         </ul>
+    </div>
+        <div class="relative">
+        <a href="{{ url_for('ver_solicitudes_cupo') }}">
+            🔔
+            {% if total_solicitudes_pendientes > 0 %}
+            <span class="absolute -top-2 -right-2 bg-red-600 text-xs px-2 rounded-full">
+                {{ total_solicitudes_pendientes }}
+            </span>
+            {% endif %}
+        </a>
     </div>
     {% endif %}
 
@@ -456,8 +492,7 @@ document.addEventListener("DOMContentLoaded", function () {
 </script>
 <script>
 document.addEventListener("DOMContentLoaded", () => {
-    const toasts = document.querySelectorAll(".toast");
-
+const toasts = document.querySelectorAll(".custom-toast");
     toasts.forEach(toast => {
         setTimeout(() => {
             toast.style.opacity = "0";

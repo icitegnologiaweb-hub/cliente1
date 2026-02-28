@@ -1,72 +1,67 @@
 {% extends "base.html" %}
 {% block content %}
 
-<div class="p-6">
+<div class="px-10 py-10 bg-[#f4f7fb] min-h-screen">
 
-<div class="flex justify-between mb-6">
-    <h1 class="text-2xl font-semibold text-gray-700">Rutas</h1>
+<!-- ================= HEADER ================= -->
+<div class="flex justify-between items-center mb-10">
+
+    <div>
+        <h1 class="text-3xl font-bold text-[#1e293b]">
+            Gestión de Rutas
+        </h1>
+        <p class="text-sm text-gray-500 mt-2">
+            Configuración de rutas, cupos y asignación de cobradores
+        </p>
+    </div>
 
     <button onclick="abrirModalRuta()" 
-    class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg shadow">
-        + Agregar Ruta
+        class="bg-[#0B3C5D] hover:bg-[#092f47]
+               text-white px-6 py-3 rounded-lg shadow-lg transition">
+        + Nueva Ruta
     </button>
 
 </div>
 
-<div class="bg-white rounded-xl shadow overflow-hidden">
+<!-- ================= TABLA ================= -->
+<div class="bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden">
 
-<table class="min-w-full text-sm text-gray-600">
+<table class="min-w-full text-sm">
 
-<thead class="bg-gray-100 text-xs uppercase text-gray-500">
+<thead class="bg-[#0B3C5D] text-white uppercase text-xs tracking-wider">
 <tr>
-    <th class="px-6 py-3">Posición</th>
-    <th class="px-6 py-3">Fecha Inicio</th>
-    <th class="px-6 py-3">Código</th>
-    <th class="px-6 py-3">Nombre</th>
-    <th class="px-6 py-3">Tasa %</th>
-    <th class="px-6 py-3">Venta Máxima</th>
-    <th class="px-6 py-3">Interés Libre</th>
-    <th class="px-6 py-3">Estado Caja</th>
-    <th class="px-6 py-3">Estado</th>
-    <th class="px-6 py-3">Cobrador</th>
+    <th class="px-6 py-5">Posición</th>
+    <th class="px-6 py-5">Código</th>
+    <th class="px-6 py-5">Nombre</th>
+    <th class="px-6 py-5">Tasa</th>
+    <th class="px-6 py-5">Venta Máxima</th>
+    <th class="px-6 py-5">Estado</th>
+    <th class="px-6 py-5">Cobrador Asignado</th>
+    <th class="px-6 py-5 text-center">Acción</th>
 </tr>
 </thead>
 
-<tbody class="divide-y">
+<tbody class="divide-y divide-gray-200 bg-white">
 
 {% for ruta in rutas %}
-<tr class="hover:bg-gray-50">
+<tr class="hover:bg-gray-50 transition">
 
 <td class="px-6 py-4">{{ ruta.posicion }}</td>
-<td class="px-6 py-4">{{ ruta.fecha_inicio }}</td>
-<td class="px-6 py-4">{{ ruta.codigo }}</td>
+<td class="px-6 py-4 font-semibold text-[#0B3C5D]">{{ ruta.codigo }}</td>
 <td class="px-6 py-4 font-medium">{{ ruta.nombre }}</td>
 <td class="px-6 py-4">{{ ruta.tasa }}%</td>
-<td class="px-6 py-4">${{ ruta.venta_maxima }}</td>
 
-<td class="px-6 py-4">
-    {% if ruta.interes_libre %}
-        <span class="text-green-600">Sí</span>
-    {% else %}
-        <span class="text-gray-400">No</span>
-    {% endif %}
-</td>
-
-<td class="px-6 py-4">
-    <form method="POST" action="{{ url_for('toggle_ruta', id=ruta.id) }}">
-        <input type="checkbox"
-               onchange="this.form.submit()"
-               {% if ruta.estado %}checked{% endif %}>
-    </form>
+<td class="px-6 py-4 font-semibold text-green-600">
+    $ {{ "{:,.0f}".format(ruta.venta_maxima) }}
 </td>
 
 <td class="px-6 py-4">
     {% if ruta.estado %}
-        <span class="bg-green-100 text-green-600 px-2 py-1 rounded-full text-xs">
+        <span class="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs">
             Activa
         </span>
     {% else %}
-        <span class="bg-red-100 text-red-600 px-2 py-1 rounded-full text-xs">
+        <span class="bg-red-100 text-red-700 px-3 py-1 rounded-full text-xs">
             Inactiva
         </span>
     {% endif %}
@@ -74,10 +69,24 @@
 
 <td class="px-6 py-4">
     {% if ruta.usuarios %}
-        {{ ruta.usuarios.nombres }} {{ ruta.usuarios.apellidos }}
+        <span class="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-semibold">
+            {{ ruta.usuarios.nombres }} {{ ruta.usuarios.apellidos }}
+        </span>
     {% else %}
-        No asignado
+        <span class="text-gray-400 text-xs">
+            Sin asignar
+        </span>
     {% endif %}
+</td>
+
+<td class="px-6 py-4 text-center">
+
+<button onclick="abrirModalAsignar({{ ruta.id }})"
+class="bg-[#0B3C5D] hover:bg-[#092f47]
+       text-white px-4 py-2 rounded-lg text-xs shadow">
+    Asignar
+</button>
+
 </td>
 
 </tr>
@@ -87,114 +96,141 @@
 </table>
 </div>
 
-<!-- MODAL CREAR RUTA -->
-<div id="modalRuta" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+</div>
 
-  <div class="bg-white w-full max-w-lg rounded-2xl shadow-2xl p-6 relative">
+<!-- ================= MODAL ASIGNAR COBRADOR ================= -->
+<div id="modalAsignar"
+     class="fixed inset-0 bg-black/60 backdrop-blur-sm hidden items-center justify-center z-50">
 
-    <h2 class="text-xl font-semibold mb-4 text-gray-700">
-      Crear Nueva Ruta
-    </h2>
+<div class="bg-white w-full max-w-md rounded-2xl shadow-2xl p-8 relative">
 
-    <form method="POST" action="{{ url_for('crear_ruta') }}">
+<button onclick="cerrarModalAsignar()"
+        class="absolute top-4 right-4 text-gray-400 hover:text-gray-700 text-xl">
+    ✕
+</button>
 
-      <!-- Posición -->
-      <div class="mb-3">
-        <label class="block text-sm text-gray-600">Posición</label>
-        <input type="number" name="posicion" min="1" required
-        class="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500">
-      </div>
+<h2 class="text-xl font-bold text-[#1e293b] mb-6">
+    Asignar Cobrador a Ruta
+</h2>
 
-      <!-- Nombre -->
-      <div class="mb-3">
-        <label class="block text-sm text-gray-600">Nombre Ruta</label>
-        <input type="text" name="nombre" required
-        class="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500">
-      </div>
+<form method="POST" action="{{ url_for('asignar_cobrador_ruta') }}">
 
-      <!-- Tasa -->
-      <div class="mb-3">
-        <label class="block text-sm text-gray-600">Tasa %</label>
-        <select name="tasa" required
-        class="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500">
-          <option value="0">0%</option>
-          <option value="10">10%</option>
-          <option value="20">20%</option>
-        </select>
-      </div>
+<input type="hidden" name="ruta_id" id="ruta_id_asignar">
 
-      <!-- Venta Máxima -->
-      <div class="mb-4">
-        <label class="block text-sm text-gray-600">Venta Máxima ($)</label>
-        <input type="number" step="0.01" name="venta_maxima" required
-        class="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500">
-      </div>
-      <!-- Usuario -->
-        <div class="mb-4">
-        <label class="block text-sm text-gray-600">Asignar Usuario</label>
+<div class="mb-5">
+<label class="text-sm text-gray-600">Seleccionar Cobrador</label>
 
-        <select name="usuario_id" id="usuarioSelect" required
-            onchange="mostrarRolUsuario()"
-            class="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500">
+<select name="usuario_id" required
+class="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#0B3C5D]">
 
-            <option value="">Seleccione usuario</option>
+<option value="">Seleccione cobrador</option>
 
-            {% for usuario in usuarios %}
-            <option value="{{ usuario.id }}" data-rol="{{ usuario.rol }}">
-                {{ usuario.nombres }} {{ usuario.apellidos }} - {{ usuario.rol }}
-            </option>
+{% for usuario in usuarios %}
+    {% if usuario.rol == "Cobrador" %}
+        <option value="{{ usuario.id }}">
+            {{ usuario.nombres }} {{ usuario.apellidos }}
+        </option>
+    {% endif %}
+{% endfor %}
 
-            {% endfor %}
+</select>
+</div>
 
-        </select>
+<div class="flex justify-end gap-3">
+<button type="button"
+        onclick="cerrarModalAsignar()"
+        class="px-4 py-2 bg-gray-200 rounded-lg">
+Cancelar
+</button>
 
-        <!-- Rol dinámico -->
-        <p id="rolUsuario" class="text-xs text-gray-500 mt-1"></p>
-        </div>
+<button type="submit"
+        class="px-6 py-2 bg-[#0B3C5D] text-white rounded-lg hover:bg-[#092f47]">
+Asignar
+</button>
+</div>
 
+</form>
 
-      <div class="flex justify-end gap-3">
-        <button type="button" onclick="cerrarModalRuta()"
-        class="px-4 py-2 bg-gray-300 rounded-lg">
-          Cancelar
+</div>
+</div>
+<!-- ================= MODAL NUEVA RUTA ================= -->
+<div id="modalNuevaRuta"
+     class="fixed inset-0 bg-black/60 backdrop-blur-sm hidden items-center justify-center z-50">
+
+<div class="bg-white w-full max-w-lg rounded-2xl shadow-2xl p-8 relative">
+
+<button onclick="cerrarModalRuta()"
+        class="absolute top-4 right-4 text-gray-400 hover:text-gray-700 text-xl">
+    ✕
+</button>
+
+<h2 class="text-xl font-bold text-[#1e293b] mb-6">
+    Crear Nueva Ruta
+</h2>
+
+<form method="POST" action="{{ url_for('crear_ruta') }}" class="space-y-4">
+    <input type="number" name="posicion" placeholder="Posición"
+       required
+       class="w-full border rounded-lg px-4 py-2">
+
+    <input type="text" name="codigo" placeholder="Código"
+           required
+           class="w-full border rounded-lg px-4 py-2">
+
+    <input type="text" name="nombre" placeholder="Nombre de la Ruta"
+           required
+           class="w-full border rounded-lg px-4 py-2">
+
+    <input type="number" name="tasa" placeholder="Tasa (%)"
+           required
+           class="w-full border rounded-lg px-4 py-2">
+
+    <input type="number" name="venta_maxima" placeholder="Venta Máxima"
+           required
+           class="w-full border rounded-lg px-4 py-2">
+
+    <div class="flex items-center gap-3">
+        <input type="checkbox" name="estado" checked>
+        <label class="text-sm text-gray-600">Ruta Activa</label>
+    </div>
+
+    <div class="flex justify-end gap-3">
+        <button type="button"
+                onclick="cerrarModalRuta()"
+                class="px-4 py-2 bg-gray-200 rounded-lg">
+            Cancelar
         </button>
 
         <button type="submit"
-        class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-          Guardar Ruta
+                class="px-6 py-2 bg-[#0B3C5D] text-white rounded-lg hover:bg-[#092f47]">
+            Crear Ruta
         </button>
-      </div>
+    </div>
 
-    </form>
+</form>
 
-  </div>
+</div>
 </div>
 <script>
+function abrirModalAsignar(rutaId) {
+    document.getElementById("ruta_id_asignar").value = rutaId;
+    document.getElementById("modalAsignar").classList.remove("hidden");
+    document.getElementById("modalAsignar").classList.add("flex");
+}
+
+function cerrarModalAsignar() {
+    document.getElementById("modalAsignar").classList.add("hidden");
+}
+</script>
+<script>
 function abrirModalRuta() {
-    document.getElementById("modalRuta").classList.remove("hidden");
-    document.getElementById("modalRuta").classList.add("flex");
+    document.getElementById("modalNuevaRuta").classList.remove("hidden");
+    document.getElementById("modalNuevaRuta").classList.add("flex");
 }
 
 function cerrarModalRuta() {
-    document.getElementById("modalRuta").classList.remove("flex");
-    document.getElementById("modalRuta").classList.add("hidden");
+    document.getElementById("modalNuevaRuta").classList.add("hidden");
 }
 </script>
 
-<script>
-function mostrarRolUsuario() {
-    const select = document.getElementById("usuarioSelect");
-    const rolTexto = document.getElementById("rolUsuario");
-
-    const selectedOption = select.options[select.selectedIndex];
-
-    if (selectedOption.dataset.rol) {
-        rolTexto.innerHTML = "Rol: <strong>" + selectedOption.dataset.rol + "</strong>";
-    } else {
-        rolTexto.innerHTML = "";
-    }
-}
-</script>
-
-</div>
 {% endblock %}

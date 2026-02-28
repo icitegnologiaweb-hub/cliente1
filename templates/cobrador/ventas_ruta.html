@@ -7,19 +7,57 @@
 {% block content %}
 
 <div class="max-w-md mx-auto px-4 pt-4 pb-24 space-y-4">
-<h1>Ventas/clientes</h1>
+<div class="flex items-center gap-3 mb-2">
+
+    <!-- Flecha regresar -->
+    <a href="{{ url_for('dashboard_cobrador') }}"
+    class="bg-white/10 backdrop-blur
+            h-10 w-10 rounded-full
+            flex items-center justify-center
+            text-white text-xl shadow">
+        ←
+    </a>
+
+    <h1 class="text-white text-lg font-semibold">
+        Ventas 
+    </h1>
+<!-- BUSCADOR -->
+<div class="mb-4">
+    <input type="text"
+           id="buscador"
+           placeholder="Buscar por nombre..."
+           onkeyup="filtrarClientes()"
+           class="w-full rounded-xl p-3 text-sm
+                  bg-white/10 text-white placeholder-white/60
+                  border border-white/20
+                  focus:outline-none focus:ring-2 focus:ring-blue-400">
+    </div>
+</div>
 
     {% if creditos %}
 
         {% for credito in creditos %}
 
         <a href="{{ url_for('detalle_credito', credito_id=credito.id) }}"
-           class="block bg-gradient-to-br from-[#123b63] to-[#0b2847]
-                  rounded-2xl p-4 shadow-lg
-                  transition hover:scale-[1.02] text-white">
+        data-nombre="{{ credito.cliente|lower }}"
+        class="credito-item block
+            bg-gradient-to-br from-[#123b63] to-[#0b2847]
+            rounded-2xl p-4 shadow-lg
+            transition hover:scale-[1.02]
+            text-white relative overflow-hidden">
 
             <div class="flex gap-4 items-start">
-
+            {% if credito.color_estado == 'rojo' %}
+            <div class="absolute -top-2 -right-8 rotate-45 bg-red-600
+                        text-white text-[10px] px-10 py-1 font-semibold shadow-md">
+                MORA
+            </div>
+            {% elif credito.color_estado == 'amarillo' %}
+            <div class="absolute -top-2 -right-8 rotate-45 bg-yellow-500
+                        text-white text-[10px] px-10 py-1 font-semibold shadow-md">
+                1 DÍA
+            </div>
+            {% endif %}
                 <!-- CÍRCULO POSICIÓN -->
                 <div class="flex-shrink-0 h-12 w-12 rounded-full
                             bg-gradient-to-br from-gray-300 to-blue-600
@@ -127,5 +165,21 @@
 
     +
 </a>
+<script>
+function filtrarClientes() {
 
+    let input = document.getElementById("buscador").value.toLowerCase();
+    let items = document.querySelectorAll(".credito-item");
+
+    items.forEach(item => {
+        let nombre = item.getAttribute("data-nombre");
+
+        if (nombre.includes(input)) {
+            item.style.display = "block";
+        } else {
+            item.style.display = "none";
+        }
+    });
+}
+</script>
 {% endblock %}

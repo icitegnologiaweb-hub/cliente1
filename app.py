@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, session, url_for, flash
+from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
 from supabase import create_client, Client
 from dotenv import load_dotenv
 import os
@@ -8,6 +8,9 @@ from datetime import datetime, timedelta, date, time
 from utils.email_service import send_email
 from itsdangerous import URLSafeTimedSerializer
 import uuid
+import base64
+from io import BytesIO
+from PIL import Image
 
 app = Flask(__name__)
 
@@ -20,10 +23,26 @@ SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
+app.permanent_session_lifetime = timedelta(days=30)
 
 SECURITY_PASSWORD_SALT = "recovery-salt"
 serializer = URLSafeTimedSerializer(app.secret_key)
 
+@app.context_processor
+def notificaciones_admin():
+
+    try:
+        pendientes = supabase.table("solicitudes_aumento_cupo") \
+            .select("id", count="exact") \
+            .eq("estado", "pendiente") \
+            .execute()
+
+        total = pendientes.count if pendientes.count else 0
+
+    except:
+        total = 0
+
+    return dict(total_solicitudes_pendientes=total)
 
 def generar_codigo_ruta():
     letras = ''.join(random.choices(string.ascii_uppercase, k=3))
@@ -75,10 +94,11 @@ def login():
                     }).eq("email", email).execute()
 
             if login_ok:
-                # Guardamos temporalmente
                 session["pending_user_id"] = user["id"]
 
-                return redirect(url_for("verificar_token"))
+                response = redirect(url_for("verificar_token"))
+                response.headers["Cache-Control"] = "no-cache"
+                return response
 
                
 
@@ -88,11 +108,9 @@ def login():
 
 
 def generar_token_unico():
-
     while True:
         token = str(random.randint(100000, 999999))
 
-        # Verificar que no exista
         response = supabase.table("usuarios") \
             .select("id") \
             .eq("token_ingreso", token) \
@@ -100,6 +118,7 @@ def generar_token_unico():
 
         if not response.data:
             return token
+
 
 @app.route("/usuarios/generar-token/<int:user_id>")
 def generar_token_usuario(user_id):
@@ -110,33 +129,25 @@ def generar_token_usuario(user_id):
         .execute()
 
     if not response.data:
-        flash("Usuario no encontrado.", "error")
-        return redirect(url_for("usuarios"))
+        return {"error": "Usuario no encontrado"}, 404
 
     user = response.data[0]
 
-    token = generar_token_unico()
+    # 🔥 SI YA TIENE TOKEN, LO MANTENEMOS
+    if user.get("token_ingreso"):
+        token = user["token_ingreso"]
+    else:
+        token = generar_token_unico()
 
-    # Guardar token
-    supabase.table("usuarios").update({
-        "token_ingreso": token
-    }).eq("id", user_id).execute()
+        supabase.table("usuarios").update({
+            "token_ingreso": token
+        }).eq("id", user_id).execute()
 
-    # Enviar correo
-    asunto = "Token de acceso al sistema"
-    mensaje = f"""
-    Hola {user['nombres']},
-
-    Tu token de acceso es: {token}
-
-    Usa este código para ingresar al sistema.
-    """
-
-    send_email(user["email"], asunto, mensaje)
-
-    flash("Token generado y enviado al correo.", "success")
-
-    return redirect(url_for("usuarios"))
+    # 🔥 DEVOLVEMOS DATOS PARA EL MODAL
+    return {
+        "email": user["email"],
+        "token": token
+    }
 
 
 @app.route("/verificar-token", methods=["GET", "POST"])
@@ -161,10 +172,6 @@ def verificar_token():
 
         if user["token_ingreso"] == token_ingresado:
 
-            # 🔥 Limpiamos token después de usarlo
-            supabase.table("usuarios").update({
-                "token_ingreso": None
-            }).eq("id", user["id"]).execute()
 
             session.pop("pending_user_id", None)
 
@@ -184,6 +191,36 @@ def verificar_token():
     return render_template("forgot_password/verificar_token.html")
 
 
+@app.route("/actualizar-posicion-cliente", methods=["POST"])
+def actualizar_posicion_cliente():
+
+    cliente_id = request.form.get("cliente_id")
+    posicion = request.form.get("posicion")
+
+    supabase.table("clientes").update({
+        "posicion": posicion
+    }).eq("id", cliente_id).execute()
+
+    flash("Posición actualizada correctamente", "success")
+    return redirect(url_for("clientes"))
+
+
+@app.route("/actualizar-posicion-cliente-ventas", methods=["POST"])
+def actualizar_posicion_cliente_ventas():
+
+    credito_id = request.form.get("credito_id")
+    posicion = request.form.get("posicion")
+
+    if not credito_id:
+        flash("Error: ID no recibido", "danger")
+        return redirect(url_for("listar_ventas"))
+
+    supabase.table("creditos").update({
+        "posicion": posicion
+    }).eq("id", credito_id).execute()
+
+    flash("Posición actualizada correctamente", "success")
+    return redirect(url_for("listar_ventas"))
 
 @app.route('/forgot-password', methods=['GET', 'POST'])
 def forgot_password():
@@ -450,7 +487,6 @@ def dashboard_cobrador():
 
 
 # 🔎 Traer crédito + cliente APP
-# 🔎 Traer crédito + cliente APP
 @app.route("/credito/<credito_id>")
 def detalle_credito(credito_id):
 
@@ -525,17 +561,17 @@ def detalle_credito(credito_id):
         total_pagado=total_pagado,
         proxima_cuota=proxima_cuota
     )
-
 @app.route("/registrar_pago", methods=["POST"])
 def registrar_pago():
 
     cuota_id = request.form.get("cuota_id")
-    monto_adicional = float(request.form.get("monto_adicional", 0))
+
+    monto_adicional_raw = request.form.get("monto_adicional", "").strip()
+    monto_adicional = float(monto_adicional_raw) if monto_adicional_raw != "" else 0.0
 
     if not cuota_id:
         return redirect(request.referrer)
 
-    # 🔎 Traer cuota
     cuota_resp = supabase.table("cuotas") \
         .select("*") \
         .eq("id", cuota_id) \
@@ -547,11 +583,11 @@ def registrar_pago():
 
     cuota = cuota_resp.data
 
-    # 🔹 Calcular total pagado
-    valor_cuota = float(cuota["valor"])
+    valor_raw = cuota.get("valor")
+    valor_cuota = float(valor_raw) if valor_raw not in (None, "") else 0.0
+
     total_pagado = valor_cuota + monto_adicional
 
-    # 🔥 Actualizar cuota como pagada
     supabase.table("cuotas").update({
         "estado": "pagado",
         "monto_pagado": total_pagado,
@@ -560,7 +596,6 @@ def registrar_pago():
 
     credito_id = cuota["credito_id"]
 
-    # 🔥 Registrar en tabla pagos
     pago_resp = supabase.table("pagos").insert({
         "cuota_id": cuota_id,
         "credito_id": credito_id,
@@ -571,7 +606,6 @@ def registrar_pago():
 
     pago_id = pago_resp.data[0]["id"]
 
-    # 🔎 Verificar si quedan cuotas pendientes
     cuotas_pendientes = supabase.table("cuotas") \
         .select("id") \
         .eq("credito_id", credito_id) \
@@ -579,13 +613,11 @@ def registrar_pago():
         .execute()
 
     if not cuotas_pendientes.data:
-        # 🔥 Si no quedan pendientes → crédito pagado
         supabase.table("creditos").update({
             "estado": "pagado"
         }).eq("id", credito_id).execute()
 
     return redirect(url_for("recibo_pago", pago_id=pago_id))
-
 
 @app.route("/recibo/<pago_id>")
 def recibo_pago(pago_id):
@@ -639,35 +671,230 @@ def recibo_pago(pago_id):
 @app.route("/nueva_venta_cobrador")
 def nueva_venta_cobrador():
 
-    # 🔐 Validar sesión
     if "user_id" not in session or session.get("rol") != "cobrador":
         return redirect(url_for("login_app"))
 
     user_id = int(session["user_id"])
 
-    # 🔹 Traer rutas del cobrador (igual que dashboard)
-    response = supabase.table("rutas") \
+    rutas = supabase.table("rutas") \
         .select("*") \
         .eq("usuario_id", user_id) \
         .eq("estado", "true") \
         .order("posicion") \
-        .execute()
+        .execute().data or []
 
-    rutas = response.data if response.data else []
-
-    # 🔹 Ruta actual
     ruta_actual = session.get("ruta_id")
 
-    # 🔹 Si no hay ruta en sesión, usar la primera
-    if not ruta_actual and rutas:
-        ruta_actual = rutas[0]["id"]
-        session["ruta_id"] = ruta_actual
+    # 🔥 Detectar si viene de aumento
+    cedula_aprobada = request.args.get("cedula")
+    monto_aprobado = request.args.get("monto")
+
+    cliente_data = None
+
+    if cedula_aprobada:
+
+        cedula_busqueda = cedula_aprobada.strip()
+
+        cliente_resp = supabase.table("clientes") \
+            .select("*") \
+            .ilike("identificacion", cedula_busqueda) \
+            .limit(1) \
+            .execute()
+
+        print("DEBUG CLIENTE:", cliente_resp.data)
+
+        if cliente_resp.data:
+            cliente_data = cliente_resp.data[0]
 
     return render_template(
         "cobrador/nueva_venta_cobrador.html",
         rutas=rutas,
-        ruta_actual=ruta_actual
+        ruta_actual=ruta_actual,
+        cliente_aprobado=cliente_data,
+        monto_aprobado=monto_aprobado
     )
+@app.route("/buzon_aumento_cupo")
+def buzon_aumento_cupo():
+
+    # 🔐 Validar sesión
+    if "user_id" not in session or session.get("rol") != "cobrador":
+        return redirect(url_for("login_app"))
+
+    user_id = session["user_id"]
+    ruta_id = session.get("ruta_id")
+
+    # 🔒 Validar que exista ruta activa
+    if not ruta_id:
+        flash("Debe seleccionar una ruta", "warning")
+        return redirect(url_for("dashboard_cobrador"))
+
+    # 🔎 Traer solo solicitudes de esa ruta y ese cobrador
+    solicitudes_resp = supabase.table("solicitudes_aumento_cupo") \
+        .select("*") \
+        .eq("usuario_id", user_id) \
+        .eq("ruta_id", ruta_id) \
+        .order("fecha", desc=True) \
+        .execute()
+
+    solicitudes = solicitudes_resp.data or []
+
+    # 🕒 Formatear fechas
+    for s in solicitudes:
+        fecha = s.get("fecha")
+
+        if fecha:
+            try:
+                fecha_utc = datetime.fromisoformat(fecha.replace("Z", "+00:00"))
+                fecha_colombia = fecha_utc - timedelta(hours=5)
+                s["fecha_formateada"] = fecha_colombia.strftime("%d/%m/%Y %I:%M %p")
+            except:
+                s["fecha_formateada"] = fecha
+        else:
+            s["fecha_formateada"] = ""
+
+    return render_template(
+        "cobrador/buzon_aumento_cupo.html",
+        solicitudes=solicitudes
+    )
+
+@app.route("/nueva_solicitud_cupo")
+def nueva_solicitud_cupo():
+
+    # 🔐 Validar sesión
+    if "user_id" not in session or session.get("rol") != "cobrador":
+        return redirect(url_for("login_app"))
+
+    # 🔒 Validar ruta activa
+    if not session.get("ruta_id"):
+        flash("Debe seleccionar una ruta", "warning")
+        return redirect(url_for("dashboard_cobrador"))
+
+    return render_template("cobrador/nueva_solicitud_cupo.html")
+
+
+@app.route("/buscar_cliente_por_cedula/<cedula>")
+def buscar_cliente_por_cedula(cedula):
+
+    try:
+        cedula_int = int(cedula)
+    except:
+        return jsonify({"success": False})
+
+    cliente = supabase.table("clientes") \
+        .select("id, nombre, direccion, telefono_principal") \
+        .eq("identificacion", cedula_int) \
+        .limit(1) \
+        .execute()
+
+    if cliente.data:
+        return jsonify({
+            "success": True,
+            "cliente": cliente.data[0]
+        })
+    else:
+        return jsonify({"success": False})
+
+@app.route("/guardar_solicitud_cupo", methods=["POST"])
+def guardar_solicitud_cupo():
+
+    # 🔐 Validar sesión
+    if "user_id" not in session or session.get("rol") != "cobrador":
+        return redirect(url_for("login_app"))
+
+    cedula = request.form.get("cedula", "").strip()
+    monto_raw = request.form.get("monto", "").strip()
+
+    # ==========================
+    # VALIDAR DATOS
+    # ==========================
+
+    if not cedula or not monto_raw:
+        flash("Todos los campos son obligatorios", "danger")
+        return redirect(url_for("nueva_solicitud_cupo"))
+
+    try:
+        monto = float(monto_raw.replace(".", "").replace(",", "."))
+        if monto <= 0:
+            raise ValueError
+    except:
+        flash("Monto inválido", "danger")
+        return redirect(url_for("nueva_solicitud_cupo"))
+
+    # ==========================
+    # VALIDAR QUE CLIENTE EXISTA
+    # ==========================
+
+    cliente = supabase.table("clientes") \
+        .select("id, nombre, identificacion") \
+        .eq("identificacion", cedula) \
+        .limit(1) \
+        .execute()
+
+    if not cliente.data:
+        flash("El cliente no existe en el sistema", "danger")
+        return redirect(url_for("nueva_solicitud_cupo"))
+
+    cliente_data = cliente.data[0]
+
+    # ==========================
+    # VALIDAR QUE NO EXISTA PENDIENTE
+    # ==========================
+
+    pendiente = supabase.table("solicitudes_aumento_cupo") \
+        .select("id") \
+        .eq("cedula", cedula) \
+        .eq("estado", "pendiente") \
+        .limit(1) \
+        .execute()
+
+    if pendiente.data:
+        flash("Ya existe una solicitud pendiente para este cliente", "warning")
+        return redirect(url_for("buzon_aumento_cupo"))
+
+    # ==========================
+    # CREAR SOLICITUD
+    # ==========================
+
+    insert = supabase.table("solicitudes_aumento_cupo").insert({
+        "cliente_id": cliente_data["id"],  # 🔥 mejor guardar id real
+        "cliente_nombre": cliente_data["nombre"],
+        "cedula": cedula,
+        "monto_solicitado": monto,
+        "usuario_id": session["user_id"],
+        "ruta_id": session.get("ruta_id"),
+        "estado": "pendiente"
+    }).execute()
+
+    if not insert.data:
+        flash("Error al enviar la solicitud", "danger")
+        return redirect(url_for("nueva_solicitud_cupo"))
+
+    flash("Solicitud enviada correctamente", "success")
+    return redirect(url_for("buzon_aumento_cupo"))
+
+@app.route("/admin/solicitud/<id>/<accion>")
+def procesar_solicitud(id, accion):
+
+    if accion not in ["aprobado", "rechazado"]:
+        return redirect(url_for("ver_solicitudes_cupo"))
+
+    supabase.table("solicitudes_aumento_cupo") \
+        .update({"estado": accion}) \
+        .eq("id", id) \
+        .execute()
+
+    flash("Solicitud actualizada", "success")
+    return redirect(url_for("ver_solicitudes_cupo"))
+
+@app.route("/admin/solicitudes_cupo")
+def ver_solicitudes_cupo():
+
+    solicitudes = supabase.table("solicitudes_aumento_cupo") \
+        .select("*") \
+        .order("fecha", desc=True) \
+        .execute().data
+
+    return render_template("solicitudes_cupo.html", solicitudes=solicitudes)
 
 @app.route("/guardar_venta_cobrador", methods=["POST"])
 def guardar_venta_cobrador():
@@ -675,7 +902,7 @@ def guardar_venta_cobrador():
     if "user_id" not in session:
         return redirect(url_for("login_app"))
 
-    # 🔹 Traer rutas del cobrador (para re-render sin romper diseño)
+    # 🔹 Traer rutas
     rutas_resp = supabase.table("rutas") \
         .select("*") \
         .eq("usuario_id", session["user_id"]) \
@@ -696,25 +923,12 @@ def guardar_venta_cobrador():
     # VALIDAR CAMPOS NUMÉRICOS
     # ==========================
 
-    try:
-        posicion = int(request.form.get("posicion", "").strip())
-        if posicion <= 0:
-            raise ValueError
-    except:
-        flash("Debe ingresar una posición válida", "danger")
-        return render_template(
-            "cobrador/nueva_venta_cobrador.html",
-            rutas=rutas,
-            ruta_actual=ruta_id,
-            form_data=request.form
-        )
 
     try:
         valor_venta_raw = request.form.get("valor_venta", "").strip()
         tasa_raw = request.form.get("tasa", "").strip()
         cuotas_raw = request.form.get("cuotas", "").strip()
 
-        # 🔹 Limpiar formato colombiano
         valor_venta = float(valor_venta_raw.replace(".", "").replace(",", "."))
         tasa = float(tasa_raw.replace(",", "."))
         cuotas = int(cuotas_raw)
@@ -723,7 +937,7 @@ def guardar_venta_cobrador():
             raise ValueError
 
     except Exception as e:
-        print("ERROR NUMERICO:", e)  # Para depurar
+        print("ERROR NUMERICO:", e)
         flash("Datos numéricos inválidos", "danger")
         return render_template(
             "cobrador/nueva_venta_cobrador.html",
@@ -735,33 +949,55 @@ def guardar_venta_cobrador():
     identificacion = request.form.get("identificacion")
     nombre = request.form.get("nombre")
     direccion = request.form.get("direccion")
+    direccion_negocio = request.form.get("direccion_negocio")
     telefono = request.form.get("telefono")
-    fecha_inicio = request.form.get("fecha_inicio")
+    fecha_inicio = (date.today() + timedelta(days=1)).isoformat()
     tipo_prestamo = request.form.get("tipo_prestamo")
+    
 
-    # ==========================
-    # VALIDAR POSICIÓN DUPLICADA
+        # ==========================
+    # VALIDAR CUPO MÁXIMO RUTA COBRADOR
     # ==========================
 
-    posicion_existente = supabase.table("creditos") \
-        .select("id") \
-        .eq("ruta_id", ruta_id) \
-        .eq("posicion", posicion) \
-        .eq("estado", "activo") \
-        .limit(1) \
+    ruta_data = supabase.table("rutas") \
+        .select("venta_maxima") \
+        .eq("id", ruta_id) \
+        .single() \
         .execute()
 
-    if posicion_existente.data:
-        flash("Ya existe un cliente activo en esa posición", "danger")
+    if not ruta_data.data:
+        flash("Ruta no válida", "danger")
+        return redirect(url_for("dashboard_cobrador"))
+
+    venta_maxima_permitida = float(ruta_data.data["venta_maxima"])
+
+    if valor_venta > venta_maxima_permitida:
+        flash(f"El monto supera la venta máxima permitida para esta ruta (${venta_maxima_permitida:,.0f})", "danger")
         return render_template(
             "cobrador/nueva_venta_cobrador.html",
             rutas=rutas,
             ruta_actual=ruta_id,
             form_data=request.form
         )
+    # ==========================
+    # ASIGNAR POSICIÓN AUTOMÁTICA POR RUTA
+    # ==========================
+
+    ultimo = supabase.table("creditos") \
+        .select("posicion") \
+        .eq("ruta_id", ruta_id) \
+        .eq("estado", "activo") \
+        .order("posicion", desc=True) \
+        .limit(1) \
+        .execute()
+
+    if ultimo.data:
+        nueva_posicion = ultimo.data[0]["posicion"] + 1
+    else:
+        nueva_posicion = 1
 
     # ==========================
-    # 1️⃣ BUSCAR O CREAR CLIENTE
+    # CREAR O BUSCAR CLIENTE
     # ==========================
 
     cliente_resp = supabase.table("clientes") \
@@ -777,6 +1013,7 @@ def guardar_venta_cobrador():
             "identificacion": identificacion,
             "nombre": nombre,
             "direccion": direccion,
+            "direccion_negocio": direccion_negocio,
             "telefono_principal": telefono
         }).execute()
 
@@ -792,38 +1029,109 @@ def guardar_venta_cobrador():
         cliente_id = nuevo_cliente.data[0]["id"]
 
     # ==========================
-    # 2️⃣ SUBIR FOTOS
+    # PROCESAR FIRMA
     # ==========================
 
-    import uuid
+    firma_url = None
+    firma_base64 = request.form.get("firma_cliente")
 
+    if firma_base64 and "base64," in firma_base64:
+        try:
+            header, encoded = firma_base64.split(",", 1)
+            firma_bytes = base64.b64decode(encoded)
+
+            image = Image.open(BytesIO(firma_bytes)).convert("RGBA")
+
+            # 🔹 Crear fondo blanco
+            background = Image.new("RGB", image.size, (255, 255, 255))
+
+            # 🔹 Pegar firma sobre fondo blanco usando canal alpha
+            background.paste(image, mask=image.split()[3])
+
+            firma_filename = f"{cliente_id}_{uuid.uuid4()}_firma.jpg"
+
+            buffer = BytesIO()
+            background.save(buffer, format="JPEG", quality=70)
+            buffer.seek(0)
+
+            upload = supabase.storage.from_("clientes").upload(
+                firma_filename,
+                buffer.read(),
+                {"content-type": "image/jpeg"}
+            )
+
+            firma_url = supabase.storage.from_("clientes").get_public_url(firma_filename)
+
+        except Exception as e:
+            print("Error procesando firma:", e)
+
+    # ==========================
+    # SUBIR FOTOS
+    # ==========================
+
+    foto_cliente = request.files.get("foto_cliente")
     foto_cedula = request.files.get("foto_cedula")
     foto_negocio = request.files.get("foto_negocio")
+
+    cliente_url = None
+
+    if foto_cliente:
+        try:
+            cliente_path = f"{cliente_id}_{uuid.uuid4()}_cliente.jpg"
+
+            supabase.storage.from_("clientes").upload(
+                cliente_path,
+                foto_cliente.read(),
+                {"content-type": foto_cliente.content_type}
+            )
+
+            cliente_url = supabase.storage.from_("clientes").get_public_url(cliente_path)
+
+        except Exception as e:
+            print("Error subiendo foto cliente:", e)
+
+    cedula_url = None
+    negocio_url = None
 
     if foto_cedula:
         try:
             cedula_path = f"{cliente_id}_{uuid.uuid4()}_cedula.jpg"
+
             supabase.storage.from_("clientes").upload(
                 cedula_path,
                 foto_cedula.read(),
                 {"content-type": foto_cedula.content_type}
             )
-        except:
-            pass
+
+            cedula_url = supabase.storage.from_("clientes").get_public_url(cedula_path)
+
+        except Exception as e:
+            print("Error subiendo cédula:", e)
 
     if foto_negocio:
         try:
             negocio_path = f"{cliente_id}_{uuid.uuid4()}_negocio.jpg"
+
             supabase.storage.from_("clientes").upload(
                 negocio_path,
                 foto_negocio.read(),
                 {"content-type": foto_negocio.content_type}
             )
-        except:
-            pass
+
+            negocio_url = supabase.storage.from_("clientes").get_public_url(negocio_path)
+
+        except Exception as e:
+            print("Error subiendo negocio:", e)
 
     # ==========================
-    # 3️⃣ CREAR CRÉDITO
+    # UBICACIÓN
+    # ==========================
+
+    latitud = request.form.get("latitud")
+    longitud = request.form.get("longitud")
+
+    # ==========================
+    # CREAR CRÉDITO
     # ==========================
 
     valor_total = valor_venta + (valor_venta * tasa / 100)
@@ -832,7 +1140,7 @@ def guardar_venta_cobrador():
     credito_resp = supabase.table("creditos").insert({
         "cliente_id": cliente_id,
         "ruta_id": ruta_id,
-        "posicion": posicion,
+        "posicion": nueva_posicion,
         "tipo_prestamo": tipo_prestamo,
         "valor_venta": valor_venta,
         "tasa": tasa,
@@ -840,7 +1148,13 @@ def guardar_venta_cobrador():
         "cantidad_cuotas": cuotas,
         "valor_cuota": valor_cuota,
         "fecha_inicio": fecha_inicio,
-        "estado": "activo"
+        "estado": "activo",
+        "foto_cedula": cedula_url,
+        "foto_negocio": negocio_url,
+        "foto_cliente": cliente_url,
+        "firma_cliente": firma_url,
+        "latitud": float(latitud) if latitud else None,
+        "longitud": float(longitud) if longitud else None
     }).execute()
 
     if not credito_resp.data:
@@ -855,9 +1169,8 @@ def guardar_venta_cobrador():
     credito_id = credito_resp.data[0]["id"]
 
     # ==========================
-    # 4️⃣ CREAR CUOTAS
+    # CREAR CUOTAS
     # ==========================
-
 
     fecha = datetime.strptime(fecha_inicio, "%Y-%m-%d")
 
@@ -871,9 +1184,100 @@ def guardar_venta_cobrador():
         }).execute()
 
     flash("Venta registrada correctamente", "success")
-
     return redirect(url_for("ver_ruta", ruta_id=ruta_id))
 
+
+@app.route("/cambiar_posicion", methods=["POST"])
+def cambiar_posicion():
+
+    credito_id = request.form.get("credito_id")
+    nueva_posicion = int(request.form.get("nueva_posicion"))
+
+    credito = supabase.table("creditos") \
+        .select("ruta_id, posicion") \
+        .eq("id", credito_id) \
+        .single() \
+        .execute().data
+
+    ruta_id = credito["ruta_id"]
+    vieja_posicion = credito["posicion"]
+
+    if nueva_posicion == vieja_posicion:
+        return redirect(url_for("ventas"))
+
+    # 🔥 PASO 1: mover temporalmente a posición imposible
+    supabase.table("creditos") \
+        .update({"posicion": 99999}) \
+        .eq("id", credito_id) \
+        .execute()
+
+    if nueva_posicion < vieja_posicion:
+        # mover hacia arriba
+        creditos = supabase.table("creditos") \
+            .select("id, posicion") \
+            .eq("ruta_id", ruta_id) \
+            .gte("posicion", nueva_posicion) \
+            .lt("posicion", vieja_posicion) \
+            .execute().data
+
+        for c in creditos:
+            supabase.table("creditos") \
+                .update({"posicion": c["posicion"] + 1}) \
+                .eq("id", c["id"]) \
+                .execute()
+
+    else:
+        # mover hacia abajo
+        creditos = supabase.table("creditos") \
+            .select("id, posicion") \
+            .eq("ruta_id", ruta_id) \
+            .gt("posicion", vieja_posicion) \
+            .lte("posicion", nueva_posicion) \
+            .execute().data
+
+        for c in creditos:
+            supabase.table("creditos") \
+                .update({"posicion": c["posicion"] - 1}) \
+                .eq("id", c["id"]) \
+                .execute()
+
+    # 🔥 PASO FINAL: poner en su nueva posición real
+    supabase.table("creditos") \
+        .update({"posicion": nueva_posicion}) \
+        .eq("id", credito_id) \
+        .execute()
+
+    return redirect(url_for("todas_las_ventas"))
+
+@app.route("/rutas/asignar-cobrador", methods=["POST"])
+def asignar_cobrador_ruta():
+
+    ruta_id = request.form.get("ruta_id")
+    usuario_id = request.form.get("usuario_id")
+
+    if not ruta_id or not usuario_id:
+        flash("Datos inválidos", "danger")
+        return redirect(url_for("listar_rutas"))
+
+    # 🔥 Validar que el usuario sea cobrador
+    user_check = supabase.table("usuarios") \
+        .select("rol") \
+        .eq("id", usuario_id) \
+        .single() \
+        .execute()
+
+    if not user_check.data or user_check.data["rol"] != "Cobrador":
+        flash("Solo se pueden asignar usuarios con rol Cobrador", "danger")
+        return redirect(url_for("listar_rutas"))
+
+    # 🔥 Actualizar ruta
+    supabase.table("rutas") \
+        .update({"usuario_id": usuario_id}) \
+        .eq("id", ruta_id) \
+        .execute()
+
+    flash("Cobrador asignado correctamente", "success")
+    return redirect(url_for("listar_rutas"))
 
 # listar todas las ventas en el motudlo de cobrador
 
@@ -956,7 +1360,377 @@ def todas_las_ventas(ruta_id):
         ruta_id=ruta_id
     )
 
+@app.route("/caja_oficina")
+def caja_oficina():
 
+    if "user_id" not in session:
+        return redirect(url_for("login"))
+
+    oficina_id = session.get("oficina_id")
+
+    fecha_inicio = request.args.get("fecha_inicio")
+    fecha_fin = request.args.get("fecha_fin")
+
+    hoy = date.today()
+    hoy_iso = hoy.isoformat()
+
+    if fecha_inicio and fecha_fin:
+        inicio = datetime.fromisoformat(fecha_inicio + "T00:00:00")
+        fin = datetime.fromisoformat(fecha_fin + "T23:59:59")
+    else:
+        inicio = datetime.combine(hoy, time.min)
+        fin = datetime.combine(hoy, time.max)
+
+    # 🔥 TRAER RUTAS DE LA OFICINA
+    rutas_db = supabase.table("rutas") \
+        .select("id, nombre") \
+        .eq("oficina_id", oficina_id) \
+        .execute().data or []
+
+    lista_rutas = []
+    saldo_total_cajas = 0
+
+    for r in rutas_db:
+
+        ruta_id = r["id"]
+
+        # =====================================================
+        # 1️⃣ SALDO ANTERIOR
+        # =====================================================
+
+        cierre_resp = supabase.table("caja_diaria") \
+            .select("*") \
+            .eq("ruta_id", ruta_id) \
+            .lt("fecha", inicio.date().isoformat()) \
+            .order("fecha", desc=True) \
+            .limit(1) \
+            .execute()
+
+        if cierre_resp.data:
+            saldo_anterior = float(cierre_resp.data[0]["saldo_final"])
+        else:
+            saldo_anterior = 0
+
+        # =====================================================
+        # 2️⃣ COBROS
+        # =====================================================
+
+        pagos = supabase.table("pagos") \
+            .select("""
+                monto,
+                fecha,
+                creditos!inner(ruta_id)
+            """) \
+            .eq("creditos.ruta_id", ruta_id) \
+            .gte("fecha", inicio.isoformat()) \
+            .lte("fecha", fin.isoformat()) \
+            .execute().data or []
+
+        total_cobros = sum(float(p["monto"] or 0) for p in pagos)
+
+        # =====================================================
+        # 3️⃣ PRÉSTAMOS
+        # =====================================================
+
+        prestamos = supabase.table("creditos") \
+            .select("valor_venta") \
+            .eq("ruta_id", ruta_id) \
+            .gte("created_at", inicio.isoformat()) \
+            .lte("created_at", fin.isoformat()) \
+            .execute().data or []
+
+        total_prestamos = sum(float(p["valor_venta"] or 0) for p in prestamos)
+
+        # =====================================================
+        # 4️⃣ GASTOS
+        # =====================================================
+
+        gastos = supabase.table("gastos") \
+            .select("valor") \
+            .eq("ruta_id", ruta_id) \
+            .gte("created_at", inicio.isoformat()) \
+            .lte("created_at", fin.isoformat()) \
+            .execute().data or []
+
+        total_gastos = sum(float(g["valor"] or 0) for g in gastos)
+
+        # =====================================================
+        # 5️⃣ SALDO ACTUAL
+        # =====================================================
+
+        saldo_actual = saldo_anterior + total_cobros - total_prestamos - total_gastos
+
+        saldo_total_cajas += saldo_actual
+
+        lista_rutas.append({
+            "ruta_id": ruta_id,
+            "ruta_nombre": r["nombre"],
+            "saldo_anterior": saldo_anterior,
+            "total_cobros": total_cobros,
+            "total_prestamos": total_prestamos,
+            "total_gastos": total_gastos,
+            "saldo_actual": saldo_actual
+        })
+
+    return render_template(
+        "cajas.html",
+        rutas=lista_rutas,
+        saldo_total=saldo_total_cajas,
+        fecha_inicio=fecha_inicio,
+        fecha_fin=fecha_fin
+    )
+@app.route("/caja/ruta/<ruta_id>")
+def detalle_caja_ruta(ruta_id):
+
+    fecha_inicio = request.args.get("fecha_inicio")
+    fecha_fin = request.args.get("fecha_fin")
+
+    if not fecha_inicio or not fecha_fin:
+        hoy = date.today().isoformat()
+        fecha_inicio = hoy
+        fecha_fin = hoy
+
+    inicio = datetime.fromisoformat(fecha_inicio + "T00:00:00")
+    fin = datetime.fromisoformat(fecha_fin + "T23:59:59")
+
+    # =====================================================
+    # 🔹 SALDO ANTERIOR
+    # =====================================================
+
+    cierre_resp = supabase.table("caja_diaria") \
+        .select("*") \
+        .eq("ruta_id", ruta_id) \
+        .lt("fecha", fecha_inicio) \
+        .order("fecha", desc=True) \
+        .limit(1) \
+        .execute()
+
+    saldo_anterior = 0
+    if cierre_resp.data:
+        saldo_anterior = float(cierre_resp.data[0]["saldo_final"])
+
+    # =====================================================
+    # 🔹 COBROS DETALLE
+    # =====================================================
+
+    cobros = supabase.table("pagos") \
+        .select("""
+            monto,
+            fecha,
+            cobrador_id,
+            creditos!inner(
+                ruta_id,
+                clientes(nombre)
+            )
+        """) \
+        .eq("creditos.ruta_id", ruta_id) \
+        .gte("fecha", inicio.isoformat()) \
+        .lte("fecha", fin.isoformat()) \
+        .order("fecha", desc=True) \
+        .execute().data or []
+
+    # 🔹 Obtener IDs únicos de cobradores
+    cobradores_ids = list(set(
+        c["cobrador_id"]
+        for c in cobros
+        if c.get("cobrador_id")
+    ))
+
+    cobradores_dict = {}
+
+    if cobradores_ids:
+        usuarios = supabase.table("usuarios") \
+            .select("id, nombres, apellidos") \
+            .in_("id", cobradores_ids) \
+            .execute().data or []
+
+        cobradores_dict = {
+            u["id"]: f"{u['nombres']} {u['apellidos']}"
+            for u in usuarios
+        }
+
+    # 🔹 Reemplazar ID por nombre completo
+    for c in cobros:
+        c["cobrador_nombre"] = cobradores_dict.get(c["cobrador_id"], "N/A")
+
+    total_cobros = sum(float(c["monto"] or 0) for c in cobros)
+
+    # =====================================================
+    # 🔹 PRÉSTAMOS DETALLE
+    # =====================================================
+
+    prestamos = supabase.table("creditos") \
+        .select("""
+            valor_venta,
+            created_at,
+            tipo_prestamo,
+            clientes(nombre)
+        """) \
+        .eq("ruta_id", ruta_id) \
+        .gte("created_at", inicio.isoformat()) \
+        .lte("created_at", fin.isoformat()) \
+        .execute().data or []
+
+    total_prestamos = sum(float(p["valor_venta"] or 0) for p in prestamos)
+
+    # =====================================================
+    # 🔹 GASTOS DETALLE
+    # =====================================================
+
+    gastos = supabase.table("gastos") \
+        .select("categoria, descripcion, valor, created_at") \
+        .eq("ruta_id", ruta_id) \
+        .gte("created_at", inicio.isoformat()) \
+        .lte("created_at", fin.isoformat()) \
+        .execute().data or []
+
+    total_gastos = sum(float(g["valor"] or 0) for g in gastos)
+
+    # =====================================================
+    # 🔹 TRANSFERENCIAS
+    # =====================================================
+
+    transferencias = supabase.table("transferencias") \
+        .select("*") \
+        .eq("ruta_destino", ruta_id) \
+        .gte("fecha", inicio.isoformat()) \
+        .lte("fecha", fin.isoformat()) \
+        .execute().data or []
+
+    total_transferencias = sum(float(t["valor"] or 0) for t in transferencias)
+
+    # =====================================================
+    # 🔹 SALDO ACTUAL
+    # =====================================================
+
+    saldo_actual = saldo_anterior + total_cobros + total_transferencias - total_prestamos - total_gastos
+
+    return render_template(
+        "detalle_caja_ruta.html",
+        saldo_anterior=saldo_anterior,
+        total_cobros=total_cobros,
+        total_prestamos=total_prestamos,
+        total_gastos=total_gastos,
+        total_transferencias=total_transferencias,
+        saldo_actual=saldo_actual,
+        cobros=cobros,
+        prestamos=prestamos,
+        gastos=gastos,
+        transferencias=transferencias,
+        fecha_inicio=fecha_inicio,
+        fecha_fin=fecha_fin
+    )
+
+
+
+@app.route("/caja_reportes")
+def caja_reportes():
+
+    if "user_id" not in session:
+        return redirect(url_for("login"))
+
+    fecha_inicio = request.args.get("fecha_inicio")
+    fecha_fin = request.args.get("fecha_fin")
+    ruta_id = request.args.get("ruta_id")
+
+    # 🔹 Valores por defecto
+    if not fecha_inicio or not fecha_fin:
+        hoy = date.today().isoformat()
+        fecha_inicio = hoy
+        fecha_fin = hoy
+
+    inicio = fecha_inicio + "T00:00:00"
+    fin = fecha_fin + "T23:59:59"
+
+    # 🔹 Traer rutas
+    rutas = supabase.table("rutas") \
+        .select("id, nombre") \
+        .execute().data or []
+
+    ventas = []
+    ventas_finalizadas = []
+    ventas_activas = []
+
+    if ruta_id:
+
+        response = supabase.table("creditos") \
+            .select("""
+                id,
+                valor_total,
+                valor_venta,
+                tasa,
+                cantidad_cuotas,
+                tipo_prestamo,
+                estado,
+                created_at,
+                clientes(nombre)
+            """) \
+            .eq("ruta_id", ruta_id) \
+            .gte("created_at", inicio) \
+            .lte("created_at", fin) \
+            .execute()
+
+        ventas = response.data or []
+
+        for v in ventas:
+
+            total_interes = float(v["valor_total"]) - float(v["valor_venta"])
+
+            # 🔹 Calcular saldo actual
+            pagos = supabase.table("pagos") \
+                .select("monto") \
+                .eq("credito_id", v["id"]) \
+                .execute().data or []
+
+            total_pagado = sum(float(p["monto"] or 0) for p in pagos)
+            saldo_actual = float(v["valor_total"]) - total_pagado
+
+            v["valor_interes"] = total_interes
+            v["saldo_actual"] = saldo_actual
+
+            if v["estado"] in ["finalizado", "pagado"]:
+                ventas_finalizadas.append(v)
+            else:
+                ventas_activas.append(v)
+
+    return render_template(
+        "caja_reportes.html",
+        rutas=rutas,
+        ventas=ventas,
+        ventas_activas=ventas_activas,
+        ventas_finalizadas=ventas_finalizadas,
+        fecha_inicio=fecha_inicio,
+        fecha_fin=fecha_fin,
+        ruta_id=ruta_id
+    )
+
+
+@app.route("/categorias_gastos")
+def categorias_gastos():
+
+    categorias = supabase.table("categorias_gastos") \
+        .select("*") \
+        .eq("estado", True) \
+        .order("nombre") \
+        .execute().data or []
+
+    return render_template(
+        "categorias_gastos.html",
+        categorias=categorias
+    )
+
+@app.route("/guardar_categoria_gasto", methods=["POST"])
+def guardar_categoria_gasto():
+
+    nombre = request.form.get("nombre")
+    descripcion = request.form.get("descripcion")
+
+    supabase.table("categorias_gastos").insert({
+        "nombre": nombre,
+        "descripcion": descripcion
+    }).execute()
+
+    return redirect(url_for("categorias_gastos"))
 
 
     # =============================
@@ -976,9 +1750,62 @@ def caja_cobrador():
     hoy = date.today()
     hoy_iso = hoy.isoformat()
 
-    # =====================================
-    # 1️⃣ TRAER SALDO ANTERIOR (último cierre)
-    # =====================================
+    inicio_dia = datetime.combine(hoy, time.min)
+    fin_dia = datetime.combine(hoy, time.max)
+
+    ayer = hoy - timedelta(days=1)
+    fin_ayer = datetime.combine(ayer, time.max)
+
+    # =====================================================
+    # 🔥 CAPITAL ASIGNADO A LA RUTA
+    # =====================================================
+
+    capital_resp = supabase.table("capital") \
+        .select("valor") \
+        .eq("ruta_id", ruta_id) \
+        .execute()
+
+    capital_asignado = sum(
+        float(c["valor"] or 0)
+        for c in capital_resp.data or []
+    )
+
+    # =====================================================
+    # 🔥 CAPITAL COLOCADO (SALDO ACTUAL DE CRÉDITOS)
+    # =====================================================
+  
+
+    creditos_activos = supabase.table("creditos") \
+        .select("id, valor_total") \
+        .eq("ruta_id", ruta_id) \
+        .execute()
+
+    capital_colocado = 0
+
+    for credito in creditos_activos.data or []:
+
+        # 🔎 Traer cuánto se ha pagado de ese crédito
+        pagos = supabase.table("pagos") \
+            .select("monto") \
+            .eq("credito_id", credito["id"]) \
+            .execute()
+
+        total_pagado = sum(
+            float(p["monto"] or 0)
+            for p in pagos.data or []
+        )
+
+        saldo_credito = float(credito["valor_total"] or 0) - total_pagado
+
+        if saldo_credito > 0:
+            capital_colocado += saldo_credito
+
+
+    capital_disponible = capital_asignado - capital_colocado
+
+    # =====================================================
+    # 1️⃣ SALDO ANTERIOR (HÍBRIDO: CIERRE O HISTÓRICO)
+    # =====================================================
 
     cierre_resp = supabase.table("caja_diaria") \
         .select("*") \
@@ -991,11 +1818,51 @@ def caja_cobrador():
     if cierre_resp.data:
         saldo_anterior = float(cierre_resp.data[0]["saldo_final"])
     else:
-        saldo_anterior = 0
 
-    # =====================================
+        # --- COBROS HISTÓRICOS ---
+        cobros_hist = supabase.table("pagos") \
+            .select("monto, fecha, creditos(ruta_id)") \
+            .lte("fecha", fin_ayer.isoformat()) \
+            .execute()
+
+        total_cobros_hist = 0
+        for pago in cobros_hist.data or []:
+            if pago["creditos"] and int(pago["creditos"]["ruta_id"]) == int(ruta_id):
+                total_cobros_hist += float(pago["monto"] or 0)
+
+        # --- PRÉSTAMOS HISTÓRICOS ---
+        prestamos_hist = supabase.table("creditos") \
+            .select("valor_venta") \
+            .eq("ruta_id", ruta_id) \
+            .lte("created_at", fin_ayer.isoformat()) \
+            .execute()
+
+        total_prestamos_hist = sum(
+            float(p["valor_venta"] or 0)
+            for p in prestamos_hist.data or []
+        )
+
+        # --- GASTOS HISTÓRICOS ---
+        gastos_hist = supabase.table("gastos") \
+            .select("valor") \
+            .eq("ruta_id", ruta_id) \
+            .lte("created_at", fin_ayer.isoformat()) \
+            .execute()
+
+        total_gastos_hist = sum(
+            float(g["valor"] or 0)
+            for g in gastos_hist.data or []
+        )
+
+        saldo_anterior = (
+            total_cobros_hist
+            - total_prestamos_hist
+            - total_gastos_hist
+        )
+
+    # =====================================================
     # 2️⃣ PRÉSTAMOS REALIZADOS HOY
-    # =====================================
+    # =====================================================
 
     prestamos_resp = supabase.table("creditos") \
         .select("""
@@ -1005,7 +1872,7 @@ def caja_cobrador():
             clientes(nombre)
         """) \
         .eq("ruta_id", ruta_id) \
-        .gte("created_at", hoy_iso) \
+        .gte("created_at", hoy_iso + "T00:00:00") \
         .execute()
 
     prestamos_db = prestamos_resp.data or []
@@ -1022,12 +1889,9 @@ def caja_cobrador():
             "valor": valor
         })
 
-    # =====================================
+    # =====================================================
     # 3️⃣ COBROS REALIZADOS HOY
-    # =====================================
-
-    inicio_dia = datetime.combine(hoy, time.min)
-    fin_dia = datetime.combine(hoy, time.max)
+    # =====================================================
 
     pagos_resp = supabase.table("pagos") \
         .select("""
@@ -1038,8 +1902,8 @@ def caja_cobrador():
                 clientes(nombre)
             )
         """) \
-        .gte("fecha", inicio_dia.isoformat()) \
-        .lte("fecha", fin_dia.isoformat()) \
+        .gte("fecha", hoy_iso + "T00:00:00") \
+        .lte("fecha", hoy_iso + "T23:59:59") \
         .execute()
 
     pagos_db = pagos_resp.data or []
@@ -1048,7 +1912,6 @@ def caja_cobrador():
     lista_cobros = []
 
     for pago in pagos_db:
-
         if pago["creditos"] and int(pago["creditos"]["ruta_id"]) == int(ruta_id):
 
             monto = float(pago["monto"] or 0)
@@ -1059,29 +1922,65 @@ def caja_cobrador():
                 "valor": monto
             })
 
-    # =====================================
-    # 4️⃣ GASTOS DEL DÍA (si existen)
-    # =====================================
+    # =====================================================
+    # 4️⃣ GASTOS DEL DÍA
+    # =====================================================
 
     gastos_resp = supabase.table("gastos") \
-        .select("monto") \
+
+    gastos_resp = supabase.table("gastos") \
+        .select("valor") \
         .eq("ruta_id", ruta_id) \
-        .gte("fecha", hoy_iso) \
+        .gte("created_at", inicio_dia.isoformat()) \
+        .lte("created_at", fin_dia.isoformat()) \
         .execute()
 
     gastos_db = gastos_resp.data or []
 
-    total_gastos = sum(float(g["monto"]) for g in gastos_db)
+    total_gastos = sum(float(g["valor"] or 0) for g in gastos_db)
+    # =====================================================
+    # 5️⃣ SALDO ACTUAL
+    # =====================================================
 
-    # =====================================
-    # 5️⃣ CALCULAR SALDO ACTUAL
-    # =====================================
+    saldo_actual = (
+        saldo_anterior
+        + total_cobros
+        - total_prestamos
+        - total_gastos
+    )
+    # =====================================================
+    # 5️⃣ TRANSFERENCIAS RECIBIDAS
+    # =====================================================
 
-    saldo_actual = saldo_anterior + total_cobros - total_prestamos - total_gastos
+    transferencias_resp = supabase.table("transferencias") \
+        .select("*") \
+        .eq("ruta_destino", ruta_id) \
+        .execute()
 
-    # =====================================
+    total_transferencias = 0
+    lista_transferencias = []
+
+    for t in transferencias_resp.data or []:
+
+        valor = float(t["valor"] or 0)
+        total_transferencias += valor
+
+        # 🔎 Obtener nombre ruta origen
+        ruta_origen = supabase.table("rutas") \
+            .select("nombre") \
+            .eq("id", t["ruta_origen"]) \
+            .single() \
+            .execute().data
+
+        lista_transferencias.append({
+            "fecha": t["fecha"],
+            "origen": ruta_origen["nombre"] if ruta_origen else "N/A",
+            "valor": valor,
+            "descripcion": t.get("descripcion", "")
+        })
+    # =====================================================
     # 6️⃣ RENDER
-    # =====================================
+    # =====================================================
 
     return render_template(
         "cobrador/caja.html",
@@ -1091,7 +1990,12 @@ def caja_cobrador():
         total_cobros=total_cobros,
         total_gastos=total_gastos,
         prestamos=lista_prestamos,
-        cobros=lista_cobros
+        cobros=lista_cobros,
+        capital_asignado=capital_asignado,
+        capital_colocado=capital_colocado,
+        capital_disponible=capital_disponible,
+        total_transferencias=total_transferencias,
+        transferencias_recibidas=lista_transferencias
     )
 
 @app.route("/cerrar_dia", methods=["POST"])
@@ -1165,15 +2069,19 @@ def clientes_ruta(ruta_id):
         "cobrador/clientes_ruta.html",
         clientes=clientes_lista,
         ruta_id=ruta_id
+
     )
 
+    
 @app.route("/detalle_cliente/<cliente_id>/<ruta_id>")
 def detalle_cliente(cliente_id, ruta_id):
 
     if "user_id" not in session or session.get("rol") != "cobrador":
         return redirect(url_for("login_app"))
 
-    # Traer info cliente
+    # =====================================================
+    # CLIENTE
+    # =====================================================
     cliente_resp = supabase.table("clientes") \
         .select("*") \
         .eq("id", cliente_id) \
@@ -1181,26 +2089,313 @@ def detalle_cliente(cliente_id, ruta_id):
         .execute()
 
     if not cliente_resp.data:
-        return redirect(url_for("clientes_ruta", ruta_id=ruta_id))
+        return redirect(url_for("dashboard_cobrador"))
 
     cliente = cliente_resp.data
 
-    # Verificar si tiene crédito activo en esa ruta
-    credito_resp = supabase.table("creditos") \
-        .select("id") \
+    # =====================================================
+    # CRÉDITOS
+    # =====================================================
+    creditos_resp = supabase.table("creditos") \
+        .select("*") \
         .eq("cliente_id", cliente_id) \
-        .eq("ruta_id", ruta_id) \
-        .eq("estado", "activo") \
-        .limit(1) \
+        .order("created_at", desc=True) \
         .execute()
 
-    tiene_credito_activo = bool(credito_resp.data)
+    historial_creditos = creditos_resp.data or []
+
+    credito = None
+    credito_activo = None
+    total_prestado = 0
+    total_pagado = 0
+    fotos = []
+    credito_ids = []
+
+    for c in historial_creditos:
+
+        credito_ids.append(c["id"])
+        total_prestado += float(c.get("valor_total") or 0)
+
+        # 👇 Este mantiene tu comportamiento anterior
+        if not credito:
+            credito = c
+
+        if c.get("estado") == "activo":
+            credito_activo = c
+
+        if c.get("foto_cedula"):
+            fotos.append({
+                "url": c["foto_cedula"],
+                "tipo": "Cédula",
+                "fecha": c.get("created_at")
+            })
+
+        if c.get("foto_negocio"):
+            fotos.append({
+                "url": c["foto_negocio"],
+                "tipo": "Negocio",
+                "fecha": c.get("created_at")
+            })
+
+        if c.get("foto_vivienda"):
+            fotos.append({
+                "url": c["foto_vivienda"],
+                "tipo": "Vivienda",
+                "fecha": c.get("created_at")
+            })
+
+    # =====================================================
+    # PAGOS (agregamos registrado_por)
+    # =====================================================
+    historial_pagos = []
+
+    if credito_ids:
+        pagos_resp = supabase.table("pagos") \
+            .select("monto, fecha, credito_id, cobrador_id") \
+            .in_("credito_id", credito_ids) \
+            .order("fecha", desc=True) \
+            .execute()
+
+        historial_pagos = pagos_resp.data or []
+
+        total_pagado = sum(
+            float(p.get("monto") or 0)
+            for p in historial_pagos
+        )
+
+    # =====================================================
+    # VALIDAR RENOVACIÓN
+    # =====================================================
+
+    cuotas = []
+    puede_renovar = False
+
+    if credito_activo:
+
+        cuotas_resp = supabase.table("cuotas") \
+            .select("estado") \
+            .eq("credito_id", credito_activo["id"]) \
+            .execute()
+
+        cuotas = cuotas_resp.data or []
+
+        # 🔹 Validar si todas las cuotas están pagadas
+        todas_pagadas = cuotas and all(
+            c["estado"] == "pagado"
+            for c in cuotas
+        )
+
+        # 🔹 Calcular saldo real del crédito activo
+        saldo_credito_activo = float(credito_activo.get("valor_total") or 0) - total_pagado
+
+        # 🔹 Puede renovar SOLO si:
+        #    - Todas las cuotas están pagadas
+        #    - El saldo es 0
+        if todas_pagadas and saldo_credito_activo <= 0:
+
+            puede_renovar = True
+
+            # 🔥 Cerrar automáticamente el crédito
+            supabase.table("creditos") \
+                .update({"estado": "finalizado"}) \
+                .eq("id", credito_activo["id"]) \
+                .execute()
+
+    saldo_total_cliente = round(total_prestado - total_pagado, 2)
 
     return render_template(
         "cobrador/detalle_cliente.html",
         cliente=cliente,
+        credito=credito,  # 👈 mantiene tu HTML original
+        credito_activo=credito_activo,
+        historial_creditos=historial_creditos,
+        historial_pagos=historial_pagos,
+        cuotas=cuotas,
+        puede_renovar=puede_renovar,
         ruta_id=ruta_id,
-        tiene_credito_activo=tiene_credito_activo
+        total_prestado=total_prestado,
+        total_pagado=total_pagado,
+        saldo=saldo_total_cliente,
+        fotos=fotos
+    )
+@app.route("/transferencias_app", methods=["GET", "POST"])
+def transferencias_app():
+
+    if "user_id" not in session or session.get("rol") != "cobrador":
+        return redirect(url_for("login_app"))
+
+    ruta_id = session.get("ruta_id")
+
+    if not ruta_id:
+        return redirect(url_for("dashboard_cobrador"))
+
+    # 🔹 Siempre iniciar en 0
+    resumen = {
+        "saldo_anterior": 0,
+        "recibido": 0,
+        "cobros": 0,
+        "ventas": 0,
+        "gastos": 0,
+        "saldo_actual": 0
+    }
+
+    detalle_ventas = []
+    detalle_cobros = []
+    fecha_inicio = ""
+    fecha_fin = ""
+
+    if request.method == "POST":
+
+        fecha_inicio = request.form.get("fecha_inicio")
+        fecha_fin = request.form.get("fecha_fin")
+
+        if not fecha_inicio or not fecha_fin:
+            flash("Debe seleccionar ambas fechas", "warning")
+            return redirect(url_for("transferencias_app"))
+
+        # =====================================================
+        # 1️⃣ TRAER CRÉDITOS DE ESA RUTA
+        # =====================================================
+        creditos = supabase.table("creditos") \
+            .select("id, valor_total, created_at, clientes(nombre)") \
+            .eq("ruta_id", ruta_id) \
+            .execute().data or []
+
+        credito_ids = []
+        total_ventas = 0
+        total_ventas_antes = 0
+
+        for c in creditos:
+
+            credito_ids.append(c["id"])
+            fecha_credito = c["created_at"][:10]
+            valor = float(c.get("valor_total") or 0)
+
+            # Ventas dentro del rango
+            if fecha_inicio <= fecha_credito <= fecha_fin:
+                total_ventas += valor
+                detalle_ventas.append({
+                    "fecha": fecha_credito,
+                    "cliente": c["clientes"]["nombre"],
+                    "valor": valor
+                })
+
+            # Ventas antes del rango
+            if fecha_credito < fecha_inicio:
+                total_ventas_antes += valor
+
+        # =====================================================
+        # 2️⃣ TRAER CUOTAS PAGADAS DE ESA RUTA
+        # =====================================================
+        total_cobros = 0
+        total_cobros_antes = 0
+
+        if credito_ids:
+
+            cuotas = supabase.table("cuotas") \
+                .select("valor, fecha_pago, estado, credito_id, creditos(clientes(nombre))") \
+                .in_("credito_id", credito_ids) \
+                .eq("estado", "pagado") \
+                .execute().data or []
+
+            for cuota in cuotas:
+
+                fecha_pago = cuota["fecha_pago"]
+                valor = float(cuota.get("valor") or 0)
+
+                # Cobros en rango
+                if fecha_inicio <= fecha_pago <= fecha_fin:
+                    total_cobros += valor
+                    detalle_cobros.append({
+                        "fecha": fecha_pago,
+                        "cliente": cuota["creditos"]["clientes"]["nombre"],
+                        "valor": valor
+                    })
+
+                # Cobros antes del rango
+                if fecha_pago < fecha_inicio:
+                    total_cobros_antes += valor
+
+        # =====================================================
+        # 3️⃣ CÁLCULO DE SALDOS
+        # =====================================================
+        saldo_anterior = total_ventas_antes - total_cobros_antes
+        saldo_actual = saldo_anterior + total_cobros - total_ventas
+
+        resumen["saldo_anterior"] = round(saldo_anterior, 2)
+        resumen["cobros"] = round(total_cobros, 2)
+        resumen["ventas"] = round(total_ventas, 2)
+        resumen["saldo_actual"] = round(saldo_actual, 2)
+
+    return render_template(
+        "cobrador/transferencias_app.html",
+        resumen=resumen,
+        detalle_ventas=detalle_ventas,
+        detalle_cobros=detalle_cobros,
+        fecha_inicio=fecha_inicio,
+        fecha_fin=fecha_fin
+    )
+
+
+@app.route("/metas_dia")
+def metas_dia():
+
+    if "user_id" not in session or session.get("rol") != "cobrador":
+        return redirect(url_for("login_app"))
+
+    ruta_id = session.get("ruta_id")
+
+    if not ruta_id:
+        return redirect(url_for("dashboard_cobrador"))
+
+    hoy = date.today().isoformat()
+
+    total_estimado = 0
+    total_cobrado = 0
+    clientes_asignados = set()
+    clientes_pendientes = []
+
+    # =====================================================
+    # 1️⃣ CUOTAS PROGRAMADAS PARA HOY (META REAL)
+    # =====================================================
+    cuotas_hoy = supabase.table("cuotas") \
+        .select("id, valor, estado, fecha_pago_real, creditos(ruta_id, clientes(nombre))") \
+        .eq("fecha_pago", hoy) \
+        .execute().data or []
+
+    for cuota in cuotas_hoy:
+
+        if cuota["creditos"] and int(cuota["creditos"]["ruta_id"]) == int(ruta_id):
+
+            valor = float(cuota["valor"] or 0)
+            total_estimado += valor
+
+            nombre_cliente = cuota["creditos"]["clientes"]["nombre"]
+            clientes_asignados.add(nombre_cliente)
+
+            # Si ya fue pagada HOY
+            if cuota["estado"] == "pagado" and cuota["fecha_pago_real"] and cuota["fecha_pago_real"][:10] == hoy:
+                total_cobrado += valor
+            else:
+                clientes_pendientes.append({
+                    "cliente": nombre_cliente,
+                    "valor": valor
+                })
+
+    por_cobrar = total_estimado - total_cobrado
+
+    porcentaje = 0
+    if total_estimado > 0:
+        porcentaje = round((total_cobrado / total_estimado) * 100, 2)
+
+    return render_template(
+        "cobrador/metas_dia.html",
+        total_estimado=round(total_estimado, 2),
+        total_cobrado=round(total_cobrado, 2),
+        por_cobrar=round(por_cobrar, 2),
+        porcentaje=porcentaje,
+        total_clientes=len(clientes_asignados),
+        clientes_pendientes=clientes_pendientes
     )
 
 
@@ -1265,25 +2460,42 @@ def ver_ruta(ruta_id):
         total_pagado = 0
         dias_mora = 0
         proxima_cuota = None
+        mostrar_en_buzon = False
+        hoy = date.today()
 
         for cuota in cuotas:
 
-            # 🔹 Sumar pagadas
+            fecha_pago = date.fromisoformat(cuota["fecha_pago"])
+
             if cuota["estado"] == "pagado":
                 total_pagado += float(cuota["valor"])
 
-            # 🔹 Detectar mora y próxima cuota
             if cuota["estado"] == "pendiente":
 
-                fecha_pago = date.fromisoformat(cuota["fecha_pago"])
+                # Mostrar si es hoy o vencida
+                if fecha_pago <= hoy:
+                    mostrar_en_buzon = True
 
-                if fecha_pago < date.today():
-                    dias_mora += (date.today() - fecha_pago).days
+                # Calcular mora real
+                if fecha_pago < hoy:
+                    dias_mora += (hoy - fecha_pago).days
 
                 if not proxima_cuota:
                     proxima_cuota = cuota["fecha_pago"]
 
         saldo = float(c["valor_total"]) - total_pagado
+
+        # 🚫 Si no debe mostrarse hoy, saltar
+        if not mostrar_en_buzon:
+            continue
+
+        # 🎨 Semáforo
+        if dias_mora >= 2:
+            color_estado = "rojo"
+        elif dias_mora == 1:
+            color_estado = "amarillo"
+        else:
+            color_estado = "verde"
 
         lista_creditos.append({
             "id": c["id"],
@@ -1296,7 +2508,8 @@ def ver_ruta(ruta_id):
             "saldo": "{:,.0f}".format(saldo),
             "dias_mora": dias_mora,
             "proxima_cuota": proxima_cuota,
-            "codigo": c["id"][:6]
+            "codigo": c["id"][:6],
+            "color_estado": color_estado  # 👈 IMPORTANTE
         })
 
     # 🔥 6️⃣ Enviar ruta_id al template (clave para el layout)
@@ -1394,15 +2607,24 @@ def seleccionar_oficina(oficina_id):
 @app.route("/usuarios")
 def usuarios():
 
+    if "user_id" not in session:
+        return redirect(url_for("login"))
+
+    oficina_id = session.get("oficina_id")
+
+    if not oficina_id:
+        flash("Debe seleccionar una oficina", "warning")
+        return redirect(url_for("cambiar_oficina"))
+
     response = supabase.table("usuarios") \
         .select("*") \
+        .eq("oficina_id", oficina_id) \
         .order("fecha_registro", desc=True) \
         .execute()
 
-    usuarios = response.data
+    usuarios = response.data or []
 
     return render_template("users.html", usuarios=usuarios)
-
 # -----------------------
 # CREAR UN NUEVO USUARIO EN EL SISTEMA
 # -----------------------
@@ -1461,7 +2683,9 @@ def crear_usuario():
         "email": email,
         "rol": rol,
         "password": password,
-        "estado": True
+        "estado": True,
+        "oficina_id": session.get("oficina_id"),  # 🔥 importante
+
     }).execute()
 
     flash("Usuario creado correctamente.", "success")
@@ -1685,8 +2909,9 @@ def listar_ventas():
     if ruta_id:
 
         response = supabase.table("creditos") \
-            .select("id, cliente_id, posicion, valor_venta, valor_total, created_at, clientes(nombre, identificacion)") \
+            .select("id, cliente_id, posicion, valor_venta, valor_total, created_at, clientes(nombre, identificacion), latitud, longitud") \
             .eq("ruta_id", ruta_id) \
+            .order("posicion", desc=False) \
             .execute()
 
         creditos = response.data
@@ -1730,6 +2955,7 @@ def listar_ventas():
                 continue
 
             ventas.append({
+                "credito_id": c["id"],
                 "posicion": c["posicion"],
                 "codigo": c["id"][:8],
                 "valor_venta": "{:,.0f}".format(c["valor_venta"]),
@@ -1739,8 +2965,8 @@ def listar_ventas():
                 "identificacion": identificacion,
                 "fecha_registro": c["created_at"][:10],
                 "dias_mora": dias_mora,
-                "cliente_id": c["cliente_id"],
-
+                "latitud": c["latitud"],        # 🔥 AGREGAR ESTO
+                "longitud": c["longitud"],      # 🔥 AGREGAR ESTO
             })
 
             saldo_total += saldo
@@ -1807,6 +3033,9 @@ def cancelar_venta():
 
 
 # GUARDAR CLIENTE
+from postgrest.exceptions import APIError
+
+# GUARDAR CLIENTE
 @app.route("/guardar_cliente", methods=["POST"])
 def guardar_cliente():
 
@@ -1816,39 +3045,47 @@ def guardar_cliente():
 
     foto_url = None
 
-    # 🔥 Si viene imagen
-    if "foto" in request.files:
-        foto = request.files["foto"]
+    try:
 
-        if foto.filename != "":
-            filename = f"{identificacion}.jpg"
+        # 🔥 Subir imagen si existe
+        if "foto" in request.files:
+            foto = request.files["foto"]
 
-            # Subir a Supabase Storage
-            supabase.storage.from_("clientes").upload(
-                filename,
-                foto.read(),
-                {"content-type": foto.content_type}
-            )
+            if foto.filename != "":
+                filename = f"{identificacion}.jpg"
 
-            # Obtener URL pública
-            foto_url = supabase.storage.from_("clientes").get_public_url(filename)
+                supabase.storage.from_("clientes").upload(
+                    filename,
+                    foto.read(),
+                    {"content-type": foto.content_type}
+                )
 
-    data = {
-        "nombre": nombre,
-        "identificacion": identificacion,
-        "telefono_principal": telefono,
-        "foto": foto_url
-    }
+                foto_url = supabase.storage.from_("clientes").get_public_url(filename)
 
-    response = supabase.table("clientes").insert(data).execute()
+        data = {
+            "nombre": nombre,
+            "identificacion": identificacion,
+            "telefono_principal": telefono,
+            "foto": foto_url
+        }
 
-    if response.data:
+        response = supabase.table("clientes").insert(data).execute()
+
         session["cliente_id"] = response.data[0]["id"]
         flash("Cliente guardado correctamente", "success")
-    else:
-        flash("Error al guardar cliente", "error")
+
+    except APIError as e:
+
+        # Código 23505 = duplicate key
+        if "23505" in str(e):
+            flash("Ya existe un cliente con esa identificación", "warning")
+        else:
+            flash("Ocurrió un error al guardar el cliente", "danger")
+
+        return redirect(url_for("nueva_venta"))
 
     return redirect(url_for("nueva_venta"))
+
     
 @app.route("/buscar_cliente_renovacion", methods=["POST"])
 def buscar_cliente_renovacion():
@@ -1874,7 +3111,7 @@ def buscar_cliente_renovacion():
         .execute().data
 
     if not creditos:
-        flash("El cliente no tiene créditos anteriores", "warning")
+        flash("El cliente no tiene créditos para renovar", "warning")
         return redirect(url_for("nueva_venta"))
 
     # 🔥 VALIDACIÓN REAL (NO usar estado del crédito)
@@ -1887,7 +3124,7 @@ def buscar_cliente_renovacion():
             .execute()
 
         if cuotas_pendientes.data:
-            flash("El cliente aún tiene saldo pendiente", "warning")
+            flash("El cliente aún tiene saldo pendiente y no es posible renovar", "warning")
             return redirect(url_for("nueva_venta"))
 
     # 🔥 Si llega aquí → todos los créditos están pagados
@@ -2141,12 +3378,9 @@ def historial_creditos(cliente_id):
         cliente=cliente,
         creditos=creditos
     )
-
-
 @app.route("/historial_cliente/<cliente_id>")
 def historial_cliente(cliente_id):
 
-    # 🔎 Traer cliente
     cliente_resp = supabase.table("clientes") \
         .select("*") \
         .eq("id", cliente_id) \
@@ -2158,7 +3392,6 @@ def historial_cliente(cliente_id):
 
     cliente = cliente_resp.data
 
-    # 🔎 Traer todos los créditos del cliente
     creditos_resp = supabase.table("creditos") \
         .select("*") \
         .eq("cliente_id", cliente_id) \
@@ -2171,20 +3404,43 @@ def historial_cliente(cliente_id):
 
     for c in creditos:
 
+        # 🔹 CUOTAS
         cuotas = supabase.table("cuotas") \
-            .select("valor, estado") \
+            .select("*") \
             .eq("credito_id", c["id"]) \
+            .order("numero") \
             .execute().data
 
-        total_pagado = sum(float(q["valor"]) for q in cuotas if q["estado"] == "pagado")
+        total_pagado = 0
+        pagos = []  # 🔥 IMPORTANTE: definir aquí
+        print("CREDITO:", c["id"])
+        print("CUOTAS:", cuotas)
+        for cuota in cuotas:
+
+            if cuota["estado"] and "pag" in cuota["estado"].lower():
+                print("ESTADO CUOTA:", cuota["estado"])
+                total_pagado += float(cuota["valor"])
+
+                pagos.append({
+                    "numero": cuota["numero"],
+                    "fecha": cuota["fecha_pago"],
+                    "monto": float(cuota["valor"])
+                })
+
+
         saldo = float(c["valor_total"]) - total_pagado
 
         lista_creditos.append({
             "id": c["id"],
             "estado": c["estado"],
             "valor_total": c["valor_total"],
+            "valor_venta": c["valor_venta"],
             "saldo": saldo,
-            "fecha": c["created_at"][:10]
+            "fecha": c["created_at"][:10],
+            "foto_cedula": c.get("foto_cedula"),
+            "foto_negocio": c.get("foto_negocio"),
+            "cuotas": cuotas,
+            "pagos": pagos  # 🔥 ahora sí existe
         })
 
     return render_template(
@@ -2192,108 +3448,508 @@ def historial_cliente(cliente_id):
         cliente=cliente,
         creditos=lista_creditos
     )
-
-# LISTAR CLIENTES
+    
 @app.route("/clientes")
 def clientes():
 
-    clientes = supabase.table("clientes").select("*").execute().data
-    rutas = supabase.table("rutas").select("*").execute().data
+    if "user_id" not in session:
+        return redirect(url_for("login"))
 
-    return render_template("clientes.html",
-                           clientes=clientes,
-                           rutas=rutas)
+    # 🔎 Traer clientes
+    clientes = supabase.table("clientes") \
+        .select("*") \
+        .order("posicion") \
+        .execute().data
 
+    for cliente in clientes:
+
+        cliente["dias_mora"] = 0  # valor por defecto
+
+        # 🔎 Traer créditos activos del cliente
+        creditos = supabase.table("creditos") \
+            .select("id") \
+            .eq("cliente_id", cliente["id"]) \
+            .execute().data
+
+        mayor_mora = 0
+
+        for credito in creditos:
+
+            # 🔎 Traer cuotas pendientes de ese crédito
+            cuotas = supabase.table("cuotas") \
+                .select("fecha_pago, estado") \
+                .eq("credito_id", credito["id"]) \
+                .eq("estado", "pendiente") \
+                .execute().data
+
+            for cuota in cuotas:
+
+                fecha = date.fromisoformat(cuota["fecha_pago"])
+
+                if fecha < date.today():
+                    dias = (date.today() - fecha).days
+
+                    if dias > mayor_mora:
+                        mayor_mora = dias
+
+        cliente["dias_mora"] = mayor_mora
+
+    return render_template(
+        "clientes.html",
+        clientes=clientes
+    )
+
+from datetime import date
+
+@app.route("/historico-bancario/<cliente_id>")
+def historico_bancario_cliente(cliente_id):
+
+    cliente = supabase.table("clientes") \
+        .select("*") \
+        .eq("id", cliente_id) \
+        .single() \
+        .execute().data
+
+    creditos_db = supabase.table("creditos") \
+        .select("*") \
+        .eq("cliente_id", cliente_id) \
+        .order("created_at", desc=True) \
+        .execute().data
+
+    creditos = []
+    total_mora = 0  # ← será la MAYOR mora del cliente, no suma
+
+    for c in creditos_db:
+
+        cuotas = supabase.table("cuotas") \
+            .select("valor, estado, fecha_pago") \
+            .eq("credito_id", c["id"]) \
+            .execute().data
+
+        total_pagado = 0
+        dias_mora_credito = 0  # ← mora máxima del crédito
+
+        for q in cuotas:
+
+            if q["estado"] == "pagado":
+                total_pagado += float(q["valor"])
+
+            if q["estado"] == "pendiente":
+                fecha = date.fromisoformat(q["fecha_pago"])
+
+                if fecha < date.today():
+                    dias = (date.today() - fecha).days
+
+                    # 🔥 TOMAMOS LA MAYOR MORA, NO SUMAMOS
+                    if dias > dias_mora_credito:
+                        dias_mora_credito = dias
+
+        # 🔥 LA MORA DEL CLIENTE ES LA MAYOR DE TODOS SUS CRÉDITOS
+        if dias_mora_credito > total_mora:
+            total_mora = dias_mora_credito
+
+        saldo = float(c["valor_total"]) - total_pagado
+        intereses = float(c["valor_total"]) - float(c["valor_venta"])
+
+        # Clasificación por crédito
+        if dias_mora_credito == 0 and saldo == 0:
+            comportamiento = "Pagó al día"
+        elif dias_mora_credito == 0:
+            comportamiento = "Al día"
+        elif dias_mora_credito <= 10:
+            comportamiento = "Tuvo mora leve"
+        else:
+            comportamiento = "Mora significativa"
+
+        creditos.append({
+            "codigo": c["id"][:8],
+            "capital": float(c["valor_venta"]),
+            "intereses": intereses,
+            "total": float(c["valor_total"]),
+            "pagado": total_pagado,
+            "saldo": saldo,
+            "estado": c["estado"],
+            "fecha": c["created_at"][:10],
+            "mora": dias_mora_credito,
+            "comportamiento": comportamiento
+        })
+
+    # ================= SCORE =================
+
+    score_base = 0
+
+    # 1️⃣ Puntualidad (40)
+    if total_mora == 0:
+        puntos_puntualidad = 40
+    elif total_mora <= 10:
+        puntos_puntualidad = 30
+    elif total_mora <= 30:
+        puntos_puntualidad = 20
+    else:
+        puntos_puntualidad = 5
+
+    score_base += puntos_puntualidad
+
+    # 2️⃣ Créditos finalizados (25)
+    creditos_finalizados = len([c for c in creditos if c["estado"] == "finalizado"])
+
+    if creditos_finalizados >= 3:
+        puntos_historial = 25
+    elif creditos_finalizados >= 1:
+        puntos_historial = 15
+    else:
+        puntos_historial = 5
+
+    score_base += puntos_historial
+
+    # 3️⃣ Endeudamiento (20)
+    saldo_total = sum(c["saldo"] for c in creditos)
+    total_creditado = sum(c["total"] for c in creditos)
+
+    ratio = (saldo_total / total_creditado) if total_creditado > 0 else 0
+
+    if saldo_total == 0:
+        puntos_endeudamiento = 20
+    elif ratio < 0.3:
+        puntos_endeudamiento = 15
+    elif ratio < 0.6:
+        puntos_endeudamiento = 10
+    else:
+        puntos_endeudamiento = 5
+
+    score_base += puntos_endeudamiento
+
+    # 4️⃣ Antigüedad (15)
+    fecha_registro = date.fromisoformat(cliente["created_at"][:10])
+    años = (date.today() - fecha_registro).days / 365
+
+    if años >= 2:
+        puntos_antiguedad = 15
+    elif años >= 1:
+        puntos_antiguedad = 10
+    else:
+        puntos_antiguedad = 5
+
+    score_base += puntos_antiguedad
+
+    # Score final 300-900
+    score = 300 + (score_base * 6)
+
+    # ================= CLASIFICACIÓN =================
+
+    if total_mora > 30:
+        clasificacion = "Cliente riesgoso"
+    elif total_mora > 0:
+        clasificacion = "Cliente con mora leve"
+    elif creditos_finalizados == 0:
+        clasificacion = "Cliente nuevo"
+    elif score >= 750:
+        clasificacion = "Buen cliente"
+    else:
+        clasificacion = "Cliente regular"
+
+    return render_template(
+        "historico_bancario.html",
+        cliente=cliente,
+        creditos=creditos,
+        score=score,
+        clasificacion=clasificacion,
+        puntos_puntualidad=puntos_puntualidad,
+        puntos_historial=puntos_historial,
+        puntos_endeudamiento=puntos_endeudamiento,
+        puntos_antiguedad=puntos_antiguedad
+    )
+
+@app.route("/cliente/<int:cliente_id>/mapa")
+def ver_mapa_cliente(cliente_id):
+
+    if "user_id" not in session:
+        return redirect(url_for("login"))
+
+    cliente = supabase.table("clientes") \
+        .select("*") \
+        .eq("id", cliente_id) \
+        .single() \
+        .execute().data
+
+    if not cliente:
+        return redirect(url_for("listar_clientes"))
+
+    return render_template("mapa_cliente.html", cliente=cliente)
 
 
 # -----------------------
 # MODULO CAPITAL
 # -----------------------
+
+
 @app.route("/capital")
 def capital():
 
+    if "user_id" not in session:
+        return redirect(url_for("login"))
 
-    return render_template("capital.html")
+    rutas = supabase.table("rutas").select("*").execute().data
 
+    movimientos = supabase.table("capital") \
+        .select("*, rutas(nombre)") \
+        .order("created_at", desc=True) \
+        .execute().data
 
+    return render_template(
+        "capital.html",
+        rutas=rutas,
+        capital=movimientos
+    )
 
+@app.route("/capital/crear", methods=["POST"])
+def crear_capital():
+
+    ruta_id = request.form.get("ruta_id")
+    valor = request.form.get("valor")
+    descripcion = request.form.get("descripcion")
+
+    supabase.table("capital").insert({
+        "ruta_id": ruta_id,
+        "valor": float(valor),
+        "descripcion": descripcion
+    }).execute()
+
+    flash("Capital asignado correctamente", "success")
+    return redirect(url_for("capital"))
 # -----------------------
 # MODULO GASTOS
 # -----------------------
 @app.route("/gastos")
 def gastos():
 
-    gastos_data = [
-        {
-            "id": 55476,
-            "fecha": "2026-02-07 08:01 PM",
-            "ruta": "CENTRO",
-            "descripcion": "SUELDO REVISADOR",
-            "valor": 40.00,
-            "categoria": "SUELDO"
-        },
-        {
-            "id": 55469,
-            "fecha": "2026-02-07 08:01 PM",
-            "ruta": "CENTRO",
-            "descripcion": "ACEITE",
-            "valor": 12.00,
-            "categoria": "ACEITE"
-        },
-        {
-            "id": 55466,
-            "fecha": "2026-02-07 08:00 PM",
-            "ruta": "CENTRO",
-            "descripcion": "Arreglo de cableada",
-            "valor": 20.00,
-            "categoria": "Otros"
-        },
-        {
-            "id": 55464,
-            "fecha": "2026-02-07 08:00 PM",
-            "ruta": "CENTRO",
-            "descripcion": "PASAJE REVISADOR",
-            "valor": 30.00,
-            "categoria": "PASAJE REVISADOR"
-        }
-    ]
+    if "user_id" not in session:
+        return redirect(url_for("login"))
 
-    return render_template("gastos.html", gastos=gastos_data)
+    gastos = supabase.table("gastos") \
+        .select("*, rutas(nombre), usuarios(nombres, apellidos), categorias_gastos(nombre)") \
+        .order("created_at", desc=True) \
+        .execute().data or []
+
+    for g in gastos:
+        if g.get("created_at"):
+            created = g["created_at"].replace("Z", "+00:00")
+
+            try:
+                fecha_utc = datetime.fromisoformat(created)
+            except:
+                fecha_utc = datetime.fromisoformat(created.split(".")[0] + "+00:00")
+
+            fecha_colombia = fecha_utc - timedelta(hours=5)
+            g["fecha_formateada"] = fecha_colombia.strftime("%Y-%m-%d %H:%M:%S")
+
+        if g.get("usuarios"):
+            nombres = g["usuarios"].get("nombres", "")
+            apellidos = g["usuarios"].get("apellidos", "")
+            g["cobrador_nombre"] = f"{nombres} {apellidos}".strip()
+        else:
+            g["cobrador_nombre"] = ""
+
+    rutas = supabase.table("rutas") \
+        .select("*") \
+        .order("nombre") \
+        .execute().data or []
+
+    # 🔥 AGREGAR ESTO
+    categorias = supabase.table("categorias_gastos") \
+        .select("*") \
+        .eq("estado", True) \
+        .order("nombre") \
+        .execute().data or []
+
+    return render_template(
+        "gastos.html",
+        gastos=gastos,
+        rutas=rutas,
+        categorias=categorias   # 👈 ESTO FALTABA
+    )
+    
+@app.route("/guardar_gasto", methods=["POST"])
+def guardar_gasto():
+
+    categoria_id = request.form.get("categoria_id")
+    descripcion = request.form.get("descripcion")
+    valor = float(request.form.get("valor"))
+    ruta_id = request.form.get("ruta_id")
+
+    codigo = f"GAS-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+
+    supabase.table("gastos").insert({
+        "codigo": codigo,
+        "ruta_id": ruta_id,
+        "usuario_id": session["user_id"],
+        "categoria_id": categoria_id,
+        "descripcion": descripcion,
+        "valor": valor
+    }).execute()
+
+    flash("Gasto registrado correctamente", "success")
+    return redirect(url_for("gastos"))
+
+@app.route("/eliminar_gasto/<gasto_id>")
+def eliminar_gasto(gasto_id):
+
+    supabase.table("gastos") \
+        .delete() \
+        .eq("id", gasto_id) \
+        .execute()
+
+    flash("Gasto eliminado", "warning")
+    return redirect(url_for("gastos"))
 
 
+
+@app.route("/gastos_cobrador")
+def gastos_cobrador():
+
+    if "user_id" not in session:
+        return redirect(url_for("login_app"))
+
+    ruta_id = session.get("ruta_id")
+
+    gastos = supabase.table("gastos") \
+        .select("*, rutas(nombre), usuarios(nombres, apellidos)") \
+        .eq("ruta_id", ruta_id) \
+        .order("created_at", desc=True) \
+        .execute().data
+
+    for g in gastos:
+        if g.get("created_at"):
+            fecha_utc = datetime.fromisoformat(g["created_at"].replace("Z", ""))
+            fecha_colombia = fecha_utc - timedelta(hours=5)
+            g["fecha_formateada"] = fecha_colombia.strftime("%Y-%m-%d %H:%M:%S")
+
+    return render_template(
+        "cobrador/gastos.html",
+        gastos=gastos
+    )
+
+@app.route("/guardar_gasto_cobrador", methods=["POST"])
+def guardar_gasto_cobrador():
+
+    if "user_id" not in session:
+        return redirect(url_for("login_app"))
+
+    ruta_id = session.get("ruta_id")
+
+    categoria_id = request.form.get("categoria_id")
+    descripcion = request.form.get("descripcion")
+    valor = request.form.get("valor")
+
+    # 🔥 Generar código automático
+    codigo = f"GAS-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+
+    supabase.table("gastos").insert({
+        "codigo": codigo,
+        "ruta_id": ruta_id,
+        "usuario_id": session["user_id"],
+        "categoria_id": categoria_id,
+        "descripcion": descripcion,
+        "valor": float(valor)
+    }).execute()
+
+    flash("Gasto registrado correctamente", "success")
+    return redirect(url_for("gastos_cobrador"))
+    
 # -----------------------
 # MODULO TRANSFERENCIAS
 # -----------------------
-@app.route("/transferencias")
+
+@app.route("/transferencias", methods=["GET", "POST"])
 def transferencias():
 
-    # Datos simulados (luego lo conectas a BD)
-    transferencias = [
-        {
-            "fecha": "2025-02-10",
-            "ruta_entrega": "Ruta Norte",
-            "ruta_recibe": "Ruta Centro",
-            "valor": 250000,
-            "descripcion": "Transferencia semanal"
-        },
-        {
-            "fecha": "2025-02-11",
-            "ruta_entrega": "Ruta Sur",
-            "ruta_recibe": "Ruta Norte",
-            "valor": 180000,
-            "descripcion": "Ajuste operativo"
-        }
-    ]
+    if "user_id" not in session:
+        return redirect(url_for("login"))
 
-    total = sum(t["valor"] for t in transferencias)
+    # ================= POST =================
+    if request.method == "POST":
+
+        ruta_origen = int(request.form.get("ruta_origen"))
+        ruta_destino = int(request.form.get("ruta_destino"))
+        valor = float(request.form.get("valor"))
+        fecha = request.form.get("fecha")
+        descripcion = request.form.get("descripcion")
+
+        if ruta_origen == ruta_destino:
+            flash("No puede transferir a la misma ruta", "error")
+            return redirect(url_for("transferencias"))
+
+        # 🔎 Capital disponible origen
+        capital_origen = supabase.table("capital") \
+            .select("valor") \
+            .eq("ruta_id", ruta_origen) \
+            .execute()
+
+        total_origen = sum(float(c["valor"] or 0) for c in capital_origen.data or [])
+
+        if total_origen < valor:
+            flash("Capital insuficiente en la ruta origen", "error")
+            return redirect(url_for("transferencias"))
+
+        # 🔻 Restar capital origen
+        supabase.table("capital").insert({
+            "ruta_id": ruta_origen,
+            "valor": -valor,
+            "descripcion": f"Transferencia enviada"
+        }).execute()
+
+        # 🔺 Sumar capital destino
+        supabase.table("capital").insert({
+            "ruta_id": ruta_destino,
+            "valor": valor,
+            "descripcion": f"Transferencia recibida"
+        }).execute()
+
+        # 📝 Guardar registro
+        supabase.table("transferencias").insert({
+            "ruta_origen": ruta_origen,
+            "ruta_destino": ruta_destino,
+            "valor": valor,
+            "descripcion": descripcion,
+            "fecha": fecha
+        }).execute()
+
+        flash("Transferencia realizada correctamente", "success")
+        return redirect(url_for("transferencias"))
+
+    # ================= GET =================
+
+    rutas = supabase.table("rutas").select("*").execute().data
+
+    # Crear diccionario id → nombre
+    rutas_dict = {r["id"]: r["nombre"] for r in rutas}
+
+    transferencias_db = supabase.table("transferencias") \
+        .select("*") \
+        .order("created_at", desc=True) \
+        .execute().data
+
+    lista = []
+    total = 0
+
+    for t in transferencias_db or []:
+        total += float(t["valor"] or 0)
+
+        lista.append({
+            "fecha": t["fecha"],
+            "ruta_entrega": rutas_dict.get(t["ruta_origen"], "N/A"),
+            "ruta_recibe": rutas_dict.get(t["ruta_destino"], "N/A"),
+            "valor": t["valor"],
+            "descripcion": t["descripcion"]
+        })
 
     return render_template(
         "transferencias.html",
-        transferencias=transferencias,
+        rutas=rutas,
+        transferencias=lista,
         total=total,
-        hoy=date.today()
+        hoy=date.today().isoformat()
     )
-
 # -----------------------
 # MODULO RETIROS
 # -----------------------
@@ -2343,41 +3999,6 @@ def retiros():
         hoy=date.today()
     )
 
-
-# -----------------------
-# MODULO CAJA
-# -----------------------
-@app.route("/caja")
-def caja():
-
-    cajas = [
-        {"ruta": "LIBRO ADMIN Y DEPOSITOS JM-LB", "saldo": 18254000},
-        {"ruta": "1MILAGROS VICTOR RAMON", "saldo": 132250},
-        {"ruta": "2MILAGROS ENRIQUE WILFRIDO", "saldo": 58950},
-        {"ruta": "3MILAGROS CRISTHIAN GABRIEL", "saldo": 66250},
-        {"ruta": "4VIVIANA MILAGROS GREYS VIVIANA", "saldo": -21500},
-        {"ruta": "CENTRO ADONIRAN", "saldo": 263250},
-        {"ruta": "BRAYAN LUIS FERNANDO", "saldo": 625250}
-    ]
-
-    resumen = {
-        "saldo_anterior": 15000000,
-        "total_recibido": 2450000,
-        "total_cobros": 1850000,
-        "total_prestamos": 950000,
-        "total_gastos": 430000,
-        "transferencias_retiros": 210000,
-        "saldo_actual": 16710000
-    }
-
-    saldo_total = sum(c["saldo"] for c in cajas)
-
-    return render_template(
-        "cajas.html",
-        cajas=cajas,
-        resumen=resumen,
-        saldo_total=saldo_total
-    )
 
 # -----------------------
 # MODULO CAJA
@@ -2443,9 +4064,10 @@ def logout():
     session.clear()
     return redirect(url_for("login"))
 
-@app.route("/usuarios/nuevo")
-def nuevo_usuario():
-    return render_template("nuevo_usuario.html")
+@app.route("/logout_app")
+def logout_app():
+    session.clear()
+    return redirect(url_for("login_app/login_app.html"))
 
 
 if __name__ == "__main__":

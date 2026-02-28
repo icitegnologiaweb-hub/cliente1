@@ -1,35 +1,184 @@
 {% extends "cobrador/layout.html" %}
 {% block titulo %}Detalle Cliente{% endblock %}
-
 {% block content %}
 
-<div class="bg-[#123b63] rounded-2xl p-5 space-y-3">
+<div class="max-w-md mx-auto px-4 pt-4 pb-32 space-y-6 text-white">
 
-    <div><strong>Nombre:</strong> {{ cliente.nombre }}</div>
-    <div><strong>Identificación:</strong> {{ cliente.identificacion }}</div>
-    <div><strong>Teléfono:</strong> {{ cliente.telefono_principal }}</div>
-    <div><strong>Dirección:</strong> {{ cliente.direccion }}</div>
+    <!-- ================= PERFIL CLIENTE ================= -->
+    <div class="bg-gradient-to-br from-blue-700 to-blue-600 rounded-3xl p-6 shadow-xl">
 
-</div>
+        <div class="flex justify-between items-center">
+            <div>
+                <div class="text-xs opacity-80">Cliente</div>
+                <div class="text-xl font-bold">{{ cliente.nombre }}</div>
+            </div>
 
-<div class="mt-6">
+            <a href=""
+               class="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-xl text-xs">
+                Editar
+            </a>
+        </div>
 
-{% if tiene_credito_activo %}
+        <div class="mt-4 grid grid-cols-2 gap-3 text-sm">
 
-    <div class="bg-red-600 rounded-2xl p-4 text-center font-semibold">
-        Este cliente ya tiene un crédito activo
+            <div>
+                <div class="opacity-70 text-xs">Identificación</div>
+                <div class="font-semibold">{{ cliente.identificacion }}</div>
+            </div>
+
+            <div>
+                <div class="opacity-70 text-xs">Teléfono</div>
+                <div class="font-semibold">{{ cliente.telefono_principal }}</div>
+            </div>
+
+            <div class="col-span-2">
+                <div class="opacity-70 text-xs">Dirección</div>
+                <div class="font-semibold">{{ cliente.direccion }}</div>
+            </div>
+
+        </div>
     </div>
 
-{% else %}
+    <!-- ================= RESUMEN FINANCIERO ================= -->
+    <div class="grid grid-cols-3 gap-4">
 
+        <div class="bg-[#123b63] rounded-2xl p-4 text-center">
+            <div class="text-xs opacity-60">Total Prestado</div>
+            <div class="font-semibold mt-1">
+                $ {{ "{:,.0f}".format(total_prestado or 0) }}
+            </div>
+        </div>
+
+        <div class="bg-[#123b63] rounded-2xl p-4 text-center">
+            <div class="text-xs opacity-60">Total Pagado</div>
+            <div class="font-semibold text-green-400 mt-1">
+                $ {{ "{:,.0f}".format(total_pagado or 0) }}
+            </div>
+        </div>
+
+        <div class="bg-[#123b63] rounded-2xl p-4 text-center">
+            <div class="text-xs opacity-60">Saldo Actual</div>
+            <div class="font-semibold text-red-400 mt-1">
+                $ {{ "{:,.0f}".format(saldo_total_cliente or 0) }}
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ================= ESTADO CRÉDITO ================= -->
+    {% if tiene_credito_activo %}
+    <div class="bg-red-600 rounded-3xl p-4 text-center font-semibold shadow-lg">
+        Crédito Activo
+    </div>
+    {% else %}
     <a href="{{ url_for('nueva_venta_cobrador') }}"
        class="block bg-green-600 hover:bg-green-700
-              rounded-2xl p-4 text-center font-semibold mt-4">
+              rounded-3xl p-4 text-center font-semibold shadow-lg transition active:scale-95">
         Renovar Crédito
     </a>
+    {% endif %}
 
-{% endif %}
+    <!-- ================= GALERÍA ================= -->
+    <div class="bg-[#123b63] rounded-3xl p-5 shadow-lg">
+
+        <div class="flex justify-between items-center mb-3">
+            <div class="font-semibold">Galería</div>
+        </div>
+
+        {% if fotos %}
+        <div class="grid grid-cols-2 gap-3">
+            {% for f in fotos %}
+            <img src="{{ f.url }}"
+                 onclick="abrirImagen('{{ f.url }}')"
+                 class="rounded-xl h-32 w-full object-cover cursor-pointer">
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="text-xs opacity-60">Sin fotos registradas</div>
+        {% endif %}
+
+    </div>
+
+    <!-- ================= HISTORIAL CRÉDITOS ================= -->
+    <div class="bg-[#123b63] rounded-3xl shadow-lg overflow-hidden">
+
+        <button onclick="toggleSection('historial_creditos')"
+            class="w-full flex justify-between items-center p-5">
+
+            <div class="font-semibold">Historial Créditos</div>
+            <span id="icon-historial_creditos">⌄</span>
+        </button>
+
+        <div id="historial_creditos" class="hidden px-5 pb-5 text-sm">
+
+            {% for c in historial_creditos %}
+            <div class="flex justify-between border-b border-white/10 py-2">
+                <span>{{ c.created_at[:10] }}</span>
+                <span>$ {{ "{:,.0f}".format(c.valor_venta) }}</span>
+            </div>
+            {% else %}
+            <div class="opacity-60 text-xs">Sin historial</div>
+            {% endfor %}
+
+        </div>
+    </div>
+
+    <!-- ================= HISTORIAL PAGOS ================= -->
+    <div class="bg-[#123b63] rounded-3xl shadow-lg overflow-hidden">
+
+        <button onclick="toggleSection('historial_pagos')"
+            class="w-full flex justify-between items-center p-5">
+
+            <div class="font-semibold">Historial Pagos</div>
+            <span id="icon-historial_pagos">⌄</span>
+        </button>
+
+        <div id="historial_pagos" class="hidden px-5 pb-5 text-sm">
+
+            {% for p in historial_pagos %}
+            <div class="flex justify-between border-b border-white/10 py-2">
+                <span>{{ p.fecha[:10] }}</span>
+                <span>$ {{ "{:,.0f}".format(p.monto) }}</span>
+            </div>
+            {% else %}
+            <div class="opacity-60 text-xs">Sin pagos</div>
+            {% endfor %}
+
+        </div>
+    </div>
 
 </div>
+
+<!-- ================= MODAL IMAGEN ================= -->
+<div id="modalImagen"
+     class="fixed inset-0 bg-black/80 hidden items-center justify-center z-50">
+
+    <img id="imagenGrande"
+         class="max-w-full max-h-full rounded-xl">
+
+    <button onclick="cerrarImagen()"
+            class="absolute top-5 right-5 text-white text-3xl">
+        ✕
+    </button>
+</div>
+
+<script>
+function toggleSection(id) {
+    const section = document.getElementById(id);
+    const icon = document.getElementById("icon-" + id);
+
+    section.classList.toggle("hidden");
+}
+
+function abrirImagen(url) {
+    document.getElementById("imagenGrande").src = url;
+    document.getElementById("modalImagen").classList.remove("hidden");
+    document.getElementById("modalImagen").classList.add("flex");
+}
+
+function cerrarImagen() {
+    document.getElementById("modalImagen").classList.add("hidden");
+}
+</script>
 
 {% endblock %}

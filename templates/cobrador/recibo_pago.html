@@ -25,7 +25,7 @@
 
         </div>
 
-        <div>------------------------------------------------------</div>
+        <div>--------------------------------------------</div>
 
         <!-- DATOS -->
         <div class="mt-1">
@@ -36,7 +36,7 @@
             <div>Monto crédito: ${{ "{:,.0f}".format(pago.cuotas.creditos.valor_total or 0) }}</div>
         </div>
 
-        <div>------------------------------------------------------</div>
+        <div>--------------------------------------------</div>
 
         <!-- TABLA -->
         <div class="mt-1">
@@ -52,8 +52,8 @@
 
             <div>{{ pago.fecha[:16] if pago.fecha else '' }}</div>
         </div>
+        <div>--------------------------------------------</div>
 
-        <div>------------------------------------------------------</div>
 
         <!-- TOTAL -->
         <div class="flex justify-between font-bold">
@@ -65,8 +65,8 @@
             <span>Saldo Restante:</span>
             <span>${{ "{:,.0f}".format(saldo_restante or 0) }}</span>
         </div>
+        <div>--------------------------------------------</div>
 
-        <div>------------------------------------------------------</div>
 
         <div class="text-center mt-2">
             🗸 ¡Gracias por su pago!

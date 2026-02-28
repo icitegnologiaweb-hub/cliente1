@@ -1,119 +1,259 @@
 {% extends "base.html" %}
 {% block content %}
 
-<div class="px-8 py-6 bg-gray-100 min-h-[calc(100vh-60px)]">
+<div class="px-10 py-8 bg-gradient-to-br from-gray-100 to-gray-200 min-h-screen">
 
-    <!-- Header -->
-    <div class="flex items-center justify-between mb-5">
+    <!-- ================= HEADER PREMIUM ================= -->
+    <div class="flex items-center justify-between mb-10">
+
         <div>
-            <h1 class="text-2xl font-bold text-gray-800">
-                Clientes UNO
+            <h1 class="text-3xl font-extrabold text-gray-800 tracking-tight">
+                Gestión de Clientes
             </h1>
-            <p class="text-sm text-gray-500">
-                Administra los clientes registrados en el sistema
+            <p class="text-sm text-gray-600 mt-1">
+                Administración y control de clientes activos
             </p>
         </div>
 
-        <div class="flex items-center gap-4">
-
-            <a href="{{ url_for('nueva_venta') }}"
-            class="bg-blue-600 hover:bg-blue-700 text-white text-sm px-4 py-2 rounded-lg shadow-sm transition no-underline"
-            style="text-decoration: none;">
-                + Nuevo Cliente
-            </a>
-
-        </div>
+        <a href="{{ url_for('nueva_venta') }}"
+           class="bg-gradient-to-r from-blue-600 to-blue-500 
+                  hover:scale-105 text-white px-6 py-3 
+                  rounded-xl shadow-xl transition-all duration-200">
+            + Nuevo Cliente
+        </a>
     </div>
 
+    <!-- ================= TARJETAS RESUMEN ================= -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
 
-    <!-- Card Principal -->
-    <div class="bg-white rounded-xl shadow-sm border border-gray-200">
-
-        <!-- Filtros -->
-        <div class="p-5 border-b border-gray-100 bg-gray-50 rounded-t-xl">
-            <div class="flex flex-col md:flex-row md:items-end gap-4">
-
-                <!-- Ruta -->
-                <div class="w-full md:w-64">
-                    <label class="block text-xs font-semibold text-gray-500 mb-1 uppercase tracking-wide">
-                        Ruta
-                    </label>
-
-                    <select class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white">
-                        <option>Seleccione una ruta</option>
-                        {% for ruta in rutas %}
-                            <option value="{{ ruta.id }}">{{ ruta.nombre }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-
-                <!-- Buscador -->
-                <div class="flex-1">
-                    <label class="block text-xs font-semibold text-gray-500 mb-1 uppercase tracking-wide">
-                        Buscar Cliente
-                    </label>
-
-                    <input type="text"
-                           placeholder="Buscar por nombre o identificación..."
-                           class="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
-                </div>
-
+        <div class="bg-white rounded-3xl shadow-lg p-6">
+            <div class="text-xs uppercase text-gray-500">Total Clientes</div>
+            <div class="text-3xl font-bold text-gray-800 mt-2">
+                {{ clientes|length }}
             </div>
         </div>
 
+        <div class="bg-white rounded-3xl shadow-lg p-6">
+            <div class="text-xs uppercase text-gray-500">Clientes con Mora</div>
+            <div class="text-3xl font-bold text-red-600 mt-2">
+                {{ clientes | selectattr("dias_mora", "gt", 0) | list | length }}
+            </div>
+        </div>
 
-        <!-- Tabla -->
+        <div class="bg-white rounded-3xl shadow-lg p-6">
+            <div class="text-xs uppercase text-gray-500">Clientes al Día</div>
+            <div class="text-3xl font-bold text-green-600 mt-2">
+                {{ clientes | selectattr("dias_mora", "equalto", 0) | list | length }}
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ================= FILTRO ================= -->
+    <div class="bg-white rounded-2xl shadow-md p-5 mb-6">
+        <input type="text"
+               id="filtroCliente"
+               placeholder="🔎 Buscar por nombre o identificación..."
+               class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+    </div>
+
+    <!-- ================= TABLA PRO ================= -->
+    <div class="bg-white rounded-3xl shadow-2xl overflow-hidden border border-gray-200">
+
         <div class="overflow-x-auto">
-            <table class="min-w-full text-sm text-gray-700">
 
-                <thead class="bg-white border-b">
-                    <tr class="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                        <th class="px-6 py-4">Nombre</th>
-                        <th class="px-6 py-4">Identificación</th>
-                        <th class="px-6 py-4">Dirección</th>
-                        <th class="px-6 py-4">Teléfono</th>
-                        <th class="px-6 py-4 text-center">Acciones</th>
+            <table class="min-w-full text-sm">
+
+                <thead class="bg-[#0B3C5D] text-white text-xs uppercase tracking-wider">
+                    <tr>
+                        <th class="px-6 py-5 text-left">Pos</th>
+                        <th class="px-6 py-5 text-left">Cliente</th>
+                        <th class="px-6 py-5 text-left">Identificación</th>
+                        <th class="px-6 py-5 text-left">Dirección</th>
+                        <th class="px-6 py-5 text-left">Teléfono</th>
+                        <th class="px-6 py-5 text-center">Mora</th>
+                        <th class="px-6 py-5 text-center">Acciones</th>
                     </tr>
                 </thead>
 
-                <tbody class="divide-y divide-gray-100 bg-white">
+                <tbody id="tablaClientes" class="divide-y divide-gray-100 bg-white">
 
                     {% for cliente in clientes %}
-                    <tr class="hover:bg-gray-50 transition">
-                        <td class="px-6 py-4 font-medium text-gray-800">
+                    <tr class="hover:bg-gray-50 transition duration-150">
+
+                        <!-- POSICIÓN -->
+                        <td class="px-6 py-4">
+                            <div class="flex items-center gap-3">
+                                <span class="font-bold text-gray-800 text-lg">
+                                    {{ cliente.posicion }}
+                                </span>
+
+                                <button onclick="editarPosicion('{{ cliente.id }}',
+                                                                 '{{ cliente.nombre }}',
+                                                                 '{{ cliente.posicion }}')"
+                                        class="text-blue-500 hover:text-blue-700 text-sm">
+                                    <i class="bi bi-pencil-square"></i>
+                                </button>
+                            </div>
+                        </td>
+
+                        <!-- NOMBRE -->
+                        <td class="px-6 py-4 font-semibold text-gray-800">
                             {{ cliente.nombre }}
                         </td>
-                        <td class="px-6 py-4">
+
+                        <!-- IDENTIFICACIÓN -->
+                        <td class="px-6 py-4 text-gray-600">
                             {{ cliente.identificacion }}
                         </td>
-                        <td class="px-6 py-4">
+
+                        <!-- DIRECCIÓN -->
+                        <td class="px-6 py-4 text-gray-600">
                             {{ cliente.direccion }}
                         </td>
-                        <td class="px-6 py-4">
+
+                        <!-- TELÉFONO -->
+                        <td class="px-6 py-4 text-gray-600">
                             {{ cliente.telefono_principal }}
                         </td>
 
+                        <!-- MORA -->
                         <td class="px-6 py-4 text-center">
-                            <a href="#"
-                               class="text-blue-600 hover:text-blue-800 text-sm font-medium transition">
-                                Editar
-                            </a>
+                            {% if cliente.dias_mora > 0 %}
+                                <span class="px-4 py-1 text-xs rounded-full 
+                                             bg-red-600 text-white font-semibold shadow-md">
+                                    {{ cliente.dias_mora }} días
+                                </span>
+                            {% else %}
+                                <span class="px-4 py-1 text-xs rounded-full 
+                                             bg-green-600 text-white font-semibold shadow-md">
+                                    0
+                                </span>
+                            {% endif %}
                         </td>
-                    </tr>
-                    {% else %}
-                    <tr>
-                        <td colspan="5" class="px-6 py-10 text-center text-gray-400">
-                            No hay clientes registrados
+
+                        <!-- ACCIONES -->
+                        <td class="px-6 py-4 text-center">
+
+                            <div class="flex justify-center gap-5 text-xl">
+
+                                <!-- Ver cuotas -->
+                                <a href="{{ url_for('historial_creditos', cliente_id=cliente.id) }}"
+                                class="text-blue-600 hover:text-blue-800 transition"
+                                title="Cuotas">
+                                    <i class="bi bi-eye-fill"></i>
+                                </a>
+
+                                <!-- NUEVO: Histórico bancario -->
+                                <a href="{{ url_for('historico_bancario_cliente', cliente_id=cliente.id) }}"
+                                class="text-indigo-600 hover:text-indigo-800 transition"
+                                title="Histórico financiero">
+                                    <i class="bi bi-bank"></i>
+                                </a>
+
+                                <!-- Ubicación -->
+                                <a href="#"
+                                class="text-red-600 hover:text-red-800 transition">
+                                    <i class="bi bi-geo-alt-fill"></i>
+                                </a>
+
+                            </div>
+
                         </td>
+
                     </tr>
                     {% endfor %}
 
                 </tbody>
-            </table>
-        </div>
 
+            </table>
+
+        </div>
     </div>
 
 </div>
+
+<!-- ================= MODAL PRO ================= -->
+<div id="modalPosicion"
+     class="fixed inset-0 bg-black/60 backdrop-blur-sm hidden items-center justify-center z-50">
+
+    <div class="bg-white rounded-3xl w-full max-w-lg p-8 shadow-2xl relative">
+
+        <button onclick="cerrarModal()"
+                class="absolute top-4 right-5 text-gray-400 hover:text-gray-700 text-xl">
+            ✕
+        </button>
+
+        <h2 class="text-xl font-bold mb-6 text-gray-800">
+            Editar Posición del Cliente
+        </h2>
+
+        <form method="POST" action="{{ url_for('actualizar_posicion_cliente') }}">
+
+            <input type="hidden" name="cliente_id" id="cliente_id">
+
+            <div class="space-y-5">
+
+                <div>
+                    <label class="block text-sm font-semibold text-gray-600 mb-2">
+                        Cliente
+                    </label>
+                    <input type="text"
+                           id="cliente_nombre"
+                           class="w-full border border-gray-300 rounded-xl px-4 py-3 bg-gray-100"
+                           readonly>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-semibold text-gray-600 mb-2">
+                        Nueva Posición
+                    </label>
+                    <input type="number"
+                           name="posicion"
+                           id="cliente_posicion"
+                           class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500"
+                           required>
+                </div>
+
+                <button type="submit"
+                        class="w-full bg-gradient-to-r from-blue-600 to-blue-500
+                               hover:scale-105 text-white py-3 rounded-xl font-semibold transition-all">
+                    Guardar Cambios
+                </button>
+
+            </div>
+
+        </form>
+
+    </div>
+</div>
+
+<!-- ================= FILTRO JS ================= -->
+<script>
+document.getElementById("filtroCliente").addEventListener("keyup", function() {
+    let filtro = this.value.toLowerCase();
+    let filas = document.querySelectorAll("#tablaClientes tr");
+
+    filas.forEach(fila => {
+        let texto = fila.textContent.toLowerCase();
+        fila.style.display = texto.includes(filtro) ? "" : "none";
+    });
+});
+</script>
+
+<script>
+function editarPosicion(id, nombre, posicion){
+    document.getElementById("cliente_id").value = id;
+    document.getElementById("cliente_nombre").value = nombre;
+    document.getElementById("cliente_posicion").value = posicion;
+
+    document.getElementById("modalPosicion").classList.remove("hidden");
+    document.getElementById("modalPosicion").classList.add("flex");
+}
+
+function cerrarModal(){
+    document.getElementById("modalPosicion").classList.add("hidden");
+}
+</script>
 
 {% endblock %}

@@ -111,6 +111,21 @@ body {
         {% endif %}
 
 
+      <a href="{{ url_for('logout_app') }}"
+        class="p-2 rounded-full hover:bg-white/10 transition">
+
+            <svg xmlns="http://www.w3.org/2000/svg"
+                class="h-6 w-6 text-red-400"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor">
+                <path stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M12 2v10m6.364-6.364a9 9 0 11-12.728 0" />
+            </svg>
+
+        </a>
     </div>
 
     <div class="space-y-1">
@@ -176,7 +191,23 @@ body {
         </svg>
         <span>Caja</span>
     </a>
+    <a href="{{ url_for('gastos_cobrador') }}"
+    class="flex items-center gap-3 menu-item">
 
+        <!-- Icono gastos -->
+        <svg xmlns="http://www.w3.org/2000/svg"
+            class="h-5 w-5 opacity-80"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor">
+            <path stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="1.8"
+                d="M9 14l6-6m0 0H9m6 0v6"/>
+        </svg>
+
+        <span>Gastos</span>
+    </a>
     <a href="{{ url_for('clientes_ruta', ruta_id=session.get('ruta_id')) }}" class="flex items-center gap-3 menu-item">
         <!-- Clientes -->
         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 opacity-80"
@@ -187,7 +218,7 @@ body {
         <span>Clientes</span>
     </a>
 
-    <a href="#" class="flex items-center gap-3 menu-item">
+    <a href="{{ url_for('transferencias_app') }}" class="flex items-center gap-3 menu-item">
         <!-- Liquidación -->
         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 opacity-80"
              fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -197,7 +228,7 @@ body {
         <span>Liquidación</span>
     </a>
 
-    <a href="#" class="flex items-center gap-3 menu-item">
+    <a href="{{ url_for('metas_dia') }}" class="flex items-center gap-3 menu-item">
         <!-- Metas -->
         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 opacity-80"
              fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -206,18 +237,44 @@ body {
         </svg>
         <span>Metas del día</span>
     </a>
-
-    <a href="#" class="flex items-center gap-3 menu-item">
-        <!-- Configuración -->
+    <a href="{{ url_for('buzon_aumento_cupo') }}" class="flex items-center gap-3 menu-item">
+        <!-- Metas -->
         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 opacity-80"
              fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"
-                  d="M11.983 13.983a2 2 0 100-3.966 2 2 0 000 3.966z"/>
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"
-                  d="M19.4 15a7.5 7.5 0 000-6l2.1-1.6-2-3.5-2.6 1a7.5 7.5 0 00-5-2l-.4-3H9l-.4 3a7.5 7.5 0 00-5 2l-2.6-1-2 3.5L1.6 9a7.5 7.5 0 000 6L-.5 16.6l2 3.5 2.6-1a7.5 7.5 0 005 2l.4 3h4l.4-3a7.5 7.5 0 005-2l2.6 1 2-3.5L19.4 15z"/>
+                  d="M12 6v6l4 2"/>
         </svg>
-        <span>Configuración</span>
+        <span>Solicitudes</span>
     </a>
+
+
+    <a href="{{ url_for('dashboard_cobrador') }}"
+        class="flex items-center justify-between
+                bg-[#123b63] hover:bg-[#184a78]
+                rounded-2xl px-4 py-3
+                transition duration-200 active:scale-95">
+
+            <div class="flex items-center gap-3">
+
+
+
+                <!-- Texto -->
+                <span class="font-medium"> 🏍 Cambio de Ruta</span>
+            </div>
+
+            <!-- Flecha derecha -->
+            <svg xmlns="http://www.w3.org/2000/svg"
+                class="h-5 w-5 opacity-60"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor">
+                <path stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M9 5l7 7-7 7" />
+            </svg>
+
+        </a>
 
 </div>
 
@@ -236,9 +293,7 @@ body {
         {% block titulo %}{% endblock %}
     </div>
 
-    <div>
-        🔍
-    </div>
+
 
 </div>
 

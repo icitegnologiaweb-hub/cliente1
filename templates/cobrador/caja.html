@@ -5,11 +5,18 @@
 
 <div class="max-w-md mx-auto px-4 pt-4 pb-32 space-y-6 text-white">
 
-    <!-- ================= SALDO ACTUAL ================= -->
-    <div class="bg-gradient-to-br from-green-600 to-green-500 rounded-3xl p-6 text-center shadow-xl">
-        <div class="text-xs opacity-80">Saldo Actual Disponible</div>
-        <div class="text-3xl font-bold mt-1">
-            $ {{ "{:,.0f}".format(saldo_actual or 0) }}
+ <!-- ================= CAPITAL ASIGNADO ================= -->
+    <div class="bg-gradient-to-br from-blue-600 to-blue-500 rounded-3xl p-6 text-center shadow-xl">
+        <div class="text-xs opacity-80">Capital Asignado a la Ruta</div>
+        <div class="text-2xl font-bold mt-1">
+            $ {{ "{:,.0f}".format(capital_asignado or 0) }}
+        </div>
+
+        <div class="mt-3 text-xs opacity-70">
+            Disponible:
+        </div>
+        <div class="text-lg font-semibold text-green-200">
+            $ {{ "{:,.0f}".format(capital_disponible or 0) }}
         </div>
     </div>
 
@@ -151,13 +158,50 @@
 
 
     <!-- ================= TOTAL RECIBIDO (TRANSFERENCIA) ================= -->
-    <div class="bg-[#0b2847] rounded-3xl p-5 text-center shadow-lg">
-        <div class="text-xs opacity-60">Total Recibido en Transferencias</div>
-        <div class="text-lg font-semibold text-blue-400 mt-1">
-            $ {{ "{:,.0f}".format(total_transferencias or 0) }}
+    <!-- ================= TRANSFERENCIAS RECIBIDAS ================= -->
+    <div class="bg-[#0b2847] rounded-3xl shadow-lg overflow-hidden">
+
+        <button onclick="toggleSection('transferencias')"
+            class="w-full flex justify-between items-center p-5">
+
+            <div class="font-semibold">Capital Recibido en Transferencias</div>
+
+            <div class="flex items-center gap-3">
+                <span class="text-blue-400 font-semibold">
+                    $ {{ "{:,.0f}".format(total_transferencias or 0) }}
+                </span>
+                <span id="icon-transferencias" class="transition-transform">⌄</span>
+            </div>
+        </button>
+
+        <div id="transferencias" class="hidden px-5 pb-5">
+
+            <div class="space-y-2 text-sm max-h-52 overflow-y-auto">
+
+                {% for t in transferencias_recibidas %}
+                <div class="flex justify-between">
+                    <div>
+                        <div class="font-semibold">
+                            {{ t.origen }}
+                        </div>
+                        <div class="text-xs opacity-60">
+                            {{ t.fecha }} - {{ t.descripcion }}
+                        </div>
+                    </div>
+                    <span class="text-blue-400">
+                        $ {{ "{:,.0f}".format(t.valor or 0) }}
+                    </span>
+                </div>
+                {% else %}
+                <div class="text-xs opacity-60">
+                    No se han recibido transferencias
+                </div>
+                {% endfor %}
+
+            </div>
+
         </div>
     </div>
-
     <!-- ================= BOTÓN CERRAR DÍA ================= -->
     <form method="POST" action="{{ url_for('cerrar_dia') }}">
         <button type="submit"

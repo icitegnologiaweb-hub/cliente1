@@ -118,14 +118,15 @@
             Acceso al Sistema
         </h2>
 
-        <form method="POST" class="space-y-6">
+        <form method="POST" class="space-y-6" autocomplete="on">
 
             <div>
                 <label class="block text-sm mb-2" style="color: var(--text-muted);">
                     Correo electrónico
                 </label>
-                <input type="email" name="email" required
-                    class="w-full form-control-custom">
+                <input type="email" name="email" required 
+                    class="w-full form-control-custom"
+                    autocomplete="username">
             </div>
             <div class="relative">
                 <label class="block text-sm mb-2" style="color: var(--text-muted);">
@@ -137,7 +138,8 @@
                     name="password" 
                     id="password"
                     required
-                    class="w-full form-control-custom pr-12">
+                    class="w-full form-control-custom pr-12"
+                    autocomplete="current-password">
 
                 <!-- Botón ojo -->
                 <button 

@@ -1,0 +1,79 @@
+{% extends "cobrador/layout.html" %}
+{% block titulo %}Buzón Aumento Cupo{% endblock %}
+
+{% block content %}
+
+<div class="space-y-6 text-white">
+
+    <!-- HEADER -->
+    <div class="flex justify-between items-center">
+        <div>
+            <h2 class="text-lg font-semibold text-blue-200">
+                Historial de Solicitudes
+            </h2>
+            <p class="text-xs text-gray-400">
+                Gestiona tus solicitudes de aumento de cupo
+            </p>
+        </div>
+
+        <a href="{{ url_for('nueva_solicitud_cupo') }}"
+           class="bg-green-600 hover:bg-green-700 px-4 py-2 rounded-xl text-sm font-semibold">
+            Nueva Solicitud
+        </a>
+    </div>
+
+    <!-- LISTADO -->
+    {% for s in solicitudes %}
+    <div class="bg-[#123b63] p-4 rounded-2xl shadow space-y-2">
+
+        <div class="flex justify-between items-center">
+            <div>
+                <div class="font-semibold">
+                    {{ s.cliente_nombre }}
+                </div>
+         
+                <div class="font-semibold">
+                    {{ s.cedula }}
+                </div>
+                <div class="text-xs text-gray-400">
+                    Monto solicitado: ${{ "{:,.0f}".format(s.monto_solicitado|float) }}
+                </div>
+                 <div class="text-xs text-gray-400">
+                    Fecha: ${{ s.fecha_formateada }}
+                </div>
+            </div>
+
+            <!-- ESTADO -->
+            {% if s.estado == "pendiente" %}
+                <span class="bg-yellow-500/20 text-yellow-400 px-3 py-1 rounded-full text-xs">
+                    Pendiente
+                </span>
+            {% elif s.estado == "aprobado" %}
+                <span class="bg-green-500/20 text-green-400 px-3 py-1 rounded-full text-xs">
+                    Aprobado
+                </span>
+            {% else %}
+                <span class="bg-red-500/20 text-red-400 px-3 py-1 rounded-full text-xs">
+                    Rechazado
+                </span>
+            {% endif %}
+        </div>
+
+        <!-- ACCIONES -->
+        {% if s.estado == "aprobado" %}
+            <a href="{{ url_for('nueva_venta_cobrador') }}?cedula={{ s.cedula }}&monto={{ s.monto_solicitado }}"
+               class="block text-center bg-green-600 hover:bg-green-700 py-2 rounded-xl text-sm">
+                Registrar Venta
+            </a>
+        {% endif %}
+
+    </div>
+    {% else %}
+        <div class="text-center text-gray-400">
+            No tienes solicitudes registradas.
+        </div>
+    {% endfor %}
+
+</div>
+
+{% endblock %}

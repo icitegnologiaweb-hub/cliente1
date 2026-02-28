@@ -1,0 +1,107 @@
+{% extends "cobrador/layout.html" %}
+{% block titulo %}Metas del Día{% endblock %}
+{% block content %}
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<div class="max-w-md mx-auto px-4 pt-4 pb-32 space-y-6 text-white">
+
+    <!-- ================= RESUMEN ================= -->
+    <div class="bg-gradient-to-br from-blue-600 to-blue-500 rounded-3xl p-6 text-center shadow-xl">
+        <div class="text-xs opacity-80">Meta Estimada del Día</div>
+        <div class="text-3xl font-bold mt-1">
+            $ {{ "{:,.0f}".format(total_estimado) }}
+        </div>
+        <div class="text-sm mt-2 opacity-90">
+            {{ porcentaje }}% cumplido
+        </div>
+    </div>
+
+    <!-- ================= TARJETAS ================= -->
+    <div class="grid grid-cols-2 gap-4">
+
+        <div class="bg-[#123b63] rounded-2xl p-4 text-center">
+            <div class="text-xs opacity-60">Cobrado</div>
+            <div class="font-semibold text-green-400 mt-1">
+                $ {{ "{:,.0f}".format(total_cobrado) }}
+            </div>
+        </div>
+
+        <div class="bg-[#123b63] rounded-2xl p-4 text-center">
+            <div class="text-xs opacity-60">Por Cobrar</div>
+            <div class="font-semibold text-red-400 mt-1">
+                $ {{ "{:,.0f}".format(por_cobrar) }}
+            </div>
+        </div>
+
+        <div class="bg-[#123b63] rounded-2xl p-4 text-center col-span-2">
+            <div class="text-xs opacity-60">Clientes Asignados Hoy</div>
+            <div class="font-semibold mt-1">
+                {{ total_clientes }}
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ================= GRÁFICO BARRAS ================= -->
+    <div class="bg-[#123b63] rounded-3xl p-5">
+        <canvas id="barChart"></canvas>
+    </div>
+
+    <!-- ================= GRÁFICO TORTA ================= -->
+    <div class="bg-[#123b63] rounded-3xl p-5">
+        <canvas id="pieChart"></canvas>
+    </div>
+
+    {% if clientes_pendientes %}
+<div class="bg-[#123b63] rounded-3xl p-5 mt-6">
+    <h3 class="font-semibold mb-3">Clientes Pendientes Hoy</h3>
+
+    {% for c in clientes_pendientes %}
+    <div class="flex justify-between text-sm border-b border-white/10 py-2">
+        <span>{{ c.cliente }}</span>
+        <span>$ {{ "{:,.0f}".format(c.valor) }}</span>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+</div>
+
+<script>
+const totalCobrado = {{ total_cobrado }};
+const totalPorCobrar = {{ por_cobrar }};
+
+// Gráfico de Barras
+new Chart(document.getElementById("barChart"), {
+    type: 'bar',
+    data: {
+        labels: ['Cobrado', 'Por Cobrar'],
+        datasets: [{
+            label: 'Metas del Día',
+            data: [totalCobrado, totalPorCobrar],
+            backgroundColor: ['#22c55e', '#ef4444']
+        }]
+    },
+    options: {
+        plugins: { legend: { display: false } }
+    }
+});
+
+// Gráfico de Torta
+new Chart(document.getElementById("pieChart"), {
+    type: 'doughnut',
+    data: {
+        labels: ['Cobrado', 'Pendiente'],
+        datasets: [{
+            data: [totalCobrado, totalPorCobrar],
+            backgroundColor: ['#22c55e', '#ef4444']
+        }]
+    },
+    options: {
+        cutout: '70%'
+    }
+});
+</script>
+
+{% endblock %}

@@ -1,180 +1,154 @@
 {% extends "base.html" %}
 {% block content %}
 
-<div class="px-8 py-6 bg-gray-100">
+<div class="px-10 py-8 bg-gray-100 min-h-screen">
 
     <!-- HEADER -->
-    <div class="flex items-center justify-between mb-6">
+    <div class="flex justify-between items-center mb-8">
+        <h1 class="text-2xl font-bold text-gray-800">
+            Gestión de Gastos
+        </h1>
 
-        <div>
-            <a href="{{ url_for('dashboard') }}"
-               class="text-sm text-gray-500 hover:text-blue-600 transition">
-                ← Regresar
-            </a>
-
-            <h1 class="text-2xl font-bold text-gray-800 mt-2">
-                Gastos
-            </h1>
-        </div>
-
-        <a href="#"
-           class="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg shadow-sm text-sm transition"
-           style="text-decoration:none;">
-            <i class="bi bi-plus-lg"></i>
-            Agregar gasto
-        </a>
+        <button onclick="abrirModal()"
+                class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg shadow">
+            + Nuevo Gasto
+        </button>
     </div>
-
-
-    <!-- FILTRO FECHAS -->
-    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-5">
-
-        <div class="flex flex-wrap items-end gap-6">
-
-            <div>
-                <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">
-                    Desde
-                </label>
-                <input type="date"
-                       class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
-            </div>
-
-            <div>
-                <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">
-                    Hasta
-                </label>
-                <input type="date"
-                       class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
-            </div>
-
-            <button class="flex items-center gap-2 text-green-600 font-medium hover:text-green-700 transition">
-                <i class="bi bi-funnel"></i>
-                Filtrar
-            </button>
-
-        </div>
-
-    </div>
-
 
     <!-- TABLA -->
-    <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+    <div class="bg-white rounded-2xl shadow overflow-hidden">
 
-        <div class="overflow-x-auto">
+        <table class="min-w-full text-sm">
 
-            <table class="min-w-full text-sm text-gray-700">
+            <thead class="bg-gray-800 text-white text-xs uppercase">
+                <tr>
+                    <th class="px-4 py-3">Código</th>
+                    <th class="px-4 py-3">Fecha</th>
+                    <th class="px-4 py-3">Ruta</th>
+                    <th class="px-4 py-3">Categoría</th>
+                    <th class="px-4 py-3">Descripción</th>
+                    <th class="px-4 py-3">Cobrador</th>
+                    <th class="px-4 py-3 text-right">Valor</th>
+                    <th class="px-4 py-3 text-center">Acción</th>
+                </tr>
+            </thead>
 
-                <!-- HEADER -->
-                <thead class="bg-gray-50 border-b">
+            <tbody class="divide-y">
 
-                    <tr class="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                        <th class="px-4 py-4">#</th>
-                        <th class="px-6 py-4">Fecha</th>
-                        <th class="px-6 py-4">Ruta</th>
-                        <th class="px-6 py-4">Descripción</th>
-                        <th class="px-6 py-4 text-right">Valor</th>
-                        <th class="px-6 py-4">Categoría</th>
-                        <th class="px-6 py-4 text-center">Acciones</th>
-                    </tr>
+                {% for gasto in gastos %}
+                <tr class="hover:bg-gray-50">
 
-                    <!-- FILTROS -->
-                    <tr class="bg-white border-t">
-                        <th></th>
+                    <td class="px-4 py-3 font-semibold">
+                        {{ gasto.codigo }}
+                    </td>
 
-                        <th class="px-6 py-3">
-                            <input type="text"
-                                   placeholder="Buscar fecha"
-                                   class="w-full border border-gray-300 rounded-md px-2 py-1 text-xs">
-                        </th>
+                    <td class="px-4 py-3">
+                        {{ gasto.fecha_formateada }}
+                    </td>
 
-                        <th class="px-6 py-3">
-                            <input type="text"
-                                   placeholder="Buscar ruta"
-                                   class="w-full border border-gray-300 rounded-md px-2 py-1 text-xs">
-                        </th>
+                    <td class="px-4 py-3">
+                        {{ gasto.rutas.nombre }}
+                    </td>
 
-                        <th class="px-6 py-3">
-                            <input type="text"
-                                   placeholder="Buscar descripción"
-                                   class="w-full border border-gray-300 rounded-md px-2 py-1 text-xs">
-                        </th>
+                    <td class="px-4 py-3">
+                        {% if gasto.categorias_gastos %}
+                            {{ gasto.categorias_gastos.nombre }}
+                        {% else %}
+                            {{ gasto.categoria }}
+                        {% endif %}
+                    </td>
 
-                        <th></th>
+                    <td class="px-4 py-3">
+                        {{ gasto.descripcion }}
+                    </td>
 
-                        <th class="px-6 py-3">
-                            <input type="text"
-                                   placeholder="Buscar categoría"
-                                   class="w-full border border-gray-300 rounded-md px-2 py-1 text-xs">
-                        </th>
+                    <td class="px-4 py-3">
+                    {{ gasto.usuarios.nombres if gasto.usuarios }}                   
+                    </td>
 
-                        <th></th>
-                    </tr>
+                    <td class="px-4 py-3 text-right text-red-600 font-bold">
+                        $ {{ "{:,.0f}".format(gasto.valor) }}
+                    </td>
 
-                </thead>
+                    <td class="px-4 py-3 text-center">
+                        <a href="{{ url_for('eliminar_gasto', gasto_id=gasto.id) }}"
+                           class="text-red-600 hover:text-red-800">
+                           <i class="bi bi-trash-fill"></i>
+                        </a>
+                    </td>
 
+                </tr>
+                {% endfor %}
 
-                <!-- BODY -->
-                <tbody class="divide-y divide-gray-100">
+            </tbody>
 
-                    {% for gasto in gastos %}
-                    <tr class="hover:bg-gray-50 transition">
-
-                        <td class="px-4 py-4 text-gray-500">
-                            {{ gasto.id }}
-                        </td>
-
-                        <td class="px-6 py-4">
-                            {{ gasto.fecha }}
-                        </td>
-
-                        <td class="px-6 py-4 font-medium text-gray-800">
-                            {{ gasto.ruta }}
-                        </td>
-
-                        <td class="px-6 py-4">
-                            {{ gasto.descripcion }}
-                        </td>
-
-                        <td class="px-6 py-4 text-right font-semibold">
-                            $ {{ "{:,.2f}".format(gasto.valor) }}
-                        </td>
-
-                        <td class="px-6 py-4">
-                            <span class="bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-xs font-medium">
-                                {{ gasto.categoria }}
-                            </span>
-                        </td>
-
-                        <td class="px-6 py-4 text-center">
-
-                            <button class="text-blue-600 hover:text-blue-800 transition">
-                                <i class="bi bi-eye"></i>
-                            </button>
-
-                            <button class="text-red-600 hover:text-red-700 ml-3 transition">
-                                <i class="bi bi-trash"></i>
-                            </button>
-
-                        </td>
-
-                    </tr>
-
-                    {% else %}
-                    <tr>
-                        <td colspan="7" class="px-6 py-10 text-center text-gray-400">
-                            No hay gastos registrados
-                        </td>
-                    </tr>
-                    {% endfor %}
-
-                </tbody>
-
-            </table>
-
-        </div>
-
+        </table>
     </div>
-
 </div>
 
+<!-- MODAL -->
+<div id="modalGasto"
+     class="fixed inset-0 bg-black/50 hidden items-center justify-center">
+
+    <div class="bg-white rounded-2xl w-full max-w-lg p-6 shadow-xl">
+
+        <h2 class="text-lg font-bold mb-4">
+            Registrar Gasto
+        </h2>
+
+        <form method="POST" action="{{ url_for('guardar_gasto') }}">
+
+            <div class="space-y-4">
+
+                <select name="ruta_id"
+                        class="w-full border rounded-lg p-2"
+                        required>
+                    <option value="">Seleccionar Ruta</option>
+                    {% for r in rutas %}
+                    <option value="{{ r.id }}">{{ r.nombre }}</option>
+                    {% endfor %}
+                </select>
+
+                <select name="categoria_id"
+                        class="w-full border rounded-lg p-2"
+                        required>
+
+                    <option value="">Seleccionar Categoría</option>
+
+                    {% for c in categorias %}
+                        <option value="{{ c.id }}">
+                            {{ c.nombre }}
+                        </option>
+                    {% endfor %}
+
+                </select>
+
+                <input type="text"
+                       name="descripcion"
+                       placeholder="Descripción"
+                       class="w-full border rounded-lg p-2">
+
+                <input type="number"
+                       step="0.01"
+                       name="valor"
+                       placeholder="Valor"
+                       class="w-full border rounded-lg p-2"
+                       required>
+
+                <button class="w-full bg-blue-600 text-white py-2 rounded-lg">
+                    Registrar
+                </button>
+
+            </div>
+
+        </form>
+    </div>
+</div>
+
+<script>
+function abrirModal(){
+    document.getElementById("modalGasto").classList.remove("hidden")
+    document.getElementById("modalGasto").classList.add("flex")
+}
+</script>
 {% endblock %}

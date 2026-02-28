@@ -1,0 +1,260 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="px-14 py-10 bg-slate-100 min-h-screen">
+
+    <!-- ================================= HEADER ================================= -->
+    <div class="flex justify-between items-center mb-12">
+        <div>
+            <h1 class="text-3xl font-bold text-slate-800">
+                Reportes de Caja
+            </h1>
+            <p class="text-slate-500 text-sm mt-2">
+                Análisis financiero por ruta y periodo
+            </p>
+        </div>
+    </div>
+
+    <!-- ================================= FILTRO ================================= -->
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 mb-10">
+
+        <form method="GET" class="flex flex-wrap gap-6 items-end">
+
+            <div>
+                <label class="text-xs text-slate-500">Ruta</label>
+                <select name="ruta_id"
+                    class="border border-slate-300 rounded-xl px-4 py-2 w-60 focus:ring-2 focus:ring-blue-500">
+                    <option value="">Seleccionar Ruta</option>
+                    {% for r in rutas %}
+                    <option value="{{ r.id }}"
+                        {% if ruta_id == r.id|string %}selected{% endif %}>
+                        {{ r.nombre }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div>
+                <label class="text-xs text-slate-500">Desde</label>
+                <input type="date" name="fecha_inicio"
+                       value="{{ fecha_inicio }}"
+                       class="border border-slate-300 rounded-xl px-4 py-2 focus:ring-2 focus:ring-blue-500">
+            </div>
+
+            <div>
+                <label class="text-xs text-slate-500">Hasta</label>
+                <input type="date" name="fecha_fin"
+                       value="{{ fecha_fin }}"
+                       class="border border-slate-300 rounded-xl px-4 py-2 focus:ring-2 focus:ring-blue-500">
+            </div>
+
+            <button class="bg-blue-600 hover:bg-blue-700 text-white px-8 py-2 rounded-xl shadow-md transition">
+                Consultar
+            </button>
+
+        </form>
+    </div>
+
+    <!-- ================================= KPI CARDS ================================= -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12">
+
+        <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+            <div class="text-xs text-slate-500 uppercase">Total Ventas</div>
+            <div class="text-2xl font-bold mt-2 text-slate-800">
+                {{ ventas|length }}
+            </div>
+        </div>
+
+        <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+            <div class="text-xs text-slate-500 uppercase">Ventas Activas</div>
+            <div class="text-2xl font-bold mt-2 text-amber-600">
+                {{ ventas_activas|length }}
+            </div>
+        </div>
+
+        <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+            <div class="text-xs text-slate-500 uppercase">Ventas Finalizadas</div>
+            <div class="text-2xl font-bold mt-2 text-emerald-600">
+                {{ ventas_finalizadas|length }}
+            </div>
+        </div>
+
+        <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+            <div class="text-xs text-slate-500 uppercase">Capital Colocado</div>
+            <div class="text-2xl font-bold mt-2 text-blue-600">
+                $ {{ "{:,.0f}".format(ventas|sum(attribute='valor_total') or 0) }}
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ================================= TABS ================================= -->
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+
+        <div class="flex border-b bg-slate-50">
+
+            <button onclick="showTab('tab1')" class="tab-btn px-6 py-4 text-sm font-semibold text-slate-700 hover:bg-slate-100 transition">
+                Ventas Registradas
+            </button>
+
+            <button onclick="showTab('tab2')" class="tab-btn px-6 py-4 text-sm font-semibold text-slate-700 hover:bg-slate-100 transition">
+                Ventas Activas
+            </button>
+
+            <button onclick="showTab('tab3')" class="tab-btn px-6 py-4 text-sm font-semibold text-slate-700 hover:bg-slate-100 transition">
+                Ventas Finalizadas
+            </button>
+
+        </div>
+
+        <!-- ================= TAB 1 ================= -->
+        <div id="tab1" class="tab-content p-8">
+
+            <div class="overflow-x-auto">
+            <table class="min-w-full text-sm">
+
+                <thead class="bg-slate-100 text-xs uppercase text-slate-600">
+                    <tr>
+                        <th class="px-4 py-3 text-left">Cliente</th>
+                        <th class="px-4 py-3 text-left">Tipo</th>
+                        <th class="px-4 py-3 text-center">Cuotas</th>
+                        <th class="px-4 py-3 text-right">Venta</th>
+                        <th class="px-4 py-3 text-right">Tasa</th>
+                        <th class="px-4 py-3 text-right">Interés</th>
+                        <th class="px-4 py-3 text-right">Total Crédito</th>
+                        <th class="px-4 py-3 text-right">Saldo Actual</th>
+                    </tr>
+                </thead>
+
+                <tbody class="divide-y divide-slate-200">
+                {% for v in ventas %}
+                    <tr class="hover:bg-slate-50 transition">
+                        <td class="px-4 py-3 font-medium text-slate-800">
+                            {{ v.clientes.nombre }}
+                        </td>
+
+                        <td class="px-4 py-3 text-slate-600">
+                            {{ v.tipo_prestamo }}
+                        </td>
+
+                        <td class="px-4 py-3 text-center text-slate-600">
+                            {{ v.cantidad_cuotas }}
+                        </td>
+
+                        <td class="px-4 py-3 text-right">
+                            $ {{ "{:,.0f}".format(v.valor_venta) }}
+                        </td>
+
+                        <td class="px-4 py-3 text-right">
+                            {{ v.tasa }} %
+                        </td>
+
+                        <td class="px-4 py-3 text-right text-blue-600 font-semibold">
+                            $ {{ "{:,.0f}".format(v.valor_interes) }}
+                        </td>
+
+                        <td class="px-4 py-3 text-right font-semibold">
+                            $ {{ "{:,.0f}".format(v.valor_total) }}
+                        </td>
+
+                        <td class="px-4 py-3 text-right font-bold
+                            {% if v.saldo_actual > 0 %}
+                                text-red-600
+                            {% else %}
+                                text-emerald-600
+                            {% endif %}">
+                            $ {{ "{:,.0f}".format(v.saldo_actual) }}
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+
+            </table>
+            </div>
+        </div>
+
+        <!-- ================= TAB 2 ================= -->
+        <div id="tab2" class="tab-content hidden p-8">
+
+            <table class="min-w-full text-sm">
+                <thead class="bg-slate-100 text-xs uppercase text-slate-600">
+                    <tr>
+                        <th class="px-4 py-3 text-left">Cliente</th>
+                        <th class="px-4 py-3 text-left">Estado</th>
+                        <th class="px-4 py-3 text-right">Total Crédito</th>
+                        <th class="px-4 py-3 text-right">Saldo Actual</th>
+                    </tr>
+                </thead>
+
+                <tbody class="divide-y divide-slate-200">
+                {% for v in ventas_activas %}
+                    <tr class="hover:bg-slate-50">
+                        <td class="px-4 py-3 font-medium">{{ v.clientes.nombre }}</td>
+
+                        <td class="px-4 py-3">
+                            <span class="px-3 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">
+                                {{ v.estado }}
+                            </span>
+                        </td>
+
+                        <td class="px-4 py-3 text-right">
+                            $ {{ "{:,.0f}".format(v.valor_total) }}
+                        </td>
+
+                        <td class="px-4 py-3 text-right font-bold text-red-600">
+                            $ {{ "{:,.0f}".format(v.saldo_actual) }}
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- ================= TAB 3 ================= -->
+        <div id="tab3" class="tab-content hidden p-8">
+
+            <table class="min-w-full text-sm">
+                <thead class="bg-slate-100 text-xs uppercase text-slate-600">
+                    <tr>
+                        <th class="px-4 py-3 text-left">Cliente</th>
+                        <th class="px-4 py-3 text-right">Venta</th>
+                        <th class="px-4 py-3 text-right">Interés</th>
+                        <th class="px-4 py-3 text-right">Total Crédito</th>
+                    </tr>
+                </thead>
+
+                <tbody class="divide-y divide-slate-200">
+                {% for v in ventas_finalizadas %}
+                    <tr class="hover:bg-slate-50">
+                        <td class="px-4 py-3 font-medium">{{ v.clientes.nombre }}</td>
+
+                        <td class="px-4 py-3 text-right">
+                            $ {{ "{:,.0f}".format(v.valor_venta) }}
+                        </td>
+
+                        <td class="px-4 py-3 text-right text-blue-600">
+                            $ {{ "{:,.0f}".format(v.valor_interes) }}
+                        </td>
+
+                        <td class="px-4 py-3 text-right font-semibold text-emerald-600">
+                            $ {{ "{:,.0f}".format(v.valor_total) }}
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+
+        </div>
+
+    </div>
+
+</div>
+
+<script>
+function showTab(id){
+    document.querySelectorAll(".tab-content").forEach(el => el.classList.add("hidden"));
+    document.getElementById(id).classList.remove("hidden");
+}
+</script>
+
+{% endblock %}

@@ -80,70 +80,129 @@
       </div>
 
       <!-- TABS -->
-      <div class="border-t">
+      <!-- TABS -->
+<div class="border-t">
 
-        <div class="flex text-sm font-medium text-gray-600">
-          <button class="flex-1 py-3 border-b-2 border-blue-500 text-blue-600">
-            Cuotas
-          </button>
-          <button class="flex-1 py-3 hover:bg-gray-50">
-            Pagos
-          </button>
-          <button class="flex-1 py-3 hover:bg-gray-50">
-            Comentarios
-          </button>
-        </div>
+  <!-- Botones -->
+  <div class="flex text-sm font-medium text-gray-600 bg-gray-50">
+    <button onclick="cambiarTab('{{ credito.id }}','cuotas')"
+            id="btn-cuotas-{{ credito.id }}"
+            class="flex-1 py-3 border-b-2 border-blue-500 text-blue-600 transition">
+      Cuotas
+    </button>
 
-        <!-- TABLA CUOTAS -->
-        <div class="p-4 overflow-x-auto">
+    <button onclick="cambiarTab('{{ credito.id }}','pagos')"
+            id="btn-pagos-{{ credito.id }}"
+            class="flex-1 py-3 hover:bg-gray-100 transition">
+      Pagos
+    </button>
 
-          <table class="w-full text-sm text-left">
+    <button onclick="cambiarTab('{{ credito.id }}','comentarios')"
+            id="btn-comentarios-{{ credito.id }}"
+            class="flex-1 py-3 hover:bg-gray-100 transition">
+      Comentarios
+    </button>
+  </div>
 
-            <thead class="bg-gray-100 text-gray-600 text-xs uppercase">
-              <tr>
-                <th class="px-3 py-2">Fecha Venc.</th>
-                <th class="px-3 py-2">Días Mora</th>
-                <th class="px-3 py-2 text-center">Acción</th>
-              </tr>
-            </thead>
+  <!-- ================= CUOTAS ================= -->
+  <div id="cuotas-{{ credito.id }}" class="p-4 overflow-x-auto">
 
-            <tbody class="divide-y">
+    <table class="w-full text-sm text-left">
 
-              {% for cuota in credito.cuotas %}
-              <tr class="bg-gray-50">
+      <thead class="bg-gray-100 text-gray-600 text-xs uppercase">
+        <tr>
+          <th class="px-3 py-2">Fecha Venc.</th>
+          <th class="px-3 py-2">Días Mora</th>
+          <th class="px-3 py-2 text-center">Estado</th>
+        </tr>
+      </thead>
 
-                <td class="px-3 py-2">
-                  {{ cuota.fecha_programada }}
-                </td>
+      <tbody class="divide-y">
 
-                <td class="px-3 py-2">
-                  {{ cuota.dias_mora }}
-                </td>
+        {% for cuota in credito.cuotas %}
+        <tr class="hover:bg-gray-50">
 
-                <td class="px-3 py-2 text-center">
+          <td class="px-3 py-2">
+            {{ cuota.fecha_programada }}
+          </td>
 
-                  {% if cuota.estado == "pagado" %}
-                    <span class="text-green-500 text-lg">✔</span>
+          <td class="px-3 py-2">
+            {% if cuota.dias_mora > 0 %}
+              <span class="text-red-500 font-semibold">
+                {{ cuota.dias_mora }} días
+              </span>
+            {% else %}
+              <span class="text-green-600">
+                Sin mora
+              </span>
+            {% endif %}
+          </td>
 
-                  {% elif cuota.estado == "pendiente" and cuota.dias_mora > 0 %}
-                    <span class="text-orange-500 font-bold">P</span>
+          <td class="px-3 py-2 text-center">
 
-                  {% else %}
-                    <span class="text-gray-400">🔒</span>
-                  {% endif %}
+            {% if cuota.estado == "pagado" %}
+              <span class="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-semibold">
+                Pagado
+              </span>
+            {% else %}
+              <span class="bg-yellow-100 text-yellow-700 px-3 py-1 rounded-full text-xs font-semibold">
+                Pendiente
+              </span>
+            {% endif %}
 
-                </td>
+          </td>
 
-              </tr>
-              {% endfor %}
+        </tr>
+        {% endfor %}
 
-            </tbody>
+      </tbody>
+    </table>
 
-          </table>
+  </div>
 
-        </div>
+  <!-- ================= PAGOS ================= -->
+  <div id="pagos-{{ credito.id }}" class="p-4 hidden overflow-x-auto">
 
-      </div>
+ {% if credito.pagos and credito.pagos|length > 0 %}
+
+<table class="w-full text-sm">
+    <thead class="bg-gray-100 text-xs uppercase text-gray-600">
+        <tr>
+            <th class="px-3 py-2">Cuota #</th>
+            <th class="px-3 py-2">Fecha Pago</th>
+            <th class="px-3 py-2">Valor</th>
+        </tr>
+    </thead>
+    <tbody class="divide-y">
+        {% for pago in credito.pagos %}
+        <tr>
+            <td class="px-3 py-2 font-semibold">
+                {{ pago.numero }}
+            </td>
+            <td class="px-3 py-2">
+                {{ pago.fecha }}
+            </td>
+            <td class="px-3 py-2 text-green-600 font-semibold">
+                $ {{ pago.monto }}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+{% else %}
+<div class="text-gray-500 text-sm">
+    No hay pagos registrados
+</div>
+{% endif %}
+  <!-- ================= COMENTARIOS ================= -->
+  <div id="comentarios-{{ credito.id }}" class="p-4 hidden">
+    <div class="text-gray-500 text-sm">
+      Sin comentarios registrados.
+    </div>
+  </div>
+
+</div>
 
     </div>
 
@@ -152,5 +211,23 @@
   </div>
 
 </div>
+
+<script>
+function cambiarTab(id, tab){
+
+  const tabs = ["cuotas","pagos","comentarios"];
+
+  tabs.forEach(t => {
+      document.getElementById(t + "-" + id).classList.add("hidden");
+      document.getElementById("btn-" + t + "-" + id)
+          .classList.remove("border-blue-500","text-blue-600");
+  });
+
+  document.getElementById(tab + "-" + id).classList.remove("hidden");
+
+  document.getElementById("btn-" + tab + "-" + id)
+      .classList.add("border-blue-500","text-blue-600");
+}
+</script>
 
 {% endblock %}

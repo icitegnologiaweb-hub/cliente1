@@ -4,13 +4,24 @@
 {% block content %}
 
 <div class="max-w-md mx-auto px-4 pt-4 pb-28 space-y-4">
+    <div class="sticky top-0 bg-[#0b2847] p-3 rounded-2xl shadow-lg mb-4">
 
+        <input type="text"
+            id="buscador"
+            placeholder="Buscar por nombre o cédula..."
+            class="w-full bg-[#123b63] border border-gray-600
+                    rounded-xl p-3 text-white placeholder-gray-400
+                    focus:outline-none focus:ring-2 focus:ring-blue-500">
+
+    </div>
     {% for c in creditos %}
 
     <a href="{{ url_for('detalle_credito', credito_id=c.id) }}"
-        class="block bg-gradient-to-br from-[#123b63] to-[#0b2847]
+        class="credito-item block bg-gradient-to-br from-[#123b63] to-[#0b2847]
                 rounded-2xl p-4 shadow-lg text-white
-                transition hover:scale-[1.02] active:scale-[0.98]">
+                transition hover:scale-[1.02] active:scale-[0.98]"
+        data-nombre="{{ c.cliente|lower }}"
+        data-cedula="{{ c.identificacion|default('')|lower }}">
 
 
 
@@ -20,11 +31,16 @@
             <div class="flex gap-3">
 
                 <!-- POSICIÓN -->
-                <div class="h-12 w-12 rounded-full
-                            bg-gradient-to-br from-gray-300 to-blue-600
-                            flex items-center justify-center
-                            font-bold text-white">
-                    {{ c.posicion }}
+                <div class="relative">
+                    <div class="h-12 w-12 rounded-full bg-gradient-to-br from-gray-300 to-blue-600 flex items-center justify-center font-bold text-white">
+                        {{ c.posicion }}
+                    </div>
+
+                    <button type="button"
+                            onclick="editarPosicion(event, '{{ c.id }}','{{ c.posicion }}')"
+                            class="absolute -bottom-1 -right-1 bg-blue-500 text-xs px-1 rounded">
+                        ✏
+                    </button>
                 </div>
 
                 <!-- INFO -->
@@ -100,4 +116,107 @@
 
 </div>
 
+<div id="modalPosicion"
+     class="fixed inset-0 bg-black/70 backdrop-blur-sm hidden items-end sm:items-center justify-center z-50 transition">
+
+    <div class="bg-gradient-to-br from-[#123b63] to-[#0b2847] 
+                w-full sm:w-[380px] rounded-t-3xl sm:rounded-3xl 
+                p-6 text-white shadow-2xl animate-fadeInUp">
+
+        <!-- Handle móvil -->
+        <div class="w-10 h-1.5 bg-gray-400 rounded-full mx-auto mb-5 sm:hidden"></div>
+
+        <h3 class="text-xl font-bold text-center mb-6">
+            Cambiar Posición
+        </h3>
+
+        <form method="POST" action="{{ url_for('cambiar_posicion') }}">
+
+            <input type="hidden" name="credito_id" id="modal_credito_id">
+
+            <!-- POSICIÓN ACTUAL -->
+            <div class="bg-[#0b2847] rounded-xl p-4 mb-4 text-center">
+                <div class="text-xs opacity-60">Posición actual</div>
+                <div id="posicionActualTexto"
+                     class="text-2xl font-bold text-green-400 mt-1">
+                </div>
+            </div>
+
+            <!-- NUEVA POSICIÓN -->
+            <div class="mb-6">
+                <label class="text-sm opacity-80">
+                    Nueva posición
+                </label>
+
+                <input type="number"
+                       name="nueva_posicion"
+                       id="modal_posicion"
+                       required
+                       min="1"
+                       class="w-full mt-2 bg-[#0b2847] border border-gray-600
+                              rounded-xl p-3 text-center text-lg font-semibold
+                              focus:ring-2 focus:ring-blue-400">
+            </div>
+
+            <div class="space-y-3">
+
+                <button type="submit"
+                        class="w-full bg-blue-600 hover:bg-blue-700
+                               py-3 rounded-xl font-semibold transition">
+                    Guardar Cambios
+                </button>
+
+                <button type="button"
+                        onclick="cerrarModal()"
+                        class="w-full bg-gray-600 hover:bg-gray-700
+                               py-3 rounded-xl transition">
+                    Cancelar
+                </button>
+
+            </div>
+
+        </form>
+
+    </div>
+
+</div>
+<script>
+document.getElementById("buscador").addEventListener("input", function() {
+
+    const texto = this.value.toLowerCase();
+    const items = document.querySelectorAll(".credito-item");
+
+    items.forEach(item => {
+
+        const nombre = item.dataset.nombre || "";
+        const cedula = item.dataset.cedula || "";
+
+        if (nombre.includes(texto) || cedula.includes(texto)) {
+            item.style.display = "block";
+        } else {
+            item.style.display = "none";
+        }
+
+    });
+
+});
+</script>
+
+<script>
+function editarPosicion(e, id, posicion){
+    e.preventDefault();
+    e.stopPropagation();
+
+    document.getElementById("modal_credito_id").value = id;
+    document.getElementById("modal_posicion").value = posicion;
+    document.getElementById("posicionActualTexto").innerText = posicion;
+
+    document.getElementById("modalPosicion").classList.remove("hidden");
+    document.getElementById("modalPosicion").classList.add("flex");
+}
+
+function cerrarModal(){
+    document.getElementById("modalPosicion").classList.add("hidden");
+}
+</script>
 {% endblock %}

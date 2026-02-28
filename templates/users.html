@@ -1,350 +1,308 @@
 {% extends "base.html" %}
-
 {% block content %}
 
-<!-- TOAST ALERTS -->
-<div class="fixed top-5 right-5 z-[9999] space-y-3">
+<div class="px-10 py-10 bg-[#f4f7fb] min-h-screen">
 
+<!-- ================= TOAST ALERTS ================= -->
 {% with messages = get_flashed_messages(with_categories=true) %}
-  {% if messages %}
-    <div class="fixed top-5 right-5 z-50 space-y-3">
+{% if messages %}
+<div class="fixed top-6 right-6 z-50 space-y-4">
+    {% for category, message in messages %}
+    <div class="toast-alert px-6 py-4 rounded-xl shadow-2xl border text-sm font-medium
+        {% if category == 'danger' %}
+            bg-red-50 text-red-700 border-red-200
+        {% elif category == 'success' %}
+            bg-green-50 text-green-700 border-green-200
+        {% else %}
+            bg-blue-50 text-blue-700 border-blue-200
+        {% endif %}
+        transform transition-all duration-300 opacity-0 translate-x-10">
 
-      {% for category, message in messages %}
-        
-        <div class="toast-alert flex items-start justify-between gap-4 px-5 py-4 rounded-2xl shadow-lg text-sm border
-          
-          {% if category == 'danger' %}
-              bg-red-100 text-red-700 border-red-200
-          {% elif category == 'success' %}
-              bg-green-100 text-green-700 border-green-200
-          {% else %}
-              bg-blue-100 text-blue-700 border-blue-200
-          {% endif %}
-          
-          transform transition-all duration-500 opacity-0 translate-x-10">
-
-          <!-- Mensaje -->
-          <div class="flex-1">
-              {{ message }}
-          </div>
-
-          <!-- Botón cerrar -->
-          <button onclick="cerrarToast(this)"
-              class="text-gray-400 hover:text-gray-600 transition text-lg leading-none">
-              &times;
-          </button>
-
+        <div class="flex justify-between items-start gap-4">
+            <div>{{ message }}</div>
+            <button onclick="cerrarToast(this)"
+                class="text-gray-400 hover:text-gray-600 text-lg leading-none">
+                ×
+            </button>
         </div>
-
-      {% endfor %}
     </div>
-  {% endif %}
+    {% endfor %}
+</div>
+{% endif %}
 {% endwith %}
 
+<!-- ================= HEADER ================= -->
+<div class="flex justify-between items-center mb-10">
+
+    <div>
+        <h1 class="text-3xl font-bold text-[#1e293b]">
+            Gestión de Usuarios
+        </h1>
+        <p class="text-sm text-gray-500 mt-2">
+            Administración y control de accesos del sistema
+        </p>
+    </div>
+
+    <button type="button"
+        onclick="abrirModal()"
+        class="bg-[#0B3C5D] hover:bg-[#092f47]
+               text-white px-6 py-3 rounded-lg shadow-lg transition">
+        + Nuevo Usuario
+    </button>
 
 </div>
 
-<div class="p-6">
-    <!-- Header -->
-    <div class="flex justify-between items-center mb-6">
-        <div>
-            <h1 class="text-2xl font-semibold text-gray-700">Usuarios</h1>
-            <p class="text-sm text-gray-400">Administración / Usuarios</p>
-        </div>
+<!-- ================= TABLA ================= -->
+<div class="bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden">
 
-        <button type="button" onclick="abrirModal()"
-          class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow flex items-center gap-2">
-            <span class="text-lg">+</span>
-            Nuevo usuario
-        </button>
+<table class="min-w-full text-sm">
 
-    </div>
+<thead class="bg-[#0B3C5D] text-white uppercase text-xs tracking-wider">
+<tr>
+    <th class="px-6 py-5">Documento</th>
+    <th class="px-6 py-5">Nombres</th>
+    <th class="px-6 py-5">Apellidos</th>
+    <th class="px-6 py-5">Email</th>
+    <th class="px-6 py-5">Rol</th>
+    <th class="px-6 py-5">Estado</th>
+    <th class="px-6 py-5">Fecha Registro</th>
+    <th class="px-6 py-5 text-center">Acciones</th>
+</tr>
+</thead>
 
-    <!-- MODAL CREAR USUARIO-->
-    <div id="modalUsuario" class="fixed inset-0 hidden items-center justify-center z-50">
+<tbody class="divide-y divide-gray-200 bg-white">
 
-        <div class="bg-white w-full max-w-3xl rounded-xl shadow-lg p-6 relative">
+{% for usuario in usuarios %}
+<tr class="hover:bg-gray-50 transition">
 
-            <!-- Cerrar -->
-            <button onclick="cerrarModal()" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600">
-                ✕
-            </button>
+<td class="px-6 py-4 font-semibold text-[#1e293b]">
+    {{ usuario["documento"] }}
+</td>
 
-            <h2 class="text-lg font-semibold mb-4">Nuevo usuario</h2>
-            
+<td class="px-6 py-4">
+    {{ usuario["nombres"] }}
+</td>
 
+<td class="px-6 py-4">
+    {{ usuario["apellidos"] }}
+</td>
 
-            <form method="POST" action="{{ url_for('crear_usuario') }}" class="grid grid-cols-2 gap-4">
+<td class="px-6 py-4 text-gray-600">
+    {{ usuario["email"] }}
+</td>
 
-                <input name="nombres" placeholder="Nombre" required class="border p-2 rounded">
-                <input name="apellidos" placeholder="Apellidos" required class="border p-2 rounded">
+<td class="px-6 py-4">
+    <span class="px-3 py-1 rounded-full text-xs font-semibold
+        {% if usuario['rol'] == 'Administrador' %}
+            bg-blue-100 text-blue-700
+        {% elif usuario['rol'] == 'Supervisor' %}
+            bg-purple-100 text-purple-700
+        {% else %}
+            bg-gray-100 text-gray-700
+        {% endif %}
+    ">
+        {{ usuario["rol"] }}
+    </span>
+</td>
 
-                <input name="documento" placeholder="Documento de identidad" required class="border p-2 rounded">
-                <input name="email" type="email" placeholder="Email" required class="border p-2 rounded">
-
-                <input name="direccion" placeholder="Dirección Principal" class="border p-2 rounded">
-                <input name="telefono" placeholder="Teléfono Contacto" class="border p-2 rounded">
-
-                <select name="rol" required class="border p-2 rounded col-span-1">
-                    <option value="">Seleccione un rol</option>
-                    <option>Administrador</option>
-                    <option>Supervisor</option>
-                    <option>Cobrador</option>
-                </select>
-                <!-- PASSWORD -->
-                <div class="relative">
-                    <input id="password"
-                          name="password"
-                          type="password"
-                          placeholder="Contraseña"
-                          required
-                          class="border p-2 rounded w-full pr-10">
-
-                    <button type="button"
-                            onclick="togglePassword('password', this)"
-                            class="absolute right-3 top-2.5 text-gray-500 hover:text-gray-700">
-                        👁
-                    </button>
-                </div>
-
-                <!-- CONFIRM PASSWORD -->
-                <div class="relative">
-                    <input id="confirm_password"
-                          name="confirm_password"
-                          type="password"
-                          placeholder="Repetir contraseña"
-                          required
-                          class="border p-2 rounded w-full pr-10">
-
-                    <button type="button"
-                            onclick="togglePassword('confirm_password', this)"
-                            class="absolute right-3 top-2.5 text-gray-500 hover:text-gray-700">
-                        👁
-                    </button>
-
-                    <!-- MENSAJE -->
-                    <p id="passwordError" class="text-sm mt-1 hidden"></p>
-                </div>
-
-                <div class="col-span-2 flex justify-end">
-                    <button type="submit"
-                        class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded">
-                        Guardar
-                    </button>
-                </div>
-
-            </form>
-
-        </div>
-    </div>
-
-    <!-- MODAL EDITAR USUARIO -->
-    <div id="modalEditarUsuario" class="fixed inset-0 hidden items-center justify-center z-50">
-
-        <div class="bg-white w-full max-w-3xl rounded-xl shadow-lg p-6 relative">
-
-            <button onclick="cerrarModalEditar()" 
-                    class="absolute top-4 right-4 text-gray-400 hover:text-gray-600">
-                ✕
-            </button>
-
-            <h2 class="text-lg font-semibold mb-4">Gestionar usuario</h2>
-
-            <form id="formEditarUsuario" method="POST" class="grid grid-cols-2 gap-4">
-
-                <input type="hidden" name="id" id="edit_id">
-
-                <input name="nombres" id="edit_nombres" required class="border p-2 rounded">
-                <input name="apellidos" id="edit_apellidos" required class="border p-2 rounded">
-
-                <input name="documento" id="edit_documento" required class="border p-2 rounded">
-                <input name="email" id="edit_email" type="email" required class="border p-2 rounded">
-
-                <input name="direccion" id="edit_direccion" class="border p-2 rounded">
-                <input name="telefono" id="edit_telefono" class="border p-2 rounded">
-
-                <select name="rol" id="edit_rol" required class="border p-2 rounded">
-                    <option>Administrador</option>
-                    <option>Supervisor</option>
-                    <option>Cobrador</option>
-                </select>
-
-                <div class="col-span-2 flex justify-between mt-4">
-
-                    <!-- BOTÓN ELIMINAR -->
-                    <button type="button"
-                            onclick="eliminarUsuario()"
-                            class="bg-red-100 text-red-600 px-4 py-2 rounded hover:bg-red-200">
-                        🗑 Eliminar Usuario
-                    </button>
-
-                    <!-- BOTÓN GUARDAR -->
-                    <button type="submit"
-                            class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
-                        Guardar cambios
-                    </button>
-
-                </div>
-
-            </form>
-        </div>
-    </div>
-
-<!-- Tabla -->
-<div class="bg-white rounded-xl shadow overflow-hidden">
-
-    <table class="min-w-full text-sm text-left text-gray-600">
-        <thead class="bg-gray-100 text-xs uppercase text-gray-500">
-            <tr>
-                <th class="px-6 py-3"># Documento</th>
-                <th class="px-6 py-3">Nombres</th>
-                <th class="px-6 py-3">Apellidos</th>
-                <th class="px-6 py-3">Email</th>
-                <th class="px-6 py-3">Rol</th>
-                <th class="px-6 py-3">Estado</th>
-                <th class="px-6 py-3">Fecha Registro</th>
-                <th class="px-6 py-3 text-center">Acciones</th>
-            </tr>
-        </thead>
-
-        <tbody class="divide-y divide-gray-200">
-
-            {% for usuario in usuarios %}
-            <tr class="hover:bg-gray-50 transition">
-
-                <td class="px-6 py-4 font-medium text-gray-700">
-                    {{ usuario["documento"] }}
-                </td>
-
-                <td class="px-6 py-4">
-                    {{ usuario["nombres"] }}
-                </td>
-
-                <td class="px-6 py-4">
-                    {{ usuario["apellidos"] }}
-                </td>
-
-                <td class="px-6 py-4">
-                    {{ usuario["email"] }}
-                </td>
-
-                <td class="px-6 py-4">
-                    <span class="px-2 py-1 text-xs rounded-full
-                        {% if usuario['rol'] == 'Supervisor' %}
-                            bg-purple-100 text-purple-600
-                        {% elif usuario['rol'] == 'Socio' %}
-                            bg-yellow-100 text-yellow-600
-                        {% else %}
-                            bg-blue-100 text-blue-600
-                        {% endif %}
-                    ">
-                        {{ usuario["rol"] }}
-                    </span>
-                </td>
-
-                <!-- ESTADO -->
-                <td class="px-6 py-4">
-                    <form method="POST" action="{{ url_for('toggle_usuario', user_id=usuario['id']) }}">
-                        <label class="inline-flex items-center cursor-pointer">
-                            <input type="checkbox"
-                                   onchange="this.form.submit()"
-                                   class="sr-only peer"
-                                   {% if usuario["estado"] %}checked{% endif %}>
-                            <div class="w-11 h-6 bg-gray-300 rounded-full peer
-                                peer-checked:bg-blue-600
-                                after:content-['']
-                                after:absolute after:top-[2px] after:left-[2px]
-                                after:bg-white after:border after:rounded-full
-                                after:h-5 after:w-5 after:transition-all
-                                peer-checked:after:translate-x-full relative">
-                            </div>
-                        </label>
-                    </form>
-                </td>
-
-                <!-- FECHA -->
-                <td class="px-6 py-4">
-                    {% if usuario["fecha_registro"] %}
-                        {{ usuario["fecha_registro"][:10] }} 
-                        {{ usuario["fecha_registro"][11:16] }}
-                    {% endif %}
-                </td>
-
-                <!-- ACCIONES -->
-                <td class="px-6 py-4 text-center flex justify-center gap-3">
-
-                  <button type="button"
-                      class="editar-btn text-orange-500 hover:text-orange-700"
-                      data-usuario='{{ usuario | tojson }}'>
-                      ✏
-                  </button>
-
-
-
-
-                    <a href="{{ url_for('ver_usuario', id=usuario['id']) }}"
-                       class="text-blue-500 hover:text-blue-700">
-                        👁
-                    </a>
-
-                    <a href="{{ url_for('generar_token_usuario', user_id=usuario['id']) }}"
-                    class="text-green-500 hover:text-green-700"
-                    title="Generar Token">
-                    🔐
-                    </a>
-
-
-                </td>
-
-            </tr>
-            {% endfor %}
-
-        </tbody>
-    </table>
-
+<td class="px-6 py-4">
+<form method="POST" action="{{ url_for('toggle_usuario', user_id=usuario['id']) }}">
+<label class="inline-flex items-center cursor-pointer">
+<input type="checkbox"
+       onchange="this.form.submit()"
+       class="sr-only peer"
+       {% if usuario["estado"] %}checked{% endif %}>
+<div class="w-11 h-6 bg-gray-300 rounded-full peer
+    peer-checked:bg-[#0B3C5D]
+    after:content-['']
+    after:absolute after:top-[2px] after:left-[2px]
+    after:bg-white after:rounded-full
+    after:h-5 after:w-5 after:transition-all
+    peer-checked:after:translate-x-full relative">
 </div>
+</label>
+</form>
+</td>
 
-</div>
-<script>
-function abrirModal() {
-    document.getElementById("modalUsuario").classList.remove("hidden");
-    document.getElementById("modalUsuario").classList.add("flex");
-}
-
-function cerrarModal() {
-    document.getElementById("modalUsuario").classList.add("hidden");
-    document.getElementById("modalUsuario").classList.remove("flex");
-}
-
-</script>
-
-
-{% if abrir_modal %}
-<script>
-document.addEventListener("DOMContentLoaded", function() {
-    abrirModal();
-});
-</script>
+<td class="px-6 py-4 text-gray-600">
+{% if usuario["fecha_registro"] %}
+{{ usuario["fecha_registro"][:10] }} {{ usuario["fecha_registro"][11:16] }}
 {% endif %}
+</td>
+
+<td class="px-6 py-4 text-center flex justify-center gap-4">
+
+<button type="button"
+    class="editar-btn text-orange-500 hover:text-orange-700"
+    data-usuario='{{ usuario | tojson }}'>
+    ✏
+</button>
+
+<a href="{{ url_for('ver_usuario', id=usuario['id']) }}"
+   class="text-blue-600 hover:text-blue-800">
+    👁
+</a>
+
+<a href="#"
+   onclick="abrirToken({{ usuario['id'] }})"
+   class="text-green-600 hover:text-green-800">
+    🔐
+</a>
+
+</td>
+
+</tr>
+{% endfor %}
+
+</tbody>
+</table>
+</div>
+
+</div>
+
+<!-- ================= MODAL TOKEN ================= -->
+<div id="modalTokenUsuario" class="fixed inset-0 z-50 hidden">
+<div class="absolute inset-0 bg-black/60 backdrop-blur-sm"></div>
+<div class="relative flex items-center justify-center min-h-screen px-4">
+<div class="w-full max-w-lg bg-white rounded-2xl shadow-2xl p-8 relative">
+
+<button onclick="cerrarModalToken()"
+        class="absolute top-4 right-4 text-gray-400 hover:text-gray-700 text-2xl">
+    ✕
+</button>
+
+<h2 class="text-xl font-bold text-[#1e293b] mb-6">
+    Datos de Acceso
+</h2>
+
+<div class="space-y-5">
+
+<div class="bg-gray-50 rounded-xl p-4">
+    <p class="text-xs text-gray-500 mb-1">Usuario (Correo)</p>
+    <p id="modalCorreo" class="font-semibold text-gray-800 break-all"></p>
+</div>
+
+<div class="bg-gray-50 rounded-xl p-4">
+    <p class="text-xs text-gray-500 mb-1">Token de Acceso</p>
+    <p id="modalToken"
+       class="text-2xl font-bold text-green-600 tracking-widest"></p>
+</div>
+
+</div>
+
+<button onclick="copiarToken()"
+        class="mt-6 w-full bg-[#0B3C5D] hover:bg-[#092f47]
+               text-white py-3 rounded-xl font-semibold transition">
+    Copiar Token
+</button>
+
+</div>
+</div>
+
+</div>
+
+<div id="modalNuevoUsuario"
+     class="fixed inset-0 z-50 hidden">
+
+    <div class="absolute inset-0 bg-black/60"></div>
+
+    <div class="relative flex items-center justify-center min-h-screen px-4">
+        <div class="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-lg relative">
+
+            <button onclick="cerrarModal()"
+                    class="absolute top-4 right-4 text-gray-400 hover:text-gray-700 text-xl">
+                ✕
+            </button>
+
+            <h2 class="text-xl font-bold mb-6">Nuevo Usuario</h2>
+
+            <form method="POST" action="{{ url_for('crear_usuario') }}" class="space-y-4">
+
+                <input type="text" name="documento" placeholder="Documento"
+                       class="w-full border rounded-lg px-4 py-2">
+
+                <input type="text" name="nombres" placeholder="Nombres"
+                       class="w-full border rounded-lg px-4 py-2">
+
+                <input type="text" name="apellidos" placeholder="Apellidos"
+                       class="w-full border rounded-lg px-4 py-2">
+
+                <input type="email" name="email" placeholder="Correo"
+                       class="w-full border rounded-lg px-4 py-2">
+                <input type="password" name="password"
+                    placeholder="Contraseña"
+                    required
+                    class="w-full border rounded-lg px-4 py-2">
+                
+                <div>
+                    <label class="text-sm text-gray-600 block mb-1">Rol</label>
+                    <select name="rol"
+                            required
+                            class="w-full border rounded-lg px-4 py-2 bg-white">
+                        <option value="">Seleccionar rol</option>
+                        <option value="Administrador">Administrador</option>
+                        <option value="Supervisor">Supervisor</option>
+                        <option value="Cobrador">Cobrador</option>
+                    </select>
+                </div>
+
+                <button type="submit"
+                        class="w-full bg-[#0B3C5D] text-white py-3 rounded-lg">
+                    Crear Usuario
+                </button>
+
+            </form>
+
+        </div>
+    </div>
+</div>
+<!-- ================= JS ================= -->
+<script>
+function abrirModal(){
+    document.getElementById("modalNuevoUsuario").classList.remove("hidden");
+}
+
+function cerrarModal(){
+    document.getElementById("modalNuevoUsuario").classList.add("hidden");
+}
+</script>
+<script>
+function copiarToken(){
+    let token = document.getElementById("modalToken").innerText;
+    navigator.clipboard.writeText(token);
+    alert("Token copiado ✅");
+}
+
+function abrirToken(userId){
+    fetch(`/usuarios/generar-token/${userId}`)
+    .then(response => response.json())
+    .then(data => {
+        document.getElementById("modalCorreo").innerText = data.email;
+        document.getElementById("modalToken").innerText = data.token;
+        document.getElementById("modalTokenUsuario").classList.remove("hidden");
+    })
+    .catch(error => {
+        alert("Error al generar token");
+    });
+}
+
+function cerrarModalToken(){
+    document.getElementById("modalTokenUsuario").classList.add("hidden");
+}
+</script>
 
 <script>
 document.addEventListener("DOMContentLoaded", function () {
-
     const toasts = document.querySelectorAll(".toast-alert");
-
     toasts.forEach((toast, index) => {
-
-        // Animación entrada
         setTimeout(() => {
             toast.classList.remove("opacity-0", "translate-x-10");
         }, 100 * index);
 
-        // Auto cerrar en 4 segundos
         setTimeout(() => {
             cerrarToast(toast.querySelector("button"));
         }, 4000 + (index * 300));
     });
-
 });
 
 function cerrarToast(btn) {
@@ -353,105 +311,5 @@ function cerrarToast(btn) {
     setTimeout(() => toast.remove(), 400);
 }
 </script>
-
-<script>
-
-// 👁 Mostrar / ocultar contraseña
-function togglePassword(id, btn) {
-    const input = document.getElementById(id);
-    if (input.type === "password") {
-        input.type = "text";
-        btn.textContent = "🙈";
-    } else {
-        input.type = "password";
-        btn.textContent = "👁";
-    }
-}
-
-// ✅ Validar coincidencia
-const password = document.getElementById("password");
-const confirmPassword = document.getElementById("confirm_password");
-const errorText = document.getElementById("passwordError");
-
-function validatePasswords() {
-
-    if (confirmPassword.value === "") {
-        errorText.classList.add("hidden");
-        confirmPassword.classList.remove("border-red-500", "border-green-500");
-        return;
-    }
-
-    if (password.value !== confirmPassword.value) {
-        errorText.textContent = "Las contraseñas no coinciden";
-        errorText.className = "text-sm mt-1 text-red-600";
-        confirmPassword.classList.add("border-red-500");
-        confirmPassword.classList.remove("border-green-500");
-    } else {
-        errorText.textContent = "Las contraseñas coinciden";
-        errorText.className = "text-sm mt-1 text-green-600";
-        confirmPassword.classList.add("border-green-500");
-        confirmPassword.classList.remove("border-red-500");
-    }
-}
-
-password.addEventListener("input", validatePasswords);
-confirmPassword.addEventListener("input", validatePasswords);
-
-// 🚫 Evitar envío si no coinciden
-document.querySelector("form").addEventListener("submit", function(e) {
-    if (password.value !== confirmPassword.value) {
-        e.preventDefault();
-        errorText.textContent = "Las contraseñas deben coincidir";
-        errorText.className = "text-sm mt-1 text-red-600";
-        confirmPassword.classList.add("border-red-500");
-    }
-});
-
-</script>
-
-
-<script>
-function abrirModalEditar(usuario) {
-
-    document.getElementById("edit_id").value = usuario.id;
-    document.getElementById("edit_nombres").value = usuario.nombres;
-    document.getElementById("edit_apellidos").value = usuario.apellidos;
-    document.getElementById("edit_documento").value = usuario.documento;
-    document.getElementById("edit_email").value = usuario.email;
-    document.getElementById("edit_direccion").value = usuario.direccion || "";
-    document.getElementById("edit_telefono").value = usuario.telefono || "";
-    document.getElementById("edit_rol").value = usuario.rol;
-
-    document.getElementById("formEditarUsuario").action =
-        "/usuarios/editar/" + usuario.id;
-
-    document.getElementById("modalEditarUsuario").classList.remove("hidden");
-    document.getElementById("modalEditarUsuario").classList.add("flex");
-}
-</script>
-<script>
-document.addEventListener("DOMContentLoaded", function () {
-
-    document.querySelectorAll(".editar-btn").forEach(btn => {
-
-        btn.addEventListener("click", function () {
-
-            const usuario = JSON.parse(this.dataset.usuario);
-
-            abrirModalEditar(usuario);
-        });
-
-    });
-
-});
-
-function cerrarModalEditar() {
-    const modal = document.getElementById("modalEditarUsuario");
-    modal.classList.add("hidden");
-    modal.classList.remove("flex");
-}
-
-</script>
-
 
 {% endblock %}
