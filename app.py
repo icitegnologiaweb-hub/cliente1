@@ -28,6 +28,11 @@ app.permanent_session_lifetime = timedelta(days=30)
 SECURITY_PASSWORD_SALT = "recovery-salt"
 serializer = URLSafeTimedSerializer(app.secret_key)
 
+
+@app.route("/")
+def index():
+    return redirect(url_for("login"))
+    
 @app.context_processor
 def notificaciones_admin():
 
