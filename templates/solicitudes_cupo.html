@@ -3,88 +3,211 @@
 
 <div class="p-8">
 
-<h1 class="text-2xl font-bold mb-6">
-Solicitudes de Aumento de Cupo
-</h1>
+<div class="flex items-center justify-between mb-12">
 
-<div class="bg-white rounded-xl shadow overflow-hidden">
+    <div>
+        <h1 class="text-3xl font-bold text-[#1e293b]">
+            Solicitudes de Aumento de Cupo
+        </h1>
+        <p class="text-sm text-gray-500 mt-2">
+            Gestión y aprobación de solicitudes enviadas por cobradores
+        </p>
+    </div>
 
-<table class="min-w-full text-sm">
+</div>
+<div class="bg-white rounded-xl shadow-md border border-gray-200 p-6 mb-10">
 
-<thead class="bg-gray-100 text-gray-600 uppercase text-xs">
-<tr>
-    <th class="px-4 py-3">Cliente</th>
-    <th class="px-4 py-3">Cédula</th>
-    <th class="px-4 py-3">Monto</th>
-    <th class="px-4 py-3">Estado</th>
-    <th class="px-4 py-3">Fecha</th>
-    <th class="px-4 py-3 text-center">Acción</th>
-</tr>
-</thead>
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-6 items-end">
 
-<tbody class="divide-y">
+        <div>
+            <label class="text-xs uppercase tracking-wider text-gray-500">
+                Fecha Inicio
+            </label>
+            <input type="date"
+                   id="fechaInicio"
+                   class="w-full mt-2 px-3 py-2 border rounded-lg shadow-sm">
+        </div>
 
-{% for s in solicitudes %}
-<tr>
+        <div>
+            <label class="text-xs uppercase tracking-wider text-gray-500">
+                Fecha Fin
+            </label>
+            <input type="date"
+                   id="fechaFin"
+                   class="w-full mt-2 px-3 py-2 border rounded-lg shadow-sm">
+        </div>
 
-<td class="px-4 py-3">
-    {{ s.cliente_nombre }} {{ s.cliente_apellido }}
-</td>
+        <div>
+            <button onclick="filtrarSolicitudes()"
+                class="w-full bg-[#0B3C5D] hover:bg-[#092f47]
+                       text-white py-2.5 rounded-lg shadow transition">
+                Aplicar Filtro
+            </button>
+        </div>
 
-<td class="px-4 py-3">
-    {{ s.cedula }}
-</td>
+        <div>
+            <button onclick="limpiarFiltro()"
+                class="w-full bg-gray-200 hover:bg-gray-300
+                       text-gray-700 py-2.5 rounded-lg transition">
+                Limpiar
+            </button>
+        </div>
 
-<td class="px-4 py-3 font-semibold text-green-600">
-    $ {{ "{:,.0f}".format(s.monto_solicitado) }}
-</td>
-
-<td class="px-4 py-3">
-    {% if s.estado == "pendiente" %}
-        <span class="bg-yellow-100 text-yellow-700 px-2 py-1 rounded-full text-xs">
-            Pendiente
-        </span>
-    {% elif s.estado == "aprobado" %}
-        <span class="bg-green-100 text-green-700 px-2 py-1 rounded-full text-xs">
-            Aprobado
-        </span>
-    {% else %}
-        <span class="bg-red-100 text-red-700 px-2 py-1 rounded-full text-xs">
-            Rechazado
-        </span>
-    {% endif %}
-</td>
-
-<td class="px-4 py-3">
-    {{ s.fecha[:10] if s.fecha }}
-</td>
-
-<td class="px-4 py-3 text-center space-x-2">
-
-{% if s.estado == "pendiente" %}
-
-<a href="{{ url_for('procesar_solicitud', id=s.id, accion='aprobado') }}"
-   class="bg-green-600 text-white px-3 py-1 rounded text-xs">
-    Aprobar
-</a>
-
-<a href="{{ url_for('procesar_solicitud', id=s.id, accion='rechazado') }}"
-   class="bg-red-600 text-white px-3 py-1 rounded text-xs">
-    Rechazar
-</a>
-
-{% endif %}
-
-</td>
-
-</tr>
-{% endfor %}
-
-</tbody>
-</table>
+    </div>
 
 </div>
 
+<div class="grid grid-cols-1 md:grid-cols-3 gap-8 mb-10">
+
+    <div class="bg-white rounded-xl shadow-md border border-gray-200 p-7">
+        <div class="text-xs uppercase tracking-wider text-gray-500">
+            Total Solicitudes
+        </div>
+        <div class="text-3xl font-semibold text-[#1e293b] mt-3">
+            {{ solicitudes|length }}
+        </div>
+    </div>
+
+    <div class="bg-white rounded-xl shadow-md border border-gray-200 p-7">
+        <div class="text-xs uppercase tracking-wider text-gray-500">
+            Pendientes
+        </div>
+        <div class="text-3xl font-semibold text-yellow-600 mt-3">
+            {{ solicitudes|selectattr("estado","equalto","pendiente")|list|length }}
+        </div>
+    </div>
+
+    <div class="bg-white rounded-xl shadow-md border border-gray-200 p-7">
+        <div class="text-xs uppercase tracking-wider text-gray-500">
+            Aprobadas
+        </div>
+        <div class="text-3xl font-semibold text-green-600 mt-3">
+            {{ solicitudes|selectattr("estado","equalto","aprobado")|list|length }}
+        </div>
+    </div>
+
 </div>
 
+
+
+<div class="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+
+    <div class="overflow-x-auto">
+
+        <table class="min-w-full text-sm">
+
+            <thead class="bg-[#0B3C5D] text-white uppercase text-xs tracking-wider">
+                <tr>
+                    <th class="px-6 py-5 text-left">Cliente</th>
+                    <th class="px-6 py-5 text-left">Cédula</th>
+                    <th class="px-6 py-5 text-right">Monto</th>
+                    <th class="px-6 py-5 text-left">Estado</th>
+                    <th class="px-6 py-5 text-left">Fecha</th>
+                    <th class="px-6 py-5 text-center">Acción</th>
+                </tr>
+            </thead>
+
+            <tbody class="divide-y divide-gray-200">
+
+            {% for s in solicitudes %}
+            <tr class="hover:bg-gray-50 transition fila-solicitud"
+                data-fecha="{{ s.created_at[:10] if s.created_at }}">
+
+                <td class="px-6 py-4 font-medium text-gray-800">
+                    {{ s.cliente_nombre }} {{ s.cliente_apellido }}
+                </td>
+
+                <td class="px-6 py-4 text-gray-600">
+                    {{ s.cedula }}
+                </td>
+
+                <td class="px-6 py-4 text-right font-semibold text-green-600">
+                    $ {{ "{:,.0f}".format(s.monto_solicitado) }}
+                </td>
+
+                <td class="px-6 py-4">
+                    {% if s.estado == "pendiente" %}
+                        <span class="bg-yellow-100 text-yellow-700 px-3 py-1 rounded-full text-xs">
+                            Pendiente
+                        </span>
+                    {% elif s.estado == "aprobado" %}
+                        <span class="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs">
+                            Aprobado
+                        </span>
+                    {% else %}
+                        <span class="bg-red-100 text-red-700 px-3 py-1 rounded-full text-xs">
+                            Rechazado
+                        </span>
+                    {% endif %}
+                </td>
+
+                <td class="px-6 py-4 text-gray-600">
+                    {{ s.fecha_formateada if s.fecha_formateada }}
+                </td>
+
+                <td class="px-6 py-4 text-center space-x-2">
+
+                    {% if s.estado == "pendiente" %}
+                    <a href="{{ url_for('procesar_solicitud', id=s.id, accion='aprobado') }}"
+                       class="bg-green-600 hover:bg-green-700
+                              text-white px-4 py-1.5 rounded-lg text-xs transition">
+                        Aprobar
+                    </a>
+
+                    <a href="{{ url_for('procesar_solicitud', id=s.id, accion='rechazado') }}"
+                       class="bg-red-600 hover:bg-red-700
+                              text-white px-4 py-1.5 rounded-lg text-xs transition">
+                        Rechazar
+                    </a>
+                    {% endif %}
+
+                </td>
+
+            </tr>
+            {% endfor %}
+
+            </tbody>
+
+        </table>
+
+    </div>
+
+</div>
+<script>
+function filtrarSolicitudes() {
+
+    const inicio = document.getElementById("fechaInicio").value;
+    const fin = document.getElementById("fechaFin").value;
+
+    const filas = document.querySelectorAll(".fila-solicitud");
+
+    filas.forEach(fila => {
+
+        const fechaFila = fila.dataset.fecha;
+
+        if ((!inicio || fechaFila >= inicio) &&
+            (!fin || fechaFila <= fin)) {
+
+            fila.style.display = "";
+
+        } else {
+
+            fila.style.display = "none";
+        }
+
+    });
+}
+
+function limpiarFiltro() {
+
+    document.getElementById("fechaInicio").value = "";
+    document.getElementById("fechaFin").value = "";
+
+    const filas = document.querySelectorAll(".fila-solicitud");
+
+    filas.forEach(fila => {
+        fila.style.display = "";
+    });
+}
+</script>
 {% endblock %}

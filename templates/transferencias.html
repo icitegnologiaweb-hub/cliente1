@@ -24,7 +24,48 @@
 
     </div>
 
+<!-- ================= FILTRO POR FECHA ================= -->
+<div class="bg-white rounded-xl shadow-md border border-gray-200 p-6 mb-10">
 
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-6 items-end">
+
+        <div>
+            <label class="text-xs uppercase tracking-wide text-gray-500">
+                Fecha Inicio
+            </label>
+            <input type="date"
+                   id="fechaInicio"
+                   class="w-full mt-2 px-4 py-2 border rounded-lg shadow-sm">
+        </div>
+
+        <div>
+            <label class="text-xs uppercase tracking-wide text-gray-500">
+                Fecha Fin
+            </label>
+            <input type="date"
+                   id="fechaFin"
+                   class="w-full mt-2 px-4 py-2 border rounded-lg shadow-sm">
+        </div>
+
+        <div>
+            <button onclick="filtrarFechas()"
+                    class="w-full bg-[#0B3C5D] hover:bg-[#092f47]
+                           text-white py-2 rounded-lg transition">
+                Aplicar Filtro
+            </button>
+        </div>
+
+        <div>
+            <button onclick="limpiarFiltro()"
+                    class="w-full bg-gray-200 hover:bg-gray-300
+                           text-gray-700 py-2 rounded-lg transition">
+                Limpiar
+            </button>
+        </div>
+
+    </div>
+
+</div>
     <!-- ================= RESUMEN FINANCIERO ================= -->
     <div class="grid grid-cols-1 md:grid-cols-3 gap-8 mb-10">
 
@@ -33,7 +74,9 @@
                 Total Transferencias
             </div>
             <div class="text-3xl font-semibold text-[#1e293b] mt-3">
-                {{ transferencias|length }}
+                <span class="resumen-cantidad">
+                    {{ transferencias|length }}
+                </span>
             </div>
         </div>
 
@@ -42,7 +85,9 @@
                 Monto Total Transferido
             </div>
             <div class="text-3xl font-semibold text-[#0B3C5D] mt-3">
-                $ {{ "{:,.0f}".format(total) }}
+                <span class="resumen-total">
+                    $ {{ "{:,.0f}".format(total) }}
+                </span>
             </div>
         </div>
 
@@ -82,7 +127,7 @@
                 <tbody class="divide-y divide-gray-200">
 
                     {% for t in transferencias %}
-                    <tr class="hover:bg-gray-50 transition duration-150">
+                    <tr class="hover:bg-gray-50 transition duration-150 fila-transferencia" data-fecha="{{ t.fecha }}">
 
                         <td class="px-6 py-4 text-gray-600">
                             {{ t.fecha }}
@@ -122,7 +167,7 @@
         <!-- ================= TOTAL FOOTER ================= -->
         <div class="bg-gray-50 border-t px-6 py-4 text-right font-semibold text-[#0B3C5D]">
             Total Transferido:
-            <span class="text-lg">
+            <span class="text-lg resumen-total">
                 $ {{ "{:,.0f}".format(total) }}
             </span>
         </div>
@@ -163,7 +208,7 @@
                       class="form-select rounded-3 shadow-sm" required>
                 <option selected disabled>Seleccione una ruta</option>
                 {% for ruta in rutas %}
-                <option value="{{ ruta.id }}">
+                <option value="{{ ruta.id }}" required>
                   {{ ruta.nombre }}
                 </option>
                 {% endfor %}
@@ -182,7 +227,7 @@
                       class="form-select rounded-3 shadow-sm" required>
                 <option selected disabled>Seleccione una ruta</option>
                 {% for ruta in rutas %}
-                <option value="{{ ruta.id }}">
+                <option value="{{ ruta.id }}" required>
                   {{ ruta.nombre }}
                 </option>
                 {% endfor %}
@@ -204,10 +249,13 @@
               <label class="form-label small fw-semibold text-muted">
                 Fecha
               </label>
+
               <input type="date"
-                     name="fecha"
-                     class="form-control rounded-3 shadow-sm"
-                     required>
+                    name="fecha"
+                    value="{{ hoy }}"
+                    class="form-control rounded-3 shadow-sm"
+                    readonly
+                    required>
             </div>
 
             <div class="col-12">
@@ -235,5 +283,77 @@
     </div>
   </div>
 </div>
+<script>
+function filtrarFechas() {
 
+    const inicio = document.getElementById("fechaInicio").value;
+    const fin = document.getElementById("fechaFin").value;
+
+    const filas = document.querySelectorAll(".fila-transferencia");
+
+    let totalFiltrado = 0;
+    let contador = 0;
+
+    filas.forEach(fila => {
+
+        const fechaFila = fila.dataset.fecha;
+
+        if ((!inicio || fechaFila >= inicio) &&
+            (!fin || fechaFila <= fin)) {
+
+            fila.style.display = "";
+            contador++;
+
+            const valorTexto = fila.querySelector("td:nth-child(4)").innerText
+                .replace("$", "")
+                .replace(",", "")
+                .trim();
+
+            totalFiltrado += parseFloat(valorTexto) || 0;
+
+        } else {
+            fila.style.display = "none";
+        }
+
+    });
+
+    actualizarResumen(contador, totalFiltrado);
+}
+
+function limpiarFiltro() {
+
+    document.getElementById("fechaInicio").value = "";
+    document.getElementById("fechaFin").value = "";
+
+    const filas = document.querySelectorAll(".fila-transferencia");
+
+    let total = 0;
+    let contador = 0;
+
+    filas.forEach(fila => {
+        fila.style.display = "";
+        contador++;
+
+        const valorTexto = fila.querySelector("td:nth-child(4)").innerText
+            .replace("$", "")
+            .replace(",", "")
+            .trim();
+
+        total += parseFloat(valorTexto) || 0;
+    });
+
+    actualizarResumen(contador, total);
+}
+
+function actualizarResumen(cantidad, total) {
+
+    document.querySelectorAll(".resumen-cantidad").forEach(el => {
+        el.innerText = cantidad;
+    });
+
+    document.querySelectorAll(".resumen-total").forEach(el => {
+        el.innerText = "$ " + total.toLocaleString();
+    });
+}
+</script>
 {% endblock %}

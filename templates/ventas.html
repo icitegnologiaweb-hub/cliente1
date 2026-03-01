@@ -64,7 +64,7 @@
 
         <div class="bg-white rounded-3xl shadow-lg p-6 mb-8">
 
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <div class="grid grid-cols-1 md:grid-cols-7 gap-6">
 
                 <!-- Ruta -->
                 <div>
@@ -118,7 +118,36 @@
 
                     </select>
                 </div>
+                <!-- Fecha Inicio -->
+                <div>
+                    <label class="block text-xs font-semibold text-gray-500 uppercase mb-2">
+                        Fecha Inicio
+                    </label>
+                    <input type="date"
+                        name="fecha_inicio"
+                        value="{{ request.args.get('fecha_inicio','') }}"
+                        class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500">
+                </div>
 
+                <!-- Fecha Fin -->
+                <div>
+                    <label class="block text-xs font-semibold text-gray-500 uppercase mb-2">
+                        Fecha Fin
+                    </label>
+                    <input type="date"
+                        name="fecha_fin"
+                        value="{{ request.args.get('fecha_fin','') }}"
+                        class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500">
+                </div>
+                <!-- Botón Filtrar -->
+                <div class="flex items-end">
+                    <button type="submit"
+                            class="w-full bg-[#0B3C5D] hover:bg-[#092f47]
+                                text-white px-4 py-3 rounded-xl shadow-lg
+                                transition duration-200">
+                        🔎 Filtrar
+                    </button>
+                </div>
                 <!-- Limpiar -->
                 <div class="flex items-end">
                     <a href="{{ url_for('listar_ventas') }}"

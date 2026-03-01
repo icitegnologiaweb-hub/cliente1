@@ -9,14 +9,6 @@
 <div class="max-w-md mx-auto px-4 pt-4 pb-24 space-y-4">
 <div class="flex items-center gap-3 mb-2">
 
-    <!-- Flecha regresar -->
-    <a href="{{ url_for('dashboard_cobrador') }}"
-    class="bg-white/10 backdrop-blur
-            h-10 w-10 rounded-full
-            flex items-center justify-center
-            text-white text-xl shadow">
-        ←
-    </a>
 
     <h1 class="text-white text-lg font-semibold">
         Ventas 
@@ -50,12 +42,19 @@
             {% if credito.color_estado == 'rojo' %}
             <div class="absolute -top-2 -right-8 rotate-45 bg-red-600
                         text-white text-[10px] px-10 py-1 font-semibold shadow-md">
-                MORA
+                30+ DÍAS
             </div>
-            {% elif credito.color_estado == 'amarillo' %}
-            <div class="absolute -top-2 -right-8 rotate-45 bg-yellow-500
+
+            {% elif credito.color_estado == 'naranja' %}
+            <div class="absolute -top-2 -right-8 rotate-45 bg-orange-500
                         text-white text-[10px] px-10 py-1 font-semibold shadow-md">
-                1 DÍA
+                7+ DÍAS
+            </div>
+
+            {% elif credito.color_estado == 'verde' and credito.dias_mora > 0 %}
+            <div class="absolute -top-2 -right-8 rotate-45 bg-green-500
+                        text-white text-[10px] px-10 py-1 font-semibold shadow-md">
+                {{ credito.dias_mora }} DÍAS
             </div>
             {% endif %}
                 <!-- CÍRCULO POSICIÓN -->

@@ -14,7 +14,27 @@
             rounded-2xl p-5 shadow-lg mb-6 text-white">
 
     <div class="space-y-3 text-sm">
+        <button onclick="history.back()"
+                class="flex items-center gap-2
+                    bg-white/10 backdrop-blur
+                    px-4 py-2 rounded-xl
+                    text-white text-sm
+                    hover:bg-white/20
+                    transition shadow">
 
+            <svg xmlns="http://www.w3.org/2000/svg"
+                class="h-4 w-4"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor">
+                <path stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M15 19l-7-7 7-7"/>
+            </svg>
+
+            Regresar
+        </button>
         <!-- Nombre -->
         <div class="text-lg font-semibold text-blue-200 mb-2">
             {{ credito.clientes.nombre }}

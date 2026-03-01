@@ -9,7 +9,27 @@
     <div class="text-xl font-semibold">
         Registrar Venta
     </div>
+        <button onclick="history.back()"
+                class="flex items-center gap-2
+                    bg-white/10 backdrop-blur
+                    px-4 py-2 rounded-xl
+                    text-white text-sm
+                    hover:bg-white/20
+                    transition shadow">
 
+            <svg xmlns="http://www.w3.org/2000/svg"
+                class="h-4 w-4"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor">
+                <path stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M15 19l-7-7 7-7"/>
+            </svg>
+
+            Regresar
+        </button>
     <form method="POST"
           action="{{ url_for('guardar_venta_cobrador') }}"
           enctype="multipart/form-data"

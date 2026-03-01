@@ -8,52 +8,133 @@
 
 <style>
 body {
-    background:
-        radial-gradient(circle at top, #143b63 0%, #081e33 55%, #050f1c 100%);
+    background: radial-gradient(circle at top, #163a5f 0%, #0b223a 50%, #061423 100%);
     min-height: 100vh;
+    overflow-x: hidden;
 }
 
-/* Sidebar */
+/* ===== SIDEBAR MODERNO ===== */
 .sidebar {
     position: fixed;
     top: 0;
-    left: -280px;
-    width: 260px;
+    left: -320px;
+    width: 300px;
     height: 100%;
-    background: linear-gradient(180deg, #173c63, #0c2440);
-    box-shadow: 5px 0 20px rgba(0,0,0,.5);
-    transition: .3s ease;
+    background: linear-gradient(180deg, #0e2a47 0%, #071a2d 100%);
+    box-shadow: 0 0 50px rgba(0,0,0,.6);
+    transition: .35s cubic-bezier(.4,0,.2,1);
     z-index: 1000;
-    padding: 20px;
+    padding: 28px 22px;
+    display: flex;
+    flex-direction: column;
+    backdrop-filter: blur(8px);
 }
 
 .sidebar.active {
     left: 0;
 }
 
+/* Overlay más suave */
 .overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0,0,0,.6);
-    display: none;
-    z-index: 999;
+    background: rgba(0,0,0,.55);
+    backdrop-filter: blur(3px);
+    opacity: 0;
+    visibility: hidden;
+    transition: .3s;
+    z-index: 900;
 }
 
 .overlay.active {
-    display: block;
+    opacity: 1;
+    visibility: visible;
 }
 
-/* Menu Items */
-.menu-item {
-    background: rgba(255,255,255,.05);
-    padding: 14px;
+/* ===== PERFIL ===== */
+.profile-card {
+    background: linear-gradient(145deg, rgba(255,255,255,.08), rgba(255,255,255,.03));
+    border: 1px solid rgba(255,255,255,.08);
+    border-radius: 20px;
+    padding: 20px;
+}
+
+/* Avatar */
+.avatar {
+    height: 50px;
+    width: 50px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #2563eb, #1d4ed8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 18px;
+}
+
+/* Ruta badge premium */
+.ruta-badge {
+    margin-top: 16px;
+    padding: 8px 12px;
     border-radius: 14px;
-    margin-bottom: 12px;
+    background: linear-gradient(90deg, #1e40af, #2563eb);
+    font-size: 12px;
+    font-weight: 500;
+}
+
+/* ===== MENU ===== */
+.menu-item {
+    padding: 14px 16px;
+    border-radius: 18px;
     transition: .2s;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: rgba(255,255,255,.04);
+    font-size: 14px;
 }
 
 .menu-item:hover {
     background: rgba(255,255,255,.1);
+    transform: translateX(3px);
+}
+
+.menu-item.active {
+    background: linear-gradient(90deg,#2563eb,#1d4ed8);
+}
+
+/* Cambio ruta especial */
+.menu-route {
+    background: linear-gradient(90deg,#0ea5e9,#2563eb);
+}
+
+.menu-route:hover {
+    background: linear-gradient(90deg,#0284c7,#1d4ed8);
+}
+
+/* ===== TOPBAR ===== */
+.topbar {
+    max-width: 430px;
+    margin: auto;
+    padding: 18px 16px 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.menu-btn {
+    height: 42px;
+    width: 42px;
+    border-radius: 50%;
+    background: rgba(255,255,255,.08);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+}
+
+.menu-btn:hover {
+    background: rgba(255,255,255,.15);
 }
 </style>
 
@@ -86,72 +167,36 @@ body {
 
 <!-- Sidebar -->
 <div id="sidebar" class="sidebar">
+<div class="profile-card mb-8">
 
- <!-- ================= USER INFO ================= -->
-<div class="mb-8 bg-white/5 p-4 rounded-2xl shadow-inner">
+    <div class="flex items-center justify-between">
 
-    <div class="flex items-center justify-between mb-3">
-        <!-- Título -->
-        <div class="d-flex align-items-center gap-4">
-        
-        </button>
-        <img src="{{ url_for('static', filename='img/logo.png') }}"
-            alt="Logo"
-            class="h-[50px] w-auto 
-                    drop-shadow-[0_0_10px_rgba(255,255,255,1)]
-                    drop-shadow-[0_0_25px_rgba(255,255,255,1)]">
+        <div class="flex items-center gap-3">
+            <div class="avatar">
+                {{ session.get('nombre_completo','U')[0] }}
+            </div>
 
+            <div>
+                <div class="text-sm font-semibold">
+                    {{ session.get('nombre_completo','') }}
+                </div>
+                <div class="text-xs opacity-70">
+                    {{ session.get('email','') }}
+                </div>
+            </div>
+        </div>
+
+      
 
     </div>
 
-        {% if ruta_nombre %}
-        <div class="text-xs mt-2 text-green-400">
-            Ruta actual: {{ ruta_nombre }}
-        </div>
-        {% endif %}
-
-
-      <a href="{{ url_for('logout_app') }}"
-        class="p-2 rounded-full hover:bg-white/10 transition">
-
-            <svg xmlns="http://www.w3.org/2000/svg"
-                class="h-6 w-6 text-red-400"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor">
-                <path stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M12 2v10m6.364-6.364a9 9 0 11-12.728 0" />
-            </svg>
-
-        </a>
+    {% if session.get("ruta_nombre") %}
+    <div class="ruta-badge">
+        Ruta activa: {{ session.get("ruta_nombre") }}
     </div>
-
-    <div class="space-y-1">
-
-        <!-- Nombre Completo -->
-        <div class="font-semibold text-sm">
-            {{ session.get('nombre_completo', session.get('nombre','')) }}
-        </div>
-
-        <!-- Correo -->
-        <div class="text-xs opacity-70">
-            {{ session.get('email','') }}
-        </div>
-
-        <!-- Ruta Actual -->
-        {% if session.get("ruta_nombre") %}
-        <div class="text-xs mt-2 text-green-400">
-            Ruta actual: {{ session.get("ruta_nombre") }}
-        </div>
-        {% endif %}
-
-
-    </div>
+    {% endif %}
 
 </div>
-
 
 
     <!-- Menu -->
@@ -191,23 +236,7 @@ body {
         </svg>
         <span>Caja</span>
     </a>
-    <a href="{{ url_for('gastos_cobrador') }}"
-    class="flex items-center gap-3 menu-item">
-
-        <!-- Icono gastos -->
-        <svg xmlns="http://www.w3.org/2000/svg"
-            class="h-5 w-5 opacity-80"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor">
-            <path stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="1.8"
-                d="M9 14l6-6m0 0H9m6 0v6"/>
-        </svg>
-
-        <span>Gastos</span>
-    </a>
+    
     <a href="{{ url_for('clientes_ruta', ruta_id=session.get('ruta_id')) }}" class="flex items-center gap-3 menu-item">
         <!-- Clientes -->
         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 opacity-80"
@@ -216,16 +245,6 @@ body {
                   d="M17 20h5V4H2v16h5m10 0a4 4 0 00-8 0m8 0H9"/>
         </svg>
         <span>Clientes</span>
-    </a>
-
-    <a href="{{ url_for('transferencias_app') }}" class="flex items-center gap-3 menu-item">
-        <!-- Liquidación -->
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 opacity-80"
-             fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"
-                  d="M12 8c-3 0-5 1.5-5 4s2 4 5 4 5-1.5 5-4-2-4-5-4z"/>
-        </svg>
-        <span>Liquidación</span>
     </a>
 
     <a href="{{ url_for('metas_dia') }}" class="flex items-center gap-3 menu-item">
@@ -248,33 +267,46 @@ body {
     </a>
 
 
-    <a href="{{ url_for('dashboard_cobrador') }}"
-        class="flex items-center justify-between
-                bg-[#123b63] hover:bg-[#184a78]
-                rounded-2xl px-4 py-3
-                transition duration-200 active:scale-95">
+        <a href="{{ url_for('dashboard_cobrador') }}"
+    class="menu-item menu-route justify-between">
 
-            <div class="flex items-center gap-3">
+        <span>🏍 Cambio de Ruta</span>
 
+        <svg xmlns="http://www.w3.org/2000/svg"
+            class="h-5 w-5 opacity-80"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor">
+            <path stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M9 5l7 7-7 7" />
+        </svg>
 
+    </a>
+<a href="{{ url_for('logout_app') }}"
+   class="flex items-center justify-center gap-2
+          mt-4 w-full
+          bg-red-500/10 hover:bg-red-500/20
+          text-red-400 hover:text-red-300
+          border border-red-500/30
+          py-2.5 rounded-xl
+          text-sm font-semibold
+          transition duration-200">
 
-                <!-- Texto -->
-                <span class="font-medium"> 🏍 Cambio de Ruta</span>
-            </div>
+    <svg xmlns="http://www.w3.org/2000/svg"
+         class="h-4 w-4"
+         fill="none"
+         viewBox="0 0 24 24"
+         stroke="currentColor">
+        <path stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1m0-13V4" />
+    </svg>
 
-            <!-- Flecha derecha -->
-            <svg xmlns="http://www.w3.org/2000/svg"
-                class="h-5 w-5 opacity-60"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor">
-                <path stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M9 5l7 7-7 7" />
-            </svg>
-
-        </a>
+    Cerrar sesión
+</a>
 
 </div>
 
@@ -283,17 +315,68 @@ body {
 <div id="overlay" class="overlay" onclick="toggleMenu()"></div>
 
 <!-- Top Bar -->
-<div class="max-w-md mx-auto p-4 flex justify-between items-center">
-
-    <button onclick="toggleMenu()" class="text-2xl">
+<div class="topbar text-white flex items-center justify-between px-4 py-3 relative">
+    <button onclick="toggleMenu()" class="menu-btn">
         ☰
     </button>
 
-    <div class="font-semibold">
+    <div class="text-lg font-semibold tracking-wide">
         {% block titulo %}{% endblock %}
     </div>
 
+    <div style="width:42px;"></div>
+    <div class="relative">
 
+    <button onclick="toggleNotificaciones()" 
+            class="relative text-white text-xl">
+
+        🔔
+
+        {% if notificaciones %}
+        <span class="absolute -top-2 -right-2
+                     bg-red-600 text-white text-xs
+                     h-5 w-5 rounded-full
+                     flex items-center justify-center">
+            {{ notificaciones|length }}
+        </span>
+        {% endif %}
+
+    </button>
+
+</div>
+<div id="panelNotificaciones"
+     class="hidden absolute right-0 top-14
+            w-80
+            bg-white rounded-2xl
+            shadow-[0_20px_60px_rgba(0,0,0,0.35)]
+            text-gray-800
+            z-50 overflow-hidden
+            animate-fadeIn">
+
+    <div class="px-5 py-4 border-b font-semibold text-gray-700">
+        Notificaciones
+    </div>
+
+    <div class="max-h-80 overflow-y-auto">
+
+        {% for n in notificaciones %}
+        <div class="px-5 py-4 border-b hover:bg-gray-50 transition">
+            <div class="font-semibold text-sm">
+                {{ n.titulo }}
+            </div>
+            <div class="text-xs text-gray-600 mt-1">
+                {{ n.mensaje }}
+            </div>
+        </div>
+        {% else %}
+        <div class="px-5 py-6 text-sm text-gray-500">
+            No hay notificaciones
+        </div>
+        {% endfor %}
+
+    </div>
+
+</div>
 
 </div>
 
@@ -321,6 +404,11 @@ document.addEventListener("DOMContentLoaded", () => {
     }, 2500);
 });
 </script>
-
+<script>
+function toggleNotificaciones(){
+    document.getElementById("panelNotificaciones")
+        .classList.toggle("hidden");
+}
+</script>
 </body>
 </html>

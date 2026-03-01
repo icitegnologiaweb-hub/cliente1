@@ -32,7 +32,7 @@ serializer = URLSafeTimedSerializer(app.secret_key)
 @app.route("/")
 def index():
     return redirect(url_for("login"))
-    
+
 @app.context_processor
 def notificaciones_admin():
 
@@ -482,11 +482,20 @@ def dashboard_cobrador():
 
         ruta["oficina"] = oficina_info
         rutas_completas.append(ruta)
+    
+    notificaciones = supabase.table("notificaciones") \
+    .select("*") \
+    .eq("usuario_id", session["user_id"]) \
+    .eq("leida", False) \
+    .order("created_at", desc=True) \
+    .execute().data
 
     return render_template(
         "cobrador/dashboard.html",
         rutas=rutas_completas,
-        ruta_id=session.get("ruta_id")  # 👈 PASARLO AL TEMPLATE
+        ruta_id=session.get("ruta_id") , # 👈 PASARLO AL TEMPLATE
+        notificaciones=notificaciones   # 👈 AQUÍ
+
     )
 
 
@@ -745,8 +754,7 @@ def buzon_aumento_cupo():
 
     # 🕒 Formatear fechas
     for s in solicitudes:
-        fecha = s.get("fecha")
-
+        fecha = s.get("created_at")
         if fecha:
             try:
                 fecha_utc = datetime.fromisoformat(fecha.replace("Z", "+00:00"))
@@ -756,11 +764,31 @@ def buzon_aumento_cupo():
                 s["fecha_formateada"] = fecha
         else:
             s["fecha_formateada"] = ""
+    
+    notificaciones = supabase.table("notificaciones") \
+        .select("*") \
+        .eq("usuario_id", session["user_id"]) \
+        .eq("leida", False) \
+        .order("created_at", desc=True) \
+        .execute().data
 
     return render_template(
         "cobrador/buzon_aumento_cupo.html",
-        solicitudes=solicitudes
+        solicitudes=solicitudes,
+        notificaciones=notificaciones
+
     )
+@app.context_processor
+def inyectar_notificaciones():
+    if "user_id" in session:
+        resp = supabase.table("notificaciones") \
+            .select("*") \
+            .eq("usuario_id", session["user_id"]) \
+            .eq("leida", False) \
+            .order("created_at", desc=True) \
+            .execute()
+        return dict(notificaciones=resp.data or [])
+    return dict(notificaciones=[])
 
 @app.route("/nueva_solicitud_cupo")
 def nueva_solicitud_cupo():
@@ -883,10 +911,35 @@ def procesar_solicitud(id, accion):
     if accion not in ["aprobado", "rechazado"]:
         return redirect(url_for("ver_solicitudes_cupo"))
 
+    # Traer solicitud
+    solicitud_resp = supabase.table("solicitudes_aumento_cupo") \
+        .select("*") \
+        .eq("id", id) \
+        .single() \
+        .execute()
+
+    if not solicitud_resp.data:
+        flash("Solicitud no encontrada", "danger")
+        return redirect(url_for("ver_solicitudes_cupo"))
+
+    solicitud = solicitud_resp.data
+
+    # Actualizar estado
     supabase.table("solicitudes_aumento_cupo") \
         .update({"estado": accion}) \
         .eq("id", id) \
         .execute()
+
+    # Solo crear notificación si hay usuario_id válido
+    if solicitud.get("usuario_id"):
+
+        supabase.table("notificaciones").insert({
+            "usuario_id": solicitud["usuario_id"],
+            "titulo": "Solicitud de cupo actualizada",
+            "mensaje": f"Tu solicitud para {solicitud['cliente_nombre']} fue {accion.upper()}",
+            "tipo": "success" if accion == "aprobado" else "danger",
+            "leida": False
+        }).execute()
 
     flash("Solicitud actualizada", "success")
     return redirect(url_for("ver_solicitudes_cupo"))
@@ -1778,7 +1831,6 @@ def caja_cobrador():
     # =====================================================
     # 🔥 CAPITAL COLOCADO (SALDO ACTUAL DE CRÉDITOS)
     # =====================================================
-  
 
     creditos_activos = supabase.table("creditos") \
         .select("id, valor_total") \
@@ -1789,7 +1841,6 @@ def caja_cobrador():
 
     for credito in creditos_activos.data or []:
 
-        # 🔎 Traer cuánto se ha pagado de ese crédito
         pagos = supabase.table("pagos") \
             .select("monto") \
             .eq("credito_id", credito["id"]) \
@@ -1804,9 +1855,6 @@ def caja_cobrador():
 
         if saldo_credito > 0:
             capital_colocado += saldo_credito
-
-
-    capital_disponible = capital_asignado - capital_colocado
 
     # =====================================================
     # 1️⃣ SALDO ANTERIOR (HÍBRIDO: CIERRE O HISTÓRICO)
@@ -1824,7 +1872,6 @@ def caja_cobrador():
         saldo_anterior = float(cierre_resp.data[0]["saldo_final"])
     else:
 
-        # --- COBROS HISTÓRICOS ---
         cobros_hist = supabase.table("pagos") \
             .select("monto, fecha, creditos(ruta_id)") \
             .lte("fecha", fin_ayer.isoformat()) \
@@ -1835,7 +1882,6 @@ def caja_cobrador():
             if pago["creditos"] and int(pago["creditos"]["ruta_id"]) == int(ruta_id):
                 total_cobros_hist += float(pago["monto"] or 0)
 
-        # --- PRÉSTAMOS HISTÓRICOS ---
         prestamos_hist = supabase.table("creditos") \
             .select("valor_venta") \
             .eq("ruta_id", ruta_id) \
@@ -1847,7 +1893,6 @@ def caja_cobrador():
             for p in prestamos_hist.data or []
         )
 
-        # --- GASTOS HISTÓRICOS ---
         gastos_hist = supabase.table("gastos") \
             .select("valor") \
             .eq("ruta_id", ruta_id) \
@@ -1932,8 +1977,6 @@ def caja_cobrador():
     # =====================================================
 
     gastos_resp = supabase.table("gastos") \
-
-    gastos_resp = supabase.table("gastos") \
         .select("valor") \
         .eq("ruta_id", ruta_id) \
         .gte("created_at", inicio_dia.isoformat()) \
@@ -1943,8 +1986,9 @@ def caja_cobrador():
     gastos_db = gastos_resp.data or []
 
     total_gastos = sum(float(g["valor"] or 0) for g in gastos_db)
+
     # =====================================================
-    # 5️⃣ SALDO ACTUAL
+    # 5️⃣ SALDO ACTUAL (FLUJO DEL DÍA)
     # =====================================================
 
     saldo_actual = (
@@ -1953,8 +1997,9 @@ def caja_cobrador():
         - total_prestamos
         - total_gastos
     )
+
     # =====================================================
-    # 5️⃣ TRANSFERENCIAS RECIBIDAS
+    # 6️⃣ TRANSFERENCIAS RECIBIDAS
     # =====================================================
 
     transferencias_resp = supabase.table("transferencias") \
@@ -1970,7 +2015,6 @@ def caja_cobrador():
         valor = float(t["valor"] or 0)
         total_transferencias += valor
 
-        # 🔎 Obtener nombre ruta origen
         ruta_origen = supabase.table("rutas") \
             .select("nombre") \
             .eq("id", t["ruta_origen"]) \
@@ -1983,8 +2027,73 @@ def caja_cobrador():
             "valor": valor,
             "descripcion": t.get("descripcion", "")
         })
+    
+    # 🔻 TRANSFERENCIAS ENVIADAS
+    transferencias_enviadas_resp = supabase.table("transferencias") \
+        .select("valor") \
+        .eq("ruta_origen", ruta_id) \
+        .execute()
+
+    total_transferencias_enviadas = sum(
+        float(t["valor"] or 0)
+        for t in transferencias_enviadas_resp.data or []
+    )
     # =====================================================
-    # 6️⃣ RENDER
+    # 🔥 CAPITAL DISPONIBLE CORRECTO
+    # =====================================================
+
+    capital_disponible = (
+        capital_asignado
+        + total_transferencias
+        - total_transferencias_enviadas
+        - capital_colocado
+    )
+
+    # =====================================================
+    # 🟢 ÚLTIMO CAPITAL ASIGNADO REAL
+    # =====================================================
+
+    ultimo_capital_resp = supabase.table("capital") \
+        .select("*") \
+        .eq("ruta_id", ruta_id) \
+        .order("created_at", desc=True) \
+        .limit(1) \
+        .execute()
+
+    ultimo_capital = None
+
+    if ultimo_capital_resp.data:
+        ultimo_capital = ultimo_capital_resp.data[0]
+    
+    if ultimo_capital and ultimo_capital.get("created_at"):
+
+        created = ultimo_capital["created_at"].replace("Z", "+00:00")
+
+        try:
+            fecha_utc = datetime.fromisoformat(created)
+        except:
+            fecha_utc = datetime.fromisoformat(created.split(".")[0] + "+00:00")
+
+        fecha_colombia = fecha_utc - timedelta(hours=5)
+
+        ultimo_capital["fecha_formateada"] = fecha_colombia.strftime("%d/%m/%Y %H:%M")
+
+    # =====================================================
+    # 🟦 ÚLTIMA TRANSFERENCIA
+    # =====================================================
+
+    ultima_transferencia = None
+
+    if lista_transferencias:
+        lista_transferencias_ordenadas = sorted(
+            lista_transferencias,
+            key=lambda x: x["fecha"],
+            reverse=True
+        )
+        ultima_transferencia = lista_transferencias_ordenadas[0]
+
+    # =====================================================
+    # 7️⃣ RENDER
     # =====================================================
 
     return render_template(
@@ -2000,7 +2109,9 @@ def caja_cobrador():
         capital_colocado=capital_colocado,
         capital_disponible=capital_disponible,
         total_transferencias=total_transferencias,
-        transferencias_recibidas=lista_transferencias
+        transferencias_recibidas=lista_transferencias,
+        ultima_transferencia=ultima_transferencia,
+        ultimo_capital=ultimo_capital,
     )
 
 @app.route("/cerrar_dia", methods=["POST"])
@@ -2495,10 +2606,12 @@ def ver_ruta(ruta_id):
             continue
 
         # 🎨 Semáforo
-        if dias_mora >= 2:
+        if dias_mora >= 30:
             color_estado = "rojo"
-        elif dias_mora == 1:
-            color_estado = "amarillo"
+        elif dias_mora >= 7:
+            color_estado = "naranja"
+        elif dias_mora > 0:
+            color_estado = "verde"
         else:
             color_estado = "verde"
 
@@ -2905,6 +3018,8 @@ def listar_ventas():
     ruta_id = request.args.get("ruta_id")
     buscar = request.args.get("buscar", "").strip().lower()
     filtro_mora = request.args.get("filtro_mora")
+    fecha_inicio = request.args.get("fecha_inicio")
+    fecha_fin = request.args.get("fecha_fin")
 
     rutas = supabase.table("rutas").select("*").execute().data
 
@@ -2958,6 +3073,12 @@ def listar_ventas():
                 continue
             if filtro_mora == "0" and dias_mora > 0:
                 continue
+            
+            if fecha_inicio:
+                ventas = [v for v in ventas if v["fecha_registro"][:10] >= fecha_inicio]
+
+            if fecha_fin:
+                ventas = [v for v in ventas if v["fecha_registro"][:10] <= fecha_fin]
 
             ventas.append({
                 "credito_id": c["id"],
@@ -3896,19 +4017,6 @@ def transferencias():
             flash("Capital insuficiente en la ruta origen", "error")
             return redirect(url_for("transferencias"))
 
-        # 🔻 Restar capital origen
-        supabase.table("capital").insert({
-            "ruta_id": ruta_origen,
-            "valor": -valor,
-            "descripcion": f"Transferencia enviada"
-        }).execute()
-
-        # 🔺 Sumar capital destino
-        supabase.table("capital").insert({
-            "ruta_id": ruta_destino,
-            "valor": valor,
-            "descripcion": f"Transferencia recibida"
-        }).execute()
 
         # 📝 Guardar registro
         supabase.table("transferencias").insert({
@@ -3937,11 +4045,24 @@ def transferencias():
     lista = []
     total = 0
 
+
+
     for t in transferencias_db or []:
         total += float(t["valor"] or 0)
 
+        created = t["created_at"].replace("Z", "+00:00")
+
+        try:
+            fecha_utc = datetime.fromisoformat(created)
+        except:
+            fecha_utc = datetime.fromisoformat(created.split(".")[0] + "+00:00")
+
+        fecha_colombia = fecha_utc - timedelta(hours=5)
+
+        fecha_formateada = fecha_colombia.strftime("%d/%m/%Y %I:%M %p")
+
         lista.append({
-            "fecha": t["fecha"],
+            "fecha": fecha_formateada,
             "ruta_entrega": rutas_dict.get(t["ruta_origen"], "N/A"),
             "ruta_recibe": rutas_dict.get(t["ruta_destino"], "N/A"),
             "valor": t["valor"],
