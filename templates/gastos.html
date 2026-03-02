@@ -85,12 +85,18 @@
         </table>
     </div>
 </div>
-
 <!-- MODAL -->
 <div id="modalGasto"
-     class="fixed inset-0 bg-black/50 hidden items-center justify-center">
+     class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50">
 
-    <div class="bg-white rounded-2xl w-full max-w-lg p-6 shadow-xl">
+    <!-- CONTENEDOR -->
+    <div class="bg-white rounded-2xl w-full max-w-lg p-6 shadow-xl relative">
+
+        <!-- BOTÓN CERRAR -->
+        <button onclick="cerrarModal()"
+                class="absolute top-4 right-4 text-gray-400 hover:text-gray-700 text-2xl">
+            ✕
+        </button>
 
         <h2 class="text-lg font-bold mb-4">
             Registrar Gasto
@@ -112,15 +118,12 @@
                 <select name="categoria_id"
                         class="w-full border rounded-lg p-2"
                         required>
-
                     <option value="">Seleccionar Categoría</option>
-
                     {% for c in categorias %}
                         <option value="{{ c.id }}">
                             {{ c.nombre }}
                         </option>
                     {% endfor %}
-
                 </select>
 
                 <input type="text"
@@ -147,8 +150,22 @@
 
 <script>
 function abrirModal(){
-    document.getElementById("modalGasto").classList.remove("hidden")
-    document.getElementById("modalGasto").classList.add("flex")
+    const modal = document.getElementById("modalGasto");
+    modal.classList.remove("hidden");
+    modal.classList.add("flex");
 }
+
+function cerrarModal(){
+    const modal = document.getElementById("modalGasto");
+    modal.classList.add("hidden");
+    modal.classList.remove("flex");
+}
+
+// Cerrar al hacer clic fuera del modal
+document.getElementById("modalGasto").addEventListener("click", function(e){
+    if(e.target === this){
+        cerrarModal();
+    }
+});
 </script>
 {% endblock %}

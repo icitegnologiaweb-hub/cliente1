@@ -129,6 +129,7 @@
 
 
     <!-- ================= GASTOS ================= -->
+    <!-- ================= GASTOS ================= -->
     <div class="bg-[#123b63] rounded-3xl shadow-lg overflow-hidden">
 
         <button onclick="toggleSection('gastos')"
@@ -140,17 +141,50 @@
                 <span class="text-yellow-400 font-semibold">
                     $ {{ "{:,.0f}".format(total_gastos or 0) }}
                 </span>
-                <span id="icon-gastos" class="transition-transform">⌄</span>
+                <span id="icon-gastos" class="transition-transform duration-300">⌄</span>
             </div>
         </button>
 
-        <div id="gastos" class="hidden px-5 pb-5">
+        <!-- 🔥 SIEMPRE EXISTE EL CONTENEDOR -->
+        <div id="gastos"
+            class="hidden mt-4 space-y-2 text-sm px-5 pb-5">
 
-            <div class="text-xs opacity-60">
-                (Se registran al momento de liquidar)
-            </div>
+            {% if gastos %}
+
+                {% for g in gastos %}
+                <div class="bg-blue-800/40 rounded-xl p-3 flex justify-between items-start">
+
+                    <div>
+                        <p class="font-semibold text-white">
+                            {{ g.categoria or "Sin categoría" }}
+                        </p>
+                        <p class="text-blue-200 text-xs">
+                            {{ g.descripcion or "Sin descripción" }}
+                        </p>
+                        <p class="text-blue-300 text-xs">
+                            {{ g.usuario or "Sistema" }}
+                        </p>
+                    </div>
+
+                    <div class="text-right">
+                        <p class="text-red-400 font-bold">
+                            - $ {{ "{:,.0f}".format(g.valor or 0) }}
+                        </p>
+                    </div>
+
+                </div>
+                {% endfor %}
+
+            {% else %}
+
+                <div class="text-xs opacity-60">
+                    Los gastos registrados deben ser consultados con el encargado
+                </div>
+
+            {% endif %}
 
         </div>
+
     </div>
 
     <!-- ================= INGRESO DE CAPITAL ================= -->
@@ -271,14 +305,20 @@ document.getElementById("buscarPrestamo").addEventListener("keyup", function() {
     });
 });
 </script>
-<script>
-function toggleSection(id) {
-    const section = document.getElementById(id);
-    const icon = document.getElementById("icon-" + id);
 
-    section.classList.toggle("hidden");
-    icon.classList.toggle("rotate-180");
+<script>
+function toggleSection(section) {
+
+    const content = document.getElementById(section);
+    const icon = document.getElementById("icon-" + section);
+
+    if (!content) return;
+
+    content.classList.toggle("hidden");
+
+    if (icon) {
+        icon.classList.toggle("rotate-180");
+    }
 }
 </script>
-
 {% endblock %}

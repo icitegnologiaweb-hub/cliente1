@@ -138,10 +138,11 @@
     ✏
 </button>
 
-<a href="{{ url_for('ver_usuario', id=usuario['id']) }}"
-   class="text-blue-600 hover:text-blue-800">
+<button type="button"
+        onclick="verDatosUsuario({{ usuario['id'] }})"
+        class="text-blue-600 hover:text-blue-800">
     👁
-</a>
+</button>
 
 <a href="#"
    onclick="abrirToken({{ usuario['id'] }})"
@@ -178,6 +179,11 @@
 <div class="space-y-5">
 
 <div class="bg-gray-50 rounded-xl p-4">
+    <p class="text-xs text-gray-500 mb-1">Nombre Completo</p>
+    <p id="modalNombre" class="font-semibold text-gray-800"></p>
+</div>
+
+<div class="bg-gray-50 rounded-xl p-4">
     <p class="text-xs text-gray-500 mb-1">Usuario (Correo)</p>
     <p id="modalCorreo" class="font-semibold text-gray-800 break-all"></p>
 </div>
@@ -188,6 +194,7 @@
        class="text-2xl font-bold text-green-600 tracking-widest"></p>
 </div>
 
+</div>
 </div>
 
 <button onclick="copiarToken()"
@@ -256,6 +263,54 @@
         </div>
     </div>
 </div>
+
+<!-- ================= MODAL VER USUARIO ================= -->
+<div id="modalVerUsuario" class="fixed inset-0 z-50 hidden">
+<div class="absolute inset-0 bg-black/60 backdrop-blur-sm"></div>
+
+<div class="relative flex items-center justify-center min-h-screen px-4">
+<div class="w-full max-w-lg bg-white rounded-2xl shadow-2xl p-8 relative">
+
+<button onclick="cerrarModalVer()"
+        class="absolute top-4 right-4 text-gray-400 hover:text-gray-700 text-2xl">
+    ✕
+</button>
+
+<h2 class="text-xl font-bold text-[#1e293b] mb-6">
+    Información del Usuario
+</h2>
+
+<div class="space-y-4">
+
+<div class="bg-gray-50 p-4 rounded-xl">
+    <p class="text-xs text-gray-500">Nombre Completo</p>
+    <p id="modalNombreVer" class="font-semibold text-gray-800"></p>
+</div>
+
+<div class="bg-gray-50 p-4 rounded-xl">
+    <p class="text-xs text-gray-500">Correo</p>
+    <p id="modalCorreoVer" class="font-semibold text-gray-800"></p>
+</div>
+
+<div class="bg-gray-50 p-4 rounded-xl">
+    <p class="text-xs text-gray-500">Rol</p>
+    <p id="modalRolVer" class="font-semibold text-gray-800"></p>
+</div>
+<div class="bg-gray-50 p-4 rounded-xl">
+    <p class="text-xs text-gray-500">Token de Acceso</p>
+    <p id="modalTokenVer"
+       class="text-2xl font-bold text-green-600 tracking-widest"></p>
+</div>
+<div class="bg-gray-50 p-4 rounded-xl">
+    <p class="text-xs text-gray-500">Estado</p>
+    <p id="modalEstadoVer" class="font-semibold text-gray-800"></p>
+</div>
+
+</div>
+
+</div>
+</div>
+</div>
 <!-- ================= JS ================= -->
 <script>
 function abrirModal(){
@@ -277,6 +332,7 @@ function abrirToken(userId){
     fetch(`/usuarios/generar-token/${userId}`)
     .then(response => response.json())
     .then(data => {
+        document.getElementById("modalNombre").innerText = data.nombre_completo;
         document.getElementById("modalCorreo").innerText = data.email;
         document.getElementById("modalToken").innerText = data.token;
         document.getElementById("modalTokenUsuario").classList.remove("hidden");
@@ -309,6 +365,33 @@ function cerrarToast(btn) {
     const toast = btn.closest(".toast-alert");
     toast.classList.add("opacity-0", "translate-x-10");
     setTimeout(() => toast.remove(), 400);
+}
+
+function verDatosUsuario(userId){
+    fetch(`/usuarios/ver-datos/${userId}`)
+    .then(response => response.json())
+    .then(data => {
+
+        if(data.error){
+            alert("Usuario no encontrado");
+            return;
+        }
+
+        document.getElementById("modalNombreVer").innerText = data.nombre_completo;
+        document.getElementById("modalCorreoVer").innerText = data.email;
+        document.getElementById("modalRolVer").innerText = data.rol;
+        document.getElementById("modalEstadoVer").innerText = data.estado ? "Activo" : "Inactivo";
+        document.getElementById("modalTokenVer").innerText = data.token;
+
+        document.getElementById("modalVerUsuario").classList.remove("hidden");
+    })
+    .catch(error => {
+        alert("Error al cargar datos");
+        console.log(error);
+    });
+}
+function cerrarModalVer(){
+    document.getElementById("modalVerUsuario").classList.add("hidden");
 }
 </script>
 

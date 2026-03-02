@@ -148,13 +148,32 @@ def generar_token_usuario(user_id):
             "token_ingreso": token
         }).eq("id", user_id).execute()
 
-    # 🔥 DEVOLVEMOS DATOS PARA EL MODAL
     return {
         "email": user["email"],
+        "nombre_completo": f"{user['nombres']} {user['apellidos']}",
         "token": token
     }
 
+@app.route("/usuarios/ver-datos/<int:user_id>")
+def ver_datos_usuario(user_id):
 
+    response = supabase.table("usuarios") \
+        .select("*") \
+        .eq("id", user_id) \
+        .execute()
+
+    if not response.data:
+        return {"error": "Usuario no encontrado"}, 404
+
+    user = response.data[0]
+
+    return {
+        "nombre_completo": f"{user['nombres']} {user['apellidos']}",
+        "email": user["email"],
+        "rol": user["rol"],
+        "estado": user["estado"],
+        "token": user.get("token_ingreso") or "No generado"
+    }
 @app.route("/verificar-token", methods=["GET", "POST"])
 def verificar_token():
 
@@ -2039,20 +2058,50 @@ def caja_cobrador():
             })
 
     # =====================================================
-    # 4️⃣ GASTOS DEL DÍA
+    # 4️⃣ GASTOS DEL DÍA (CON TRAZABILIDAD)
+    # =====================================================
+
+# =====================================================
+    # 4️⃣ GASTOS DEL DÍA (CORREGIDO)
     # =====================================================
 
     gastos_resp = supabase.table("gastos") \
-        .select("valor") \
+        .select("""
+            id,
+            codigo,
+            descripcion,
+            valor,
+            created_at,
+            categoria_id,
+            usuarios(nombres, apellidos)
+        """) \
         .eq("ruta_id", ruta_id) \
-        .gte("created_at", inicio_dia.isoformat()) \
-        .lte("created_at", fin_dia.isoformat()) \
+        .gte("created_at", hoy_iso + "T00:00:00") \
+        .lte("created_at", hoy_iso + "T23:59:59") \
+        .order("created_at", desc=True) \
         .execute()
 
     gastos_db = gastos_resp.data or []
 
-    total_gastos = sum(float(g["valor"] or 0) for g in gastos_db)
+    total_gastos = 0
+    lista_gastos = []
 
+    for g in gastos_db:
+
+        valor = float(g["valor"] or 0)
+        total_gastos += valor
+
+        lista_gastos.append({
+            "codigo": g.get("codigo"),
+            "categoria": g.get("categoria_id"),
+            "descripcion": g.get("descripcion"),
+            "valor": valor,
+            "fecha": g.get("created_at"),
+            "usuario": (
+                f"{g['usuarios']['nombres']} {g['usuarios']['apellidos']}"
+                if g.get("usuarios") else "N/A"
+            )
+        })
     # =====================================================
     # 5️⃣ SALDO ACTUAL (FLUJO DEL DÍA)
     # =====================================================
@@ -2108,11 +2157,25 @@ def caja_cobrador():
     # 🔥 CAPITAL DISPONIBLE CORRECTO
     # =====================================================
 
+
+
+    # 🔹 TODOS LOS GASTOS HISTÓRICOS DE LA RUTA
+    gastos_totales_resp = supabase.table("gastos") \
+        .select("valor") \
+        .eq("ruta_id", ruta_id) \
+        .execute()
+
+    total_gastos_ruta = sum(
+        float(g["valor"] or 0)
+        for g in gastos_totales_resp.data or []
+    )
+
     capital_disponible = (
         capital_asignado
         + total_transferencias
         - total_transferencias_enviadas
         - capital_colocado
+        - total_gastos_ruta   # 🔥 AHORA SÍ RESTA GASTOS
     )
 
     # =====================================================
