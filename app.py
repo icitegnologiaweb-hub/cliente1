@@ -2313,7 +2313,15 @@ def caja_cobrador():
     # =====================================================
 
     pagos_resp = supabase.table("pagos") \
-        .select("monto, creditos(ruta_id, clientes(nombre))") \
+        .select("""
+            monto,
+            fecha,
+            creditos!inner(
+                ruta_id,
+                clientes(nombre)
+            )
+        """) \
+        .eq("creditos.ruta_id", ruta_id) \
         .gte("fecha", hoy_iso + "T00:00:00") \
         .lte("fecha", hoy_iso + "T23:59:59") \
         .execute()
@@ -2322,16 +2330,14 @@ def caja_cobrador():
     lista_cobros = []
 
     for pago in pagos_resp.data or []:
-        if pago["creditos"] and int(pago["creditos"]["ruta_id"]) == int(ruta_id):
 
-            monto = float(pago["monto"] or 0)
-            total_cobros += monto
+        monto = float(pago["monto"] or 0)
+        total_cobros += monto
 
-            lista_cobros.append({
-                "cliente": pago["creditos"]["clientes"]["nombre"],
-                "valor": monto
-            })
-
+        lista_cobros.append({
+            "cliente": pago["creditos"]["clientes"]["nombre"],
+            "valor": monto
+        })
     # =====================================================
     # 4️⃣ GASTOS HOY
     # =====================================================
@@ -2422,6 +2428,7 @@ def caja_cobrador():
         total_transferencias=total_transferencias,
         capital_hoy_lista=capital_hoy_lista,
         total_abono_capital=total_abono_capital,
+        cobros=lista_cobros,
     )
 
 @app.route("/cerrar_dia", methods=["POST"])
