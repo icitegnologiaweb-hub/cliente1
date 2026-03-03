@@ -87,53 +87,39 @@
 
     <button onclick="capturarYEnviar()"
             class="bg-green-600 text-white px-4 py-2 text-sm rounded-lg shadow">
-        Capturar y Enviar por WhatsApp
+        Preparar comprobante y enviar
     </button>
 
 </div>
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
-
 <script>
-function capturarYEnviar() {
+async function capturarYEnviar() {
 
     const ticket = document.getElementById("ticket");
 
-    html2canvas(ticket, { scale: 3 }).then(canvas => {
+    const canvas = await html2canvas(ticket, { scale: 3 });
 
-        const imgData = canvas.toDataURL("image/png");
+    canvas.toBlob(async function(blob) {
 
-        // Mostrar preview en pantalla
-        const preview = window.open("");
-        preview.document.write(`
-            <html>
-            <head>
-                <title>Comprobante</title>
-                <style>
-                    body { text-align:center; font-family: Arial; }
-                    img { max-width: 95%; margin-top:20px; }
-                    button {
-                        margin-top:20px;
-                        padding:10px 20px;
-                        background:#25D366;
-                        color:white;
-                        border:none;
-                        border-radius:8px;
-                        font-size:16px;
-                    }
-                </style>
-            </head>
-            <body>
-                <h3>Guarde la imagen y compártala por WhatsApp</h3>
-                <img src="${imgData}">
-                <br>
-                <button onclick="window.open('https://wa.me/{{ pago.cuotas.creditos.clientes.codigo_pais }}{{ pago.cuotas.creditos.clientes.telefono_principal }}?text=Hola {{ pago.cuotas.creditos.clientes.nombre }}, aquí está su comprobante de pago.', '_blank')">
-                    Abrir WhatsApp
-                </button>
-            </body>
-            </html>
-        `);
+        const file = new File([blob], "comprobante.png", { type: "image/png" });
 
-    });
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+
+            try {
+                await navigator.share({
+                    title: "Comprobante de pago",
+                    text: "Aquí está su comprobante de pago",
+                    files: [file]
+                });
+            } catch (error) {
+                console.log("Cancelado o error:", error);
+            }
+
+        } else {
+            alert("Tu navegador no soporta compartir archivos directamente.");
+        }
+
+    }, "image/png");
 }
 </script>
 {% endblock %}
