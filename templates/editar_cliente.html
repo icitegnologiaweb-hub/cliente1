@@ -1,0 +1,237 @@
+{% extends "base.html" %}
+{% block content %}
+
+<form method="POST"
+action="{{ url_for('actualizar_cliente') }}"
+enctype="multipart/form-data">
+
+<div class="max-w-6xl mx-auto space-y-8">
+
+<!-- ================= INFO CLIENTE ================= -->
+
+<div class="bg-white rounded-2xl shadow-lg border border-gray-200 p-8">
+
+<h2 class="text-xl font-bold text-gray-800 mb-6">
+Información del Cliente
+</h2>
+
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+<input type="hidden" name="cliente_id" value="{{ cliente.id }}">
+
+<div>
+<label class="text-sm font-semibold text-gray-600 mb-1 block">Nombre</label>
+<input type="text"
+name="nombre"
+value="{{ cliente.nombre }}"
+class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500">
+</div>
+
+<div>
+<label class="text-sm font-semibold text-gray-600 mb-1 block">Identificación</label>
+<input type="text"
+name="identificacion"
+value="{{ cliente.identificacion }}"
+class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500">
+</div>
+
+<div>
+<label class="text-sm font-semibold text-gray-600 mb-1 block">Teléfono</label>
+<input type="text"
+name="telefono"
+value="{{ cliente.telefono_principal }}"
+class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500">
+</div>
+
+<div>
+<label class="text-sm font-semibold text-gray-600 mb-1 block">Código País</label>
+<input type="text"
+name="codigo_pais"
+value="{{ cliente.codigo_pais }}"
+class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500">
+</div>
+
+<div class="md:col-span-2">
+<label class="text-sm font-semibold text-gray-600 mb-1 block">Dirección Vivienda</label>
+<input type="text"
+name="direccion"
+value="{{ cliente.direccion }}"
+class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500">
+</div>
+
+<div class="md:col-span-2">
+<label class="text-sm font-semibold text-gray-600 mb-1 block">Dirección Negocio</label>
+<input type="text"
+name="direccion_negocio"
+value="{{ cliente.direccion_negocio }}"
+class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500">
+</div>
+
+</div>
+
+</div>
+
+<!-- ================= DOCUMENTOS ================= -->
+
+<div class="bg-white rounded-2xl shadow-lg border border-gray-200 p-10">
+
+<h2 class="text-xl font-bold text-gray-800 mb-8">
+Documentos del Cliente
+</h2>
+
+<div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-10">
+
+<!-- FOTO CLIENTE -->
+<div class="flex flex-col items-center text-center">
+
+<p class="text-sm font-semibold text-gray-600 mb-3">
+Foto Cliente
+</p>
+
+<div class="w-full h-40 rounded-xl overflow-hidden shadow bg-gray-100 mb-3">
+<img id="preview_cliente"
+src="{{ fotos.cliente }}"
+class="w-full h-full object-cover cursor-pointer"
+onclick="verImagen(this.src)">
+</div>
+
+<input type="file"
+name="foto_cliente"
+accept="image/*"
+onchange="previewImagen(event,'preview_cliente')"
+class="text-xs w-full">
+</div>
+
+<!-- CEDULA -->
+<div class="flex flex-col items-center text-center">
+
+<p class="text-sm font-semibold text-gray-600 mb-3">
+Cédula
+</p>
+
+<div class="w-full h-40 rounded-xl overflow-hidden shadow bg-gray-100 mb-3">
+<img id="preview_cedula"
+src="{{ fotos.cedula }}"
+class="w-full h-full object-cover cursor-pointer"
+onclick="verImagen(this.src)">
+</div>
+
+<input type="file"
+name="foto_cedula"
+accept="image/*"
+onchange="previewImagen(event,'preview_cedula')"
+class="text-xs w-full">
+</div>
+
+
+<!-- NEGOCIO -->
+<div class="flex flex-col items-center text-center">
+
+<p class="text-sm font-semibold text-gray-600 mb-3">
+Negocio
+</p>
+
+<div class="w-full h-40 rounded-xl overflow-hidden shadow bg-gray-100 mb-3">
+<img id="preview_negocio"
+src="{{ fotos.negocio }}"
+class="w-full h-full object-cover cursor-pointer"
+onclick="verImagen(this.src)">
+</div>
+
+<input type="file"
+name="foto_negocio"
+accept="image/*"
+onchange="previewImagen(event,'preview_negocio')"
+class="text-xs w-full">
+</div>
+
+
+<!-- FIRMA -->
+<div class="flex flex-col items-center text-center">
+
+<p class="text-sm font-semibold text-gray-600 mb-3">
+Firma
+</p>
+
+<div class="w-full h-40 rounded-xl overflow-hidden shadow bg-gray-100 mb-3 flex items-center justify-center">
+<img id="preview_firma"
+src="{{ fotos.firma }}"
+class="max-h-full object-contain cursor-pointer"
+onclick="verImagen(this.src)">
+</div>
+
+<input type="file"
+name="firma_cliente"
+accept="image/*"
+onchange="previewImagen(event,'preview_firma')"
+class="text-xs w-full">
+
+</div>
+
+</div>
+
+</div>
+
+<!-- ================= BOTÓN ================= -->
+
+<button
+class="w-full bg-gradient-to-r from-blue-600 to-blue-500
+hover:scale-[1.02]
+text-white py-4 rounded-2xl font-semibold shadow-xl
+transition">
+
+Guardar Cambios
+
+</button>
+
+</div>
+
+</form>
+
+<div id="modalImagen"
+class="fixed inset-0 bg-black/80 hidden items-center justify-center z-50">
+
+<img id="imagenGrande"
+class="max-h-[90vh] max-w-[90vw] rounded-xl shadow-2xl">
+
+<button onclick="cerrarImagen()"
+class="absolute top-6 right-8 text-white text-3xl">
+✕
+</button>
+
+</div>
+<script>
+
+function previewImagen(event, id){
+
+const reader = new FileReader()
+
+reader.onload = function(){
+document.getElementById(id).src = reader.result
+}
+
+reader.readAsDataURL(event.target.files[0])
+
+}
+function verImagen(src){
+
+const modal = document.getElementById("modalImagen")
+const imagen = document.getElementById("imagenGrande")
+
+imagen.src = src
+
+modal.classList.remove("hidden")
+modal.classList.add("flex")
+
+}
+
+function cerrarImagen(){
+
+const modal = document.getElementById("modalImagen")
+
+modal.classList.add("hidden")
+
+}
+</script>
+
+{% endblock %}

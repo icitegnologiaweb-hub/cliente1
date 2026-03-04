@@ -60,6 +60,48 @@ def generar_codigo_ruta():
     numeros = ''.join(random.choices(string.digits, k=4))
     return f"R-{letras}{numeros}"
 
+@app.route("/cerrar_cajas_automatico")
+def cerrar_cajas_automatico():
+
+    hoy = date.today().isoformat()
+
+    rutas = supabase.table("rutas").select("id").execute()
+
+    for r in rutas.data:
+
+        ruta_id = r["id"]
+
+        # Verificar si ya existe cierre hoy
+        caja = supabase.table("caja_diaria") \
+            .select("id") \
+            .eq("ruta_id", ruta_id) \
+            .eq("fecha", hoy) \
+            .execute()
+
+        if not caja.data:
+
+            # Obtener último saldo
+            cierre_anterior = supabase.table("caja_diaria") \
+                .select("saldo_cierre") \
+                .eq("ruta_id", ruta_id) \
+                .order("fecha", desc=True) \
+                .limit(1) \
+                .execute()
+
+            saldo = 0
+
+            if cierre_anterior.data:
+                saldo = float(cierre_anterior.data[0]["saldo_cierre"])
+
+            # Crear cierre automático
+            supabase.table("caja_diaria").insert({
+                "ruta_id": ruta_id,
+                "fecha": hoy,
+                "saldo_inicio": saldo,
+                "saldo_cierre": saldo
+            }).execute()
+
+    return "Cierre automático ejecutado"
 # -----------------------
 # LOGIN
 # -----------------------
@@ -691,12 +733,16 @@ def detalle_credito(credito_id):
         total_pagado=total_pagado,
         proxima_cuota=proxima_cuota
     )
+
 @app.route("/registrar_pago", methods=["POST"])
 def registrar_pago():
 
     cuota_id = request.form.get("cuota_id")
 
+    monto_pago_raw = request.form.get("monto_pago", "").strip()
     monto_adicional_raw = request.form.get("monto_adicional", "").strip()
+
+    monto_pago = float(monto_pago_raw) if monto_pago_raw != "" else None
     monto_adicional = float(monto_adicional_raw) if monto_adicional_raw != "" else 0.0
 
     if not cuota_id:
@@ -712,29 +758,98 @@ def registrar_pago():
         return redirect(request.referrer)
 
     cuota = cuota_resp.data
-
-    valor_raw = cuota.get("valor")
-    valor_cuota = float(valor_raw) if valor_raw not in (None, "") else 0.0
-
-    total_pagado = valor_cuota + monto_adicional
-
-    supabase.table("cuotas").update({
-        "estado": "pagado",
-        "monto_pagado": total_pagado,
-        "fecha_pago_real": datetime.now().isoformat()
-    }).eq("id", cuota_id).execute()
-
     credito_id = cuota["credito_id"]
 
+    valor_cuota = float(cuota.get("valor") or 0)
+
+    # =====================================================
+    # CALCULAR PAGO
+    # =====================================================
+
+    if monto_pago is not None:
+        dinero = monto_pago
+    else:
+        dinero = valor_cuota + monto_adicional
+
+    dinero_restante = dinero
+
+    # =====================================================
+    # BUSCAR CUOTAS PENDIENTES
+    # =====================================================
+
+    cuotas_resp = supabase.table("cuotas") \
+        .select("*") \
+        .eq("credito_id", credito_id) \
+        .order("numero") \
+        .execute()
+
+    cuotas = cuotas_resp.data or []
+
+    primera_cuota_afectada = None
+
+    for c in cuotas:
+
+        if dinero_restante <= 0:
+            break
+
+        valor = float(c.get("valor") or 0)
+        pagado = float(c.get("monto_pagado") or 0)
+
+        saldo = valor - pagado
+
+        if saldo <= 0:
+            continue
+
+        if primera_cuota_afectada is None:
+            primera_cuota_afectada = c["id"]
+
+        # ==========================================
+        # PAGO COMPLETO
+        # ==========================================
+
+        if dinero_restante >= saldo:
+
+            nuevo_pagado = pagado + saldo
+
+            supabase.table("cuotas").update({
+                "monto_pagado": nuevo_pagado,
+                "estado": "pagado",
+                "fecha_pago_real": datetime.now().isoformat()
+            }).eq("id", c["id"]).execute()
+
+            dinero_restante -= saldo
+
+        # ==========================================
+        # PAGO PARCIAL
+        # ==========================================
+
+        else:
+
+            nuevo_pagado = pagado + dinero_restante
+
+            supabase.table("cuotas").update({
+                "monto_pagado": nuevo_pagado
+            }).eq("id", c["id"]).execute()
+
+            dinero_restante = 0
+
+    # =====================================================
+    # REGISTRAR PAGO
+    # =====================================================
+
     pago_resp = supabase.table("pagos").insert({
-        "cuota_id": cuota_id,
+        "cuota_id": primera_cuota_afectada,
         "credito_id": credito_id,
-        "monto": total_pagado,
+        "monto": dinero,
         "fecha": datetime.now().isoformat(),
         "cobrador_id": session["user_id"]
     }).execute()
 
     pago_id = pago_resp.data[0]["id"]
+
+    # =====================================================
+    # VERIFICAR SI EL CRÉDITO TERMINÓ
+    # =====================================================
 
     cuotas_pendientes = supabase.table("cuotas") \
         .select("id") \
@@ -749,6 +864,7 @@ def registrar_pago():
 
     return redirect(url_for("recibo_pago", pago_id=pago_id))
 
+    
 @app.route("/recibo/<pago_id>")
 def recibo_pago(pago_id):
 
@@ -843,6 +959,7 @@ def nueva_venta_cobrador():
         cliente_aprobado=cliente_data,
         monto_aprobado=monto_aprobado
     )
+
 @app.route("/buzon_aumento_cupo")
 def buzon_aumento_cupo():
 
@@ -2300,7 +2417,7 @@ def caja_cobrador():
     # =====================================================
 
     prestamos_resp = supabase.table("creditos") \
-        .select("id, valor_venta, clientes(nombre)") \
+        .select("id, valor_venta, created_at, clientes(nombre)") \
         .eq("ruta_id", ruta_id) \
         .gte("created_at", hoy_iso + "T00:00:00") \
         .lte("created_at", hoy_iso + "T23:59:59") \
@@ -2315,7 +2432,9 @@ def caja_cobrador():
 
         lista_prestamos.append({
             "cliente": p["clientes"]["nombre"],
-            "valor": valor
+            "valor": valor,
+            "fecha": p["created_at"]
+
         })
 
     # =====================================================
@@ -2365,17 +2484,6 @@ def caja_cobrador():
     )
 
     # =====================================================
-    # 5️⃣ SALDO ACTUAL DEL DÍA
-    # =====================================================
-
-    saldo_actual = (
-        saldo_anterior
-        + total_cobros
-        - total_prestamos
-        - total_gastos
-    )
-
-    # =====================================================
     # 6️⃣ TRANSFERENCIAS
     # =====================================================
 
@@ -2398,6 +2506,20 @@ def caja_cobrador():
         float(t["valor"] or 0)
         for t in transferencias_enviadas.data or []
     )
+    # =====================================================
+    # 5️⃣ SALDO ACTUAL DEL DÍA
+    # =====================================================
+
+    saldo_actual = (
+        saldo_anterior
+        + total_cobros
+        + total_abono_capital
+        + total_transferencias
+        - total_transferencias_enviadas
+        - total_prestamos
+        - total_gastos
+    )
+
 
     # =====================================================
     # 🔥 CAPITAL DISPONIBLE REAL
@@ -2422,6 +2544,34 @@ def caja_cobrador():
     )
 
     # =====================================================
+    # SI LA CAJA YA FUE CERRADA HOY
+    # SOLO LIMPIA LA VISTA DEL COBRADOR
+    # =====================================================
+
+    caja_hoy = supabase.table("caja_diaria") \
+        .select("saldo_cierre") \
+        .eq("ruta_id", ruta_id) \
+        .eq("fecha", hoy_iso) \
+        .limit(1) \
+        .execute()
+
+    if caja_hoy.data:
+
+        saldo_anterior = float(caja_hoy.data[0]["saldo_cierre"] or 0)
+
+        # limpiar movimientos solo visualmente
+        total_prestamos = 0
+        total_cobros = 0
+        total_gastos = 0
+        total_abono_capital = 0
+
+        lista_prestamos = []
+        lista_cobros = []
+        capital_hoy_lista = []
+
+        saldo_actual = saldo_anterior
+
+    # =====================================================
     # RENDER
     # =====================================================
 
@@ -2439,6 +2589,7 @@ def caja_cobrador():
         capital_hoy_lista=capital_hoy_lista,
         total_abono_capital=total_abono_capital,
         cobros=lista_cobros,
+        prestamos=lista_prestamos,
     )
 
 @app.route("/cerrar_dia", methods=["POST"])
@@ -4176,6 +4327,215 @@ def clientes():
         "clientes.html",
         clientes=clientes
     )
+
+@app.route("/editar_cliente/<cliente_id>")
+def editar_cliente(cliente_id):
+
+    if "user_id" not in session:
+        return redirect(url_for("login"))
+
+    # ==========================
+    # CLIENTE
+    # ==========================
+    cliente_resp = supabase.table("clientes") \
+        .select("*") \
+        .eq("id", cliente_id) \
+        .single() \
+        .execute()
+
+    if not cliente_resp.data:
+        flash("Cliente no encontrado","danger")
+        return redirect(url_for("clientes"))
+
+    cliente = cliente_resp.data
+
+
+    # ==========================
+    # ÚLTIMO CRÉDITO (para fotos y ubicación)
+    # ==========================
+    credito_resp = supabase.table("creditos") \
+        .select("*") \
+        .eq("cliente_id", cliente_id) \
+        .order("created_at", desc=True) \
+        .limit(1) \
+        .execute()
+
+    credito = credito_resp.data[0] if credito_resp.data else None
+
+
+    # ==========================
+    # UBICACIÓN
+    # ==========================
+    latitud = credito.get("latitud") if credito else None
+    longitud = credito.get("longitud") if credito else None
+
+
+    # ==========================
+    # FOTOS
+    # ==========================
+    fotos = {
+        "cliente": credito.get("foto_cliente") if credito else None,
+        "cedula": credito.get("foto_cedula") if credito else None,
+        "negocio": credito.get("foto_negocio") if credito else None,
+        "firma": credito.get("firma_cliente") if credito else None
+    }
+
+
+    return render_template(
+        "editar_cliente.html",
+        cliente=cliente,
+        credito=credito,
+        fotos=fotos,
+        latitud=latitud,
+        longitud=longitud
+    )
+
+@app.route("/actualizar_cliente", methods=["POST"])
+def actualizar_cliente():
+
+    if "user_id" not in session:
+        return redirect(url_for("login"))
+
+    cliente_id = request.form.get("cliente_id")
+
+    nombre = request.form.get("nombre")
+    identificacion = request.form.get("identificacion")
+    direccion = request.form.get("direccion")
+    direccion_negocio = request.form.get("direccion_negocio")
+    telefono = request.form.get("telefono")
+    codigo_pais = request.form.get("codigo_pais")
+
+    # ==========================
+    # ACTUALIZAR CLIENTE
+    # ==========================
+
+    supabase.table("clientes").update({
+
+        "nombre": nombre,
+        "identificacion": identificacion,
+        "direccion": direccion,
+        "direccion_negocio": direccion_negocio,
+        "telefono_principal": telefono,
+        "codigo_pais": codigo_pais
+
+    }).eq("id", cliente_id).execute()
+
+
+    # ==========================
+    # OBTENER ÚLTIMO CRÉDITO
+    # ==========================
+
+    credito_resp = supabase.table("creditos") \
+        .select("id") \
+        .eq("cliente_id", cliente_id) \
+        .order("created_at", desc=True) \
+        .limit(1) \
+        .execute()
+
+    credito = credito_resp.data[0] if credito_resp.data else None
+
+
+    if credito:
+
+        credito_id = credito["id"]
+
+        foto_cliente = request.files.get("foto_cliente")
+        foto_cedula = request.files.get("foto_cedula")
+        foto_negocio = request.files.get("foto_negocio")
+        firma_cliente = request.files.get("firma_cliente")
+
+        update_data = {}
+
+        # ==========================
+        # FOTO CLIENTE
+        # ==========================
+
+        if foto_cliente and foto_cliente.filename:
+
+            filename = f"{cliente_id}_{uuid.uuid4()}_cliente.jpg"
+
+            supabase.storage.from_("clientes").upload(
+                filename,
+                foto_cliente.read(),
+                {"content-type": foto_cliente.content_type}
+            )
+
+            url = supabase.storage.from_("clientes").get_public_url(filename)
+
+            update_data["foto_cliente"] = url
+
+
+        # ==========================
+        # FOTO CEDULA
+        # ==========================
+
+        if foto_cedula and foto_cedula.filename:
+
+            filename = f"{cliente_id}_{uuid.uuid4()}_cedula.jpg"
+
+            supabase.storage.from_("clientes").upload(
+                filename,
+                foto_cedula.read(),
+                {"content-type": foto_cedula.content_type}
+            )
+
+            url = supabase.storage.from_("clientes").get_public_url(filename)
+
+            update_data["foto_cedula"] = url
+
+
+        # ==========================
+        # FOTO NEGOCIO
+        # ==========================
+
+        if foto_negocio and foto_negocio.filename:
+
+            filename = f"{cliente_id}_{uuid.uuid4()}_negocio.jpg"
+
+            supabase.storage.from_("clientes").upload(
+                filename,
+                foto_negocio.read(),
+                {"content-type": foto_negocio.content_type}
+            )
+
+            url = supabase.storage.from_("clientes").get_public_url(filename)
+
+            update_data["foto_negocio"] = url
+
+
+        # ==========================
+        # FIRMA
+        # ==========================
+
+        if firma_cliente and firma_cliente.filename:
+
+            filename = f"{cliente_id}_{uuid.uuid4()}_firma.jpg"
+
+            supabase.storage.from_("clientes").upload(
+                filename,
+                firma_cliente.read(),
+                {"content-type": firma_cliente.content_type}
+            )
+
+            url = supabase.storage.from_("clientes").get_public_url(filename)
+
+            update_data["firma_cliente"] = url
+
+
+        # ==========================
+        # ACTUALIZAR CRÉDITO
+        # ==========================
+
+        if update_data:
+
+            supabase.table("creditos").update(update_data) \
+                .eq("id", credito_id) \
+                .execute()
+
+
+    flash("Cliente actualizado correctamente", "success")
+
+    return redirect(url_for("clientes"))
 
 @app.route("/historico-bancario/<cliente_id>")
 def historico_bancario_cliente(cliente_id):

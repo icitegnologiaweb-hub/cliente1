@@ -114,19 +114,21 @@
 
         <div class="flex justify-between">
           <span class="text-gray-500"># Cuotas</span>
-          <span>{{ credito.numero_cuotas }}</span>
+          <span>{{ credito.cuotas | length }}</span>
         </div>
 
         <div class="flex justify-between">
-          <span class="text-gray-500">Frecuencia</span>
-          <span>{{ credito.frecuencia }}</span>
+          <span class="text-gray-500">Tipo de prestamo</span>
+          <span>{{ credito.tipo_prestamo }}</span>
         </div>
 
-        <div class="flex justify-between">
-          <span class="text-gray-500">Fecha registro</span>
-          <span>{{ credito.fecha_inicio }}</span>
-        </div>
-
+      <div class="flex justify-between">
+        <span class="text-gray-500">Fecha registro</span>
+        <span>
+          {{ credito.created_at[8:10] }}/{{ credito.created_at[5:7] }}/{{ credito.created_at[:4] }}
+          {{ credito.created_at[11:16] }}
+        </span>
+      </div>
       </div>
 
       <!-- TABS -->
@@ -228,10 +230,10 @@
         {% for pago in credito.pagos %}
         <tr>
             <td class="px-3 py-2 font-semibold">
-                {{ pago.numero }}
-            </td>
+{{ pago.numero or "-" }}            </td>
             <td class="px-3 py-2">
-                {{ pago.fecha }}
+              {{ pago.fecha[8:10] }}/{{ pago.fecha[5:7] }}/{{ pago.fecha[:4] }}
+              {{ pago.fecha[11:16] }}
             </td>
             <td class="px-3 py-2 text-green-600 font-semibold">
                 $ {{ pago.monto }}

@@ -76,9 +76,16 @@
         </div>
         <!-- Fecha Registro Crédito -->
         <div class="flex justify-between">
-            <span class="opacity-70">Fecha Registro Credito</span>
+            <span class="opacity-70">Registro Crédito</span>
             <span class="text-blue-300">
                 {{ credito.created_at[8:10] }}/{{ credito.created_at[5:7] }}/{{ credito.created_at[:4] }}
+                {{ credito.created_at[11:16] }}
+            </span>
+        </div>
+        <div class="flex justify-between">
+            <span class="opacity-70">Cuotas Pactadas</span>
+            <span class="text-blue-300">
+                {{ cuotas|length }}
             </span>
         </div>
         <!-- Próxima cuota -->
@@ -312,13 +319,25 @@
             <!-- Tarjeta resumen -->
             <div class="bg-gray-100 rounded-2xl p-4 mb-5 text-center">
 
-                <div class="text-xs text-gray-500">Valor de la cuota</div>
-                <div id="valorCuotaTexto"
-                     class="text-2xl font-bold text-green-600 mt-1">
+                <div class="mb-4">
+                    <label class="text-sm font-medium text-gray-600">
+                        Cuota
+                    </label>
+
+                    <input type="number"
+                        name="monto_pago"
+                        id="valorPago"
+                        step="0.01"
+                        min="0"
+                        class="w-full mt-2 border border-gray-300
+                                focus:border-green-500 focus:ring-2
+                                focus:ring-green-200 rounded-xl
+                                p-3 text-center text-lg font-semibold"
+                        oninput="calcularTotal()">
                 </div>
 
                 <div class="text-xs text-gray-500 mt-4">
-                    Total a pagar
+                    Total
                 </div>
                 <div id="totalTexto"
                      class="text-xl font-semibold text-gray-800 mt-1">
@@ -326,23 +345,6 @@
 
             </div>
 
-            <!-- Monto adicional -->
-            <div class="mb-6">
-                <label class="text-sm font-medium text-gray-600">
-                    Monto adicional
-                </label>
-
-                <input type="number"
-                       name="monto_adicional"
-                       id="montoAdicional"
-                       value="0"
-                       min="0"
-                       step="0.01"
-                       oninput="calcularTotal()"
-                       class="w-full mt-2 border border-gray-300 focus:border-green-500
-                              focus:ring-2 focus:ring-green-200
-                              rounded-xl p-3 text-center text-lg font-semibold">
-            </div>
 
             <!-- Botones -->
             <div class="space-y-3">
@@ -507,15 +509,12 @@ function prevImagen() {
 ========================= -->
 <script>
 
-let valorBase = 0;
-
 function abrirModal(cuotaId, valor) {
 
-    valorBase = parseFloat(valor);
-
     document.getElementById("cuota_id").value = cuotaId;
-    document.getElementById("valorCuotaTexto").innerText = "$" + valorBase.toFixed(2);
-    document.getElementById("montoAdicional").value = 0;
+
+    // valor por defecto
+    document.getElementById("valorPago").value = parseFloat(valor).toFixed(2);
 
     calcularTotal();
 
@@ -529,10 +528,10 @@ function cerrarModal() {
 
 function calcularTotal() {
 
-    let adicional = parseFloat(document.getElementById("montoAdicional").value) || 0;
-    let total = valorBase + adicional;
+    let valor = parseFloat(document.getElementById("valorPago").value) || 0;
 
-    document.getElementById("totalTexto").innerText = "$" + total.toFixed(2);
+    document.getElementById("totalTexto").innerText =
+        "$" + valor.toFixed(2);
 }
 
 </script>

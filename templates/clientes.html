@@ -119,6 +119,17 @@
                         <!-- ACCIONES -->
                         <td class="px-6 py-4 text-center">
                             <div class="flex items-center justify-center gap-3">
+                                <a href="{{ url_for('editar_cliente', cliente_id=cliente.id) }}"
+                                class="w-9 h-9 flex items-center justify-center rounded-full
+                                    bg-yellow-50 text-yellow-600
+                                    hover:bg-yellow-600 hover:text-white
+                                    hover:scale-110
+                                    transition-all duration-200 shadow-sm"
+                                title="Editar cliente">
+
+                                <i class="bi bi-pencil-fill text-sm"></i>
+
+                                </a>
 
                                 <!-- Ver cuotas -->
                                 <a href="{{ url_for('historial_creditos', cliente_id=cliente.id) }}"
