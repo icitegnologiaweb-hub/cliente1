@@ -2333,7 +2333,7 @@ def caja_cobrador():
     hoy_iso = hoy.isoformat()
 
     # =====================================================
-    # 🔥 CAPITAL HISTÓRICO ASIGNADO (PARA CÁLCULOS)
+    # CAPITAL HISTÓRICO ASIGNADO
     # =====================================================
 
     capital_resp = supabase.table("capital") \
@@ -2347,27 +2347,25 @@ def caja_cobrador():
     )
 
     # =====================================================
-    # 🔥 CAPITAL ASIGNADO HOY (SOLO VISUAL COBRADOR)
+    # ABONOS A CAPITAL HOY (NO CONFUNDIR CON TRANSFERENCIAS)
     # =====================================================
 
     capital_hoy_resp = supabase.table("capital") \
         .select("valor, descripcion, created_at") \
         .eq("ruta_id", ruta_id) \
-        .gte("created_at", hoy_iso + "T00:00:00") \
-        .lte("created_at", hoy_iso + "T23:59:59") \
+        .gte("created_at", hoy_iso) \
         .order("created_at", desc=True) \
         .execute()
-    
+
     capital_hoy_lista = capital_hoy_resp.data or []
 
     total_abono_capital = sum(
         float(c["valor"] or 0)
-        for c in capital_hoy_resp.data or []
-
+        for c in capital_hoy_lista
     )
 
     # =====================================================
-    # 🔥 CAPITAL COLOCADO (CRÉDITOS ACTIVOS)
+    # CAPITAL COLOCADO (CRÉDITOS ACTIVOS)
     # =====================================================
 
     creditos_activos = supabase.table("creditos") \
@@ -2396,7 +2394,7 @@ def caja_cobrador():
             capital_colocado += saldo_capital
 
     # =====================================================
-    # 1️⃣ SALDO ANTERIOR (DESDE CIERRE REAL)
+    # SALDO ANTERIOR
     # =====================================================
 
     cierre_resp = supabase.table("caja_diaria") \
@@ -2407,26 +2405,23 @@ def caja_cobrador():
         .limit(1) \
         .execute()
 
-    if cierre_resp.data:
-        saldo_anterior = float(cierre_resp.data[0]["saldo_cierre"] or 0)
-    else:
-        saldo_anterior = 0
+    saldo_anterior = float(cierre_resp.data[0]["saldo_cierre"]) if cierre_resp.data else 0
 
     # =====================================================
-    # 2️⃣ PRÉSTAMOS HOY
+    # PRÉSTAMOS HOY
     # =====================================================
 
     prestamos_resp = supabase.table("creditos") \
         .select("id, valor_venta, created_at, clientes(nombre)") \
         .eq("ruta_id", ruta_id) \
-        .gte("created_at", hoy_iso + "T00:00:00") \
-        .lte("created_at", hoy_iso + "T23:59:59") \
+        .gte("created_at", hoy_iso) \
         .execute()
 
     total_prestamos = 0
     lista_prestamos = []
 
     for p in prestamos_resp.data or []:
+
         valor = float(p["valor_venta"] or 0)
         total_prestamos += valor
 
@@ -2434,11 +2429,10 @@ def caja_cobrador():
             "cliente": p["clientes"]["nombre"],
             "valor": valor,
             "fecha": p["created_at"]
-
         })
 
     # =====================================================
-    # 3️⃣ COBROS HOY
+    # COBROS HOY
     # =====================================================
 
     pagos_resp = supabase.table("pagos") \
@@ -2451,8 +2445,7 @@ def caja_cobrador():
             )
         """) \
         .eq("creditos.ruta_id", ruta_id) \
-        .gte("fecha", hoy_iso + "T00:00:00") \
-        .lte("fecha", hoy_iso + "T23:59:59") \
+        .gte("fecha", hoy_iso) \
         .execute()
 
     total_cobros = 0
@@ -2467,35 +2460,66 @@ def caja_cobrador():
             "cliente": pago["creditos"]["clientes"]["nombre"],
             "valor": monto
         })
+
     # =====================================================
-    # 4️⃣ GASTOS HOY
+    # GASTOS HOY
     # =====================================================
 
     gastos_resp = supabase.table("gastos") \
-        .select("valor") \
+        .select("valor, categoria_id, descripcion") \
         .eq("ruta_id", ruta_id) \
-        .gte("created_at", hoy_iso + "T00:00:00") \
-        .lte("created_at", hoy_iso + "T23:59:59") \
+        .gte("created_at", hoy_iso) \
         .execute()
 
-    total_gastos = sum(
-        float(g["valor"] or 0)
-        for g in gastos_resp.data or []
-    )
+    lista_gastos = []
+    total_gastos = 0
+
+    for g in gastos_resp.data or []:
+
+        valor = float(g["valor"] or 0)
+        total_gastos += valor
+
+        lista_gastos.append({
+            "valor": valor,
+            "categoria": f"Categoría {g.get('categoria_id')}",
+            "descripcion": g.get("descripcion"),
+            "usuario": "Admin"
+        })
 
     # =====================================================
-    # 6️⃣ TRANSFERENCIAS
+    # TRANSFERENCIAS RECIBIDAS
     # =====================================================
 
-    transferencias_recibidas = supabase.table("transferencias") \
-        .select("valor") \
+    transferencias_resp = supabase.table("transferencias") \
+        .select("*") \
         .eq("ruta_destino", ruta_id) \
+        .gte("fecha", hoy_iso) \
         .execute()
 
-    total_transferencias = sum(
-        float(t["valor"] or 0)
-        for t in transferencias_recibidas.data or []
-    )
+    total_transferencias = 0
+    lista_transferencias = []
+
+    for t in transferencias_resp.data or []:
+
+        valor = float(t["valor"] or 0)
+        total_transferencias += valor
+
+        ruta_origen = supabase.table("rutas") \
+            .select("nombre") \
+            .eq("id", t["ruta_origen"]) \
+            .single() \
+            .execute().data
+
+        lista_transferencias.append({
+            "fecha": t["fecha"],
+            "origen": ruta_origen["nombre"] if ruta_origen else "N/A",
+            "valor": valor,
+            "descripcion": t.get("descripcion", "")
+        })
+
+    # =====================================================
+    # TRANSFERENCIAS ENVIADAS
+    # =====================================================
 
     transferencias_enviadas = supabase.table("transferencias") \
         .select("valor") \
@@ -2506,8 +2530,9 @@ def caja_cobrador():
         float(t["valor"] or 0)
         for t in transferencias_enviadas.data or []
     )
+
     # =====================================================
-    # 5️⃣ SALDO ACTUAL DEL DÍA
+    # SALDO ACTUAL
     # =====================================================
 
     saldo_actual = (
@@ -2520,9 +2545,8 @@ def caja_cobrador():
         - total_gastos
     )
 
-
     # =====================================================
-    # 🔥 CAPITAL DISPONIBLE REAL
+    # CAPITAL DISPONIBLE
     # =====================================================
 
     gastos_totales = supabase.table("gastos") \
@@ -2544,8 +2568,7 @@ def caja_cobrador():
     )
 
     # =====================================================
-    # SI LA CAJA YA FUE CERRADA HOY
-    # SOLO LIMPIA LA VISTA DEL COBRADOR
+    # SI YA SE CERRÓ CAJA HOY
     # =====================================================
 
     caja_hoy = supabase.table("caja_diaria") \
@@ -2559,15 +2582,13 @@ def caja_cobrador():
 
         saldo_anterior = float(caja_hoy.data[0]["saldo_cierre"] or 0)
 
-        # limpiar movimientos solo visualmente
+        # Solo bloquea operaciones, no oculta historial
         total_prestamos = 0
         total_cobros = 0
         total_gastos = 0
-        total_abono_capital = 0
 
         lista_prestamos = []
         lista_cobros = []
-        capital_hoy_lista = []
 
         saldo_actual = saldo_anterior
 
@@ -2590,8 +2611,9 @@ def caja_cobrador():
         total_abono_capital=total_abono_capital,
         cobros=lista_cobros,
         prestamos=lista_prestamos,
+        gastos=lista_gastos,
+        transferencias_recibidas=lista_transferencias
     )
-
 @app.route("/cerrar_dia", methods=["POST"])
 def cerrar_dia():
 
