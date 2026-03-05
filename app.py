@@ -2328,8 +2328,8 @@ def caja_cobrador():
     if not ruta_id:
         return redirect(url_for("dashboard_cobrador"))
 
-    hoy = date.today()
-    hoy_iso = hoy.isoformat()
+    hoy = datetime.utcnow() - timedelta(hours=5)
+    hoy_iso = hoy.date().isoformat()
 
     inicio_dia = hoy_iso + "T00:00:00"
     fin_dia = hoy_iso + "T23:59:59"
