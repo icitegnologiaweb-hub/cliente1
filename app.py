@@ -70,11 +70,17 @@ def generar_codigo_ruta():
     letras = ''.join(random.choices(string.ascii_uppercase, k=3))
     numeros = ''.join(random.choices(string.digits, k=4))
     return f"R-{letras}{numeros}"
-
 @app.route("/cerrar_cajas_automatico")
 def cerrar_cajas_automatico():
 
-    hoy = date.today().isoformat()
+    # Hora Colombia
+    ahora_col = datetime.utcnow() - timedelta(hours=5)
+    hoy_col = ahora_col.date()
+    hoy = hoy_col.isoformat()
+
+    # Ventana del día colombiano en UTC
+    inicio_dia = hoy + "T05:00:00"
+    fin_dia = (hoy_col + timedelta(days=1)).isoformat() + "T05:00:00"
 
     rutas = supabase.table("rutas").select("id").execute()
 
@@ -89,28 +95,100 @@ def cerrar_cajas_automatico():
             .eq("fecha", hoy) \
             .execute()
 
-        if not caja.data:
+        if caja.data:
+            continue
 
-            # Obtener último saldo
-            cierre_anterior = supabase.table("caja_diaria") \
-                .select("saldo_cierre") \
-                .eq("ruta_id", ruta_id) \
-                .order("fecha", desc=True) \
-                .limit(1) \
-                .execute()
+        # =====================================
+        # SALDO INICIAL
+        # =====================================
 
-            saldo = 0
+        cierre_anterior = supabase.table("caja_diaria") \
+            .select("saldo_cierre") \
+            .eq("ruta_id", ruta_id) \
+            .order("fecha", desc=True) \
+            .limit(1) \
+            .execute()
 
-            if cierre_anterior.data:
-                saldo = float(cierre_anterior.data[0]["saldo_cierre"])
+        saldo_inicio = 0
 
-            # Crear cierre automático
-            supabase.table("caja_diaria").insert({
-                "ruta_id": ruta_id,
-                "fecha": hoy,
-                "saldo_inicio": saldo,
-                "saldo_cierre": saldo
-            }).execute()
+        if cierre_anterior.data:
+            saldo_inicio = float(cierre_anterior.data[0]["saldo_cierre"])
+
+        # =====================================
+        # COBROS DEL DIA
+        # =====================================
+
+        pagos = supabase.table("pagos") \
+            .select("monto") \
+            .gte("fecha", inicio_dia) \
+            .lt("fecha", fin_dia) \
+            .execute()
+
+        total_cobros = sum(float(p["monto"] or 0) for p in pagos.data or [])
+
+        # =====================================
+        # GASTOS DEL DIA
+        # =====================================
+
+        gastos = supabase.table("gastos") \
+            .select("valor") \
+            .eq("ruta_id", ruta_id) \
+            .gte("created_at", inicio_dia) \
+            .lt("created_at", fin_dia) \
+            .execute()
+
+        total_gastos = sum(float(g["valor"] or 0) for g in gastos.data or [])
+
+        # =====================================
+        # PRESTAMOS DEL DIA
+        # =====================================
+
+        prestamos = supabase.table("creditos") \
+            .select("valor_venta") \
+            .eq("ruta_id", ruta_id) \
+            .gte("created_at", inicio_dia) \
+            .lt("created_at", fin_dia) \
+            .execute()
+
+        total_prestamos = sum(float(p["valor_venta"] or 0) for p in prestamos.data or [])
+
+        # =====================================
+        # ABONOS A CAPITAL
+        # =====================================
+
+        capital = supabase.table("capital") \
+            .select("valor") \
+            .eq("ruta_id", ruta_id) \
+            .gte("created_at", inicio_dia) \
+            .lt("created_at", fin_dia) \
+            .execute()
+
+        total_capital = sum(float(c["valor"] or 0) for c in capital.data or [])
+
+        # =====================================
+        # CALCULAR SALDO FINAL
+        # =====================================
+
+        saldo_cierre = (
+            saldo_inicio
+            + total_cobros
+            + total_capital
+            - total_prestamos
+            - total_gastos
+        )
+
+        # =====================================
+        # CREAR CIERRE
+        # =====================================
+
+        supabase.table("caja_diaria").insert({
+            "ruta_id": ruta_id,
+            "fecha": hoy,
+            "saldo_inicio": saldo_inicio,
+            "saldo_cierre": saldo_cierre
+        }).execute()
+
+        print(f"Cierre creado ruta {ruta_id} | saldo: {saldo_cierre}")
 
     return "Cierre automático ejecutado"
 # -----------------------
@@ -408,9 +486,6 @@ def reset_password(token):
 
     return render_template("forgot_password/reset_password.html")
 
-# -----------------------
-# LOGIN APP
-# -----------------------
 @app.route("/login_app", methods=["GET", "POST"])
 def login_app():
 
@@ -418,7 +493,7 @@ def login_app():
 
         email = request.form.get("email")
         password = request.form.get("password")
-        recordar = request.form.get("recordar")  # 👈 NUEVO
+        recordar = request.form.get("recordar")
 
         if not email or not password:
             return render_template(
@@ -426,32 +501,40 @@ def login_app():
                 error="Debe ingresar correo y contraseña"
             )
 
-        # 🔎 Buscar solo cobradores activos
+        # 🔎 Buscar usuario activo
         response = supabase.table("usuarios") \
             .select("*") \
             .eq("email", email) \
             .eq("estado", True) \
-            .eq("rol", "Cobrador") \
             .execute()
 
         if not response.data:
             return render_template(
                 "login_app/login_app.html",
-                error="Usuario no encontrado o no autorizado"
+                error="Usuario no encontrado o inactivo"
             )
 
         user = response.data[0]
-        stored_password = user["password"]
 
+        # 🔐 Validar rol permitido
+        if user["rol"] not in ["Cobrador", "Supervisor"]:
+            return render_template(
+                "login_app/login_app.html",
+                error="Este usuario no tiene acceso a la app"
+            )
+
+        stored_password = user["password"]
         login_ok = False
 
-        # 🔐 Si está encriptada
+        # 🔐 Password encriptada
         if stored_password.startswith("scrypt:"):
             if check_password_hash(stored_password, password):
                 login_ok = True
+
         else:
-            # 🔄 Migración automática si estaba en texto plano
+            # 🔄 Migrar password texto plano
             if stored_password == password:
+
                 login_ok = True
 
                 new_hash = generate_password_hash(password)
@@ -466,24 +549,23 @@ def login_app():
                 error="Contraseña incorrecta"
             )
 
-        # 🔐 LOGIN EXITOSO
+        # 🔐 LOGIN OK
         session.clear()
 
-        # 👇 AQUÍ VA RECORDAR SESIÓN
         if recordar:
             session.permanent = True
             app.permanent_session_lifetime = timedelta(days=30)
         else:
             session.permanent = False
 
+        # guardar temporalmente para token
         session["pending_user_id"] = user["id"]
         session["login_tipo"] = "app"
+        session["rol"] = user["rol"]
 
         return redirect(url_for("verificar_token_app"))
 
     return render_template("login_app/login_app.html")
-
-
 @app.route("/verificar-token-app", methods=["GET", "POST"])
 def verificar_token_app():
 
@@ -497,7 +579,6 @@ def verificar_token_app():
         response = supabase.table("usuarios") \
             .select("*") \
             .eq("id", session["pending_user_id"]) \
-            .eq("rol", "Cobrador") \
             .execute()
 
         if not response.data:
@@ -505,7 +586,11 @@ def verificar_token_app():
 
         user = response.data[0]
 
-        if user["token_ingreso"] == token_ingresado:
+        # ✅ Permitir solo Cobrador o Supervisor
+        if user["rol"] not in ["Cobrador", "Supervisor"]:
+            return redirect(url_for("login_app"))
+
+        if str(user["token_ingreso"]) == str(token_ingresado):
 
             # 🔐 Crear sesión REAL
             session.pop("pending_user_id", None)
@@ -513,7 +598,7 @@ def verificar_token_app():
             session["user_id"] = user["id"]
             session["rol"] = user["rol"].lower()
 
-            # ✅ Nombre
+            # 👤 Datos usuario
             nombres = user.get("nombres", "")
             apellidos = user.get("apellidos", "")
             email = user.get("email", "")
@@ -522,77 +607,125 @@ def verificar_token_app():
             session["nombre_completo"] = f"{nombres} {apellidos}".strip()
             session["email"] = email
 
-
             session.permanent = True
             app.permanent_session_lifetime = timedelta(hours=8)
 
-
-            return redirect(url_for("dashboard_cobrador"))
+            # 🔀 Redirigir según rol
+            if user["rol"] == "Supervisor":
+                return redirect(url_for("dashboard_cobrador"))
+            else:
+                return redirect(url_for("dashboard_cobrador"))
 
         else:
             flash("Token incorrecto.", "error")
             return redirect(url_for("verificar_token_app"))
 
     return render_template("login_app/verificar_token_app.html")
-
-
 @app.route("/dashboard_cobrador")
 def dashboard_cobrador():
 
-    # 1️⃣ Validar sesión
-    if "user_id" not in session or session.get("rol") != "cobrador":
+    # =============================
+    # VALIDAR SESIÓN
+    # =============================
+    if "user_id" not in session or session.get("rol") not in ["cobrador", "supervisor"]:
         return redirect(url_for("login_app"))
 
     user_id = int(session["user_id"])
+    rol = session.get("rol")
 
-    # 2️⃣ Traer rutas asignadas al usuario
-    response = supabase.table("rutas") \
-        .select("*") \
-        .eq("usuario_id", user_id) \
-        .eq("estado", "true") \
-        .order("posicion") \
-        .execute()
+    rutas = []
 
-    rutas = response.data if response.data else []
+    # =============================
+    # COBRADOR
+    # =============================
+    if rol == "cobrador":
 
-    # 🔥 3️⃣ ASEGURAR RUTA ACTIVA
+        rutas_resp = supabase.table("rutas") \
+            .select("*") \
+            .eq("usuario_id", user_id) \
+            .order("posicion") \
+            .execute()
+
+        rutas = rutas_resp.data or []
+
+    # =============================
+    # SUPERVISOR
+    # =============================
+    if rol == "supervisor":
+
+        asignaciones = supabase.table("usuarios_rutas") \
+            .select("ruta_id") \
+            .eq("usuario_id", user_id) \
+            .execute()
+
+        rutas_ids = [r["ruta_id"] for r in asignaciones.data] if asignaciones.data else []
+
+        if rutas_ids:
+
+            rutas_resp = supabase.table("rutas") \
+                .select("*") \
+                .in_("id", rutas_ids) \
+                .order("posicion") \
+                .execute()
+
+            rutas = rutas_resp.data or []
+
+    # =============================
+    # ASEGURAR RUTA ACTIVA
+    # =============================
+
     if rutas and not session.get("ruta_id"):
         session["ruta_id"] = rutas[0]["id"]
 
-    # 🔥 4️⃣ VALIDAR QUE LA RUTA ACTIVA SIGA EXISTIENDO
     if session.get("ruta_id"):
-        ruta_activa_valida = any(r["id"] == session["ruta_id"] for r in rutas)
-        if not ruta_activa_valida and rutas:
+        ruta_valida = any(r["id"] == session["ruta_id"] for r in rutas)
+
+        if not ruta_valida and rutas:
             session["ruta_id"] = rutas[0]["id"]
 
-    # 5️⃣ Manejar oficinas
+    # =============================
+    # TRAER OFICINA DE CADA RUTA
+    # =============================
+
     rutas_completas = []
+
     for ruta in rutas:
+
         oficina_info = None
+
         if ruta.get("oficina_id"):
+
             oficina_resp = supabase.table("oficinas") \
                 .select("*") \
                 .eq("id", ruta["oficina_id"]) \
                 .execute()
+
             if oficina_resp.data:
                 oficina_info = oficina_resp.data[0]
 
         ruta["oficina"] = oficina_info
         rutas_completas.append(ruta)
-    
+
+    # =============================
+    # NOTIFICACIONES
+    # =============================
+
     notificaciones = supabase.table("notificaciones") \
-    .select("*") \
-    .eq("usuario_id", session["user_id"]) \
-    .eq("leida", False) \
-    .order("created_at", desc=True) \
-    .execute().data
+        .select("*") \
+        .eq("usuario_id", user_id) \
+        .eq("leida", False) \
+        .order("created_at", desc=True) \
+        .execute().data
+
+    # =============================
+    # RENDER
+    # =============================
 
     return render_template(
         "cobrador/dashboard.html",
         rutas=rutas_completas,
-        ruta_id=session.get("ruta_id") , # 👈 PASARLO AL TEMPLATE
-        notificaciones=notificaciones   # 👈 AQUÍ
-
+        ruta_id=session.get("ruta_id"),
+        notificaciones=notificaciones
     )
 @app.route("/usuarios/actualizar", methods=["POST"])
 def actualizar_usuario():
@@ -2536,6 +2669,7 @@ def caja_cobrador():
         prestamos=lista_prestamos,
         gastos=lista_gastos
     )
+
 @app.route("/cerrar_dia", methods=["POST"])
 def cerrar_dia():
 
@@ -3014,23 +3148,46 @@ def metas_dia():
 def ver_ruta(ruta_id):
 
     # 🔐 1️⃣ Validar sesión
-    if "user_id" not in session or session.get("rol") != "cobrador":
+    if "user_id" not in session or session.get("rol") not in ["cobrador","supervisor"]:
         return redirect(url_for("login_app"))
 
     user_id = int(session["user_id"])
 
-    # 🔎 2️⃣ Validar que la ruta le pertenezca
-    ruta_resp = supabase.table("rutas") \
-        .select("*") \
-        .eq("id", ruta_id) \
-        .eq("usuario_id", user_id) \
-        .single() \
-        .execute()
+    rol = session.get("rol")
 
+    # 🔎 2️⃣ Validar acceso a la ruta
+
+    if rol == "cobrador":
+
+        ruta_resp = supabase.table("rutas") \
+            .select("*") \
+            .eq("id", ruta_id) \
+            .eq("usuario_id", user_id) \
+            .execute()
+
+    else:  # supervisor
+
+        asignacion = supabase.table("usuarios_rutas") \
+            .select("*") \
+            .eq("usuario_id", user_id) \
+            .eq("ruta_id", ruta_id) \
+            .execute()
+
+        if not asignacion.data:
+            return redirect(url_for("dashboard_cobrador"))
+
+        ruta_resp = supabase.table("rutas") \
+            .select("*") \
+            .eq("id", ruta_id) \
+            .execute()
+
+    # validar resultado
     if not ruta_resp.data:
         return redirect(url_for("dashboard_cobrador"))
 
-    ruta = ruta_resp.data
+    ruta = ruta_resp.data[0]
+
+ 
 
     # 🔥 3️⃣ Guardar ruta activa en sesión
     session["ruta_id"] = ruta_id
@@ -3347,6 +3504,56 @@ def editar_usuario(id):
     flash("Usuario actualizado correctamente.", "success")
     return redirect(url_for("usuarios"))
 
+@app.route("/usuarios/rutas/<int:usuario_id>")
+def rutas_usuario(usuario_id):
+
+    oficina_id = session.get("oficina_id")
+
+    rutas = supabase.table("rutas") \
+        .select("*") \
+        .eq("oficina_id", oficina_id) \
+        .execute()
+
+    asignadas = supabase.table("usuarios_rutas") \
+        .select("ruta_id") \
+        .eq("usuario_id", usuario_id) \
+        .execute()
+
+    rutas_asignadas = [r["ruta_id"] for r in asignadas.data]
+
+    resultado=[]
+
+    for r in rutas.data:
+
+        resultado.append({
+            "id": r["id"],
+            "nombre": r["nombre"],
+            "asignada": r["id"] in rutas_asignadas
+        })
+
+    return jsonify({"rutas":resultado})
+@app.route("/usuarios/asignar-rutas", methods=["POST"])
+def asignar_rutas():
+
+    usuario_id = request.form["usuario_id"]
+    rutas = request.form.getlist("rutas")
+
+    # borrar asignaciones actuales
+    supabase.table("usuarios_rutas") \
+        .delete() \
+        .eq("usuario_id", usuario_id) \
+        .execute()
+
+    for ruta in rutas:
+
+        supabase.table("usuarios_rutas").insert({
+            "usuario_id": usuario_id,
+            "ruta_id": ruta
+        }).execute()
+
+    flash("Rutas asignadas correctamente", "success")
+
+    return redirect(url_for("usuarios"))
 # -----------------------
 # ELIMINAR USUARIO
 # -----------------------

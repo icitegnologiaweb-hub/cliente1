@@ -169,6 +169,18 @@
                 title="Generar token">
             <i class="bi bi-shield-lock-fill text-sm"></i>
         </button>
+        {% if usuario['rol'] == 'Supervisor' %}
+            <button
+                onclick="abrirAsignarRutas({{ usuario['id'] }})"
+                class="w-9 h-9 flex items-center justify-center rounded-full
+                    bg-purple-50 text-purple-600
+                    hover:bg-purple-600 hover:text-white
+                    transition-all shadow-sm">
+
+                <i class="bi bi-diagram-3-fill"></i>
+
+            </button>
+        {% endif %}
 
         <!-- ELIMINAR -->
         <button type="button"
@@ -192,6 +204,33 @@
 </table>
 </div>
 
+</div>
+<!-- ================= MODAL ASIGNAR RUTAS  ================= -->
+
+<div id="modalAsignarRutas" class="fixed inset-0 z-50 hidden">
+
+<div class="absolute inset-0 bg-black/60"></div>
+
+<div class="relative flex items-center justify-center min-h-screen">
+
+<div class="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md">
+
+<h2 class="text-lg font-bold mb-4">Asignar Rutas</h2>
+
+<form method="POST" action="/usuarios/asignar-rutas">
+
+<input type="hidden" name="usuario_id" id="usuario_rutas_id">
+
+<div id="listaRutas" class="space-y-2 max-h-60 overflow-y-auto"></div>
+
+<button class="mt-6 w-full bg-[#0B3C5D] text-white py-3 rounded-lg">
+Guardar rutas
+</button>
+
+</form>
+
+</div>
+</div>
 </div>
 <!-- ================= MODAL ELIMINAR USUARIO ================= -->
 <div id="modalEliminarUsuario"
@@ -447,12 +486,43 @@
 </div>
 </div>
 </div>
+
+
 <!-- ================= JS ================= -->
 <script>
 function abrirModal(){
     document.getElementById("modalNuevoUsuario").classList.remove("hidden");
-}
 
+
+}
+function abrirAsignarRutas(usuarioId){
+
+fetch(`/usuarios/rutas/${usuarioId}`)
+.then(res=>res.json())
+.then(data=>{
+
+document.getElementById("usuario_rutas_id").value = usuarioId;
+
+let html="";
+
+data.rutas.forEach(r=>{
+
+html += `
+<label class="flex items-center gap-2">
+<input type="checkbox" name="rutas" value="${r.id}" ${r.asignada ? "checked":""}>
+<span>${r.nombre}</span>
+</label>
+`;
+
+});
+
+document.getElementById("listaRutas").innerHTML = html;
+
+document.getElementById("modalAsignarRutas").classList.remove("hidden");
+
+});
+
+}
 function cerrarModal(){
     document.getElementById("modalNuevoUsuario").classList.add("hidden");
 }

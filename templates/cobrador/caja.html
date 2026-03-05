@@ -11,7 +11,7 @@
     </div>
 
     <div class="text-lg font-semibold {% if saldo_actual < 0 %}text-red-200{% else %}text-green-200{% endif %}">
-        $ {{ "{:,.0f}".format(saldo_actual or 0) }}
+        ${{ "{:,.2f}".format(saldo_actual) }}
     </div>
 
 </div>
@@ -22,7 +22,7 @@
         <div class="bg-[#0b2847] rounded-2xl p-4 text-center">
             <div class="text-xs opacity-60">Saldo Anterior</div>
             <div class="font-semibold mt-1">
-                $ {{ "{:,.0f}".format(saldo_anterior or 0) }}
+                $ {{ "{:,.2f}".format(saldo_anterior or 0) }}
             </div>
         </div>
 
@@ -146,7 +146,7 @@
 
             <div class="flex items-center gap-3">
                 <span class="text-yellow-400 font-semibold">
-                    $ {{ "{:,.0f}".format(total_gastos or 0) }}
+                    {{ "{:,.2f}".format(total_gastos or 0) }}
                 </span>
                 <span id="icon-gastos" class="transition-transform duration-300">⌄</span>
             </div>
