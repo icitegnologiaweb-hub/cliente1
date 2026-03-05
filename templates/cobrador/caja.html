@@ -155,40 +155,9 @@
         <!-- 🔥 SIEMPRE EXISTE EL CONTENEDOR -->
         <div id="gastos"
             class="hidden mt-4 space-y-2 text-sm px-5 pb-5">
-
-            {% if gastos %}
-
-                {% for g in gastos %}
-                <div class="bg-blue-800/40 rounded-xl p-3 flex justify-between items-start">
-
-                    <div>
-                        <p class="font-semibold text-white">
-                            {{ g.categoria or "Sin categoría" }}
+                <p class="font-semibold text-white">
+                          Los gastos deben ser consultados por el encargado
                         </p>
-                        <p class="text-blue-200 text-xs">
-                            {{ g.descripcion or "Sin descripción" }}
-                        </p>
-                        <p class="text-blue-300 text-xs">
-                            {{ g.usuario or "Sistema" }}
-                        </p>
-                    </div>
-
-                    <div class="text-right">
-                        <p class="text-red-400 font-bold">
-                            - $ {{ "{:,.0f}".format(g.valor or 0) }}
-                        </p>
-                    </div>
-
-                </div>
-                {% endfor %}
-
-            {% else %}
-
-                <div class="text-xs opacity-60">
-                    Los gastos registrados deben ser consultados con el encargado
-                </div>
-
-            {% endif %}
 
         </div>
 

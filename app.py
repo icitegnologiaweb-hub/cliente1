@@ -18,6 +18,10 @@ from reportlab.lib.units import mm
 from io import BytesIO
 from flask import send_file
 
+import pytz
+
+
+
 app = Flask(__name__)
 
 app.secret_key = "clave_super_segura"
@@ -34,6 +38,13 @@ app.permanent_session_lifetime = timedelta(days=30)
 SECURITY_PASSWORD_SALT = "recovery-salt"
 serializer = URLSafeTimedSerializer(app.secret_key)
 
+
+zona = pytz.timezone("America/Bogota")
+hoy = datetime.now(zona).date()
+hoy_iso = hoy.isoformat()
+
+inicio_dia = hoy_iso + "T00:00:00"
+fin_dia = hoy_iso + "T23:59:59"
 
 @app.route("/")
 def index():
@@ -2328,11 +2339,26 @@ def caja_cobrador():
     if not ruta_id:
         return redirect(url_for("dashboard_cobrador"))
 
-    hoy = datetime.utcnow() - timedelta(hours=5)
-    hoy_iso = hoy.date().isoformat()
+    # =====================================================
+    # FECHA COLOMBIA (UTC-5)
+    # =====================================================
 
-    inicio_dia = hoy_iso + "T00:00:00"
-    fin_dia = hoy_iso + "T23:59:59"
+    ahora_utc = datetime.utcnow()
+
+    # Hora colombiana
+    ahora_col = ahora_utc - timedelta(hours=5)
+
+    hoy_col = ahora_col.date()
+    hoy_iso = hoy_col.isoformat()
+
+    # Ventana del día colombiano convertida a UTC
+    inicio_dia = hoy_iso + "T05:00:00"
+    fin_dia = (hoy_col + timedelta(days=1)).isoformat() + "T05:00:00"
+
+    print("VENTANA UTC:")
+    print("INICIO:", inicio_dia)
+    print("FIN:", fin_dia)
+
 
     # =====================================================
     # SALDO ANTERIOR (CIERRE DE CAJA ANTERIOR)
@@ -2357,7 +2383,7 @@ def caja_cobrador():
         .select("valor, descripcion, created_at") \
         .eq("ruta_id", ruta_id) \
         .gte("created_at", inicio_dia) \
-        .lte("created_at", fin_dia) \
+        .lt("created_at", fin_dia) \
         .order("created_at", desc=True) \
         .execute()
 
@@ -2377,7 +2403,7 @@ def caja_cobrador():
         .select("id, valor_venta, created_at, clientes(nombre)") \
         .eq("ruta_id", ruta_id) \
         .gte("created_at", inicio_dia) \
-        .lte("created_at", fin_dia) \
+        .lt("created_at", fin_dia) \
         .execute()
 
     total_prestamos = 0
@@ -2410,7 +2436,7 @@ def caja_cobrador():
         """) \
         .eq("creditos.ruta_id", ruta_id) \
         .gte("fecha", inicio_dia) \
-        .lte("fecha", fin_dia) \
+        .lt("fecha", fin_dia) \
         .execute()
 
     total_cobros = 0
@@ -2432,10 +2458,10 @@ def caja_cobrador():
     # =====================================================
 
     gastos_resp = supabase.table("gastos") \
-        .select("valor, categoria_id, descripcion") \
+        .select("valor, categoria_id, descripcion, created_at") \
         .eq("ruta_id", ruta_id) \
         .gte("created_at", inicio_dia) \
-        .lte("created_at", fin_dia) \
+        .lt("created_at", fin_dia) \
         .execute()
 
     lista_gastos = []
@@ -2455,7 +2481,7 @@ def caja_cobrador():
 
 
     # =====================================================
-    # SALDO DISPONIBLE (FÓRMULA CORRECTA)
+    # SALDO DISPONIBLE
     # =====================================================
 
     saldo_actual = (
@@ -2471,10 +2497,6 @@ def caja_cobrador():
     # VALIDAR SI YA SE CERRÓ CAJA HOY
     # =====================================================
 
-# =====================================================
-# VALIDAR SI YA SE CERRÓ CAJA HOY
-# =====================================================
-
     caja_hoy = supabase.table("caja_diaria") \
         .select("saldo_cierre") \
         .eq("ruta_id", ruta_id) \
@@ -2485,15 +2507,22 @@ def caja_cobrador():
     caja_cerrada = bool(caja_hoy.data)
 
 
+    # =====================================================
+    # DEBUG
+    # =====================================================
+
+    print("SALDO ANTERIOR:", saldo_anterior)
+    print("ABONO CAPITAL:", total_abono_capital)
+    print("PRESTAMOS:", total_prestamos)
+    print("COBROS:", total_cobros)
+    print("GASTOS:", total_gastos)
+    print("SALDO ACTUAL:", saldo_actual)
 
 
     # =====================================================
     # RENDER
     # =====================================================
-    print("SALDO ANTERIOR:", saldo_anterior)
-    print("ABONO CAPITAL:", total_abono_capital)
-    print("PRESTAMOS:", total_prestamos)
-    print("SALDO ACTUAL:", saldo_actual)
+
     return render_template(
         "cobrador/caja.html",
         saldo_actual=saldo_actual,
