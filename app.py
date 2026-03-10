@@ -71,7 +71,7 @@ def generar_codigo_ruta():
     numeros = ''.join(random.choices(string.digits, k=4))
     return f"R-{letras}{numeros}"
 
-    
+
 @app.route("/cerrar_cajas_automatico")
 def cerrar_cajas_automatico():
 
@@ -904,7 +904,8 @@ def detalle_credito(credito_id):
             "fecha_pago": c["fecha_pago"],
             "dias_mora": dias_mora,
             "valor_interes_mora": float(c.get("valor_interes_mora", 0) or 0),
-            "porcentaje_mora": float(c.get("porcentaje_mora", 0) or 0)
+            "porcentaje_mora": float(c.get("porcentaje_mora", 0) or 0),
+            
         })
 
     saldo = float(credito["valor_total"]) - total_pagado
@@ -928,6 +929,8 @@ def detalle_credito(credito_id):
     )
     
 from datetime import datetime
+def ahora_colombia():
+    return datetime.utcnow() - timedelta(hours=5)
 
 @app.route("/registrar_pago", methods=["POST"])
 def registrar_pago():
@@ -991,7 +994,7 @@ def registrar_pago():
         supabase.table("cuotas").update({
             "monto_pagado": nuevo_pagado,
             "estado": estado,
-            "fecha_pago_real": datetime.now().isoformat()
+            "fecha_pago_real": ahora_colombia().isoformat()
         }).eq("id", c["id"]).execute()
 
     # =========================
@@ -1001,7 +1004,7 @@ def registrar_pago():
         "cuota_id": cuota_id,
         "credito_id": credito_id,
         "monto": monto_pago,
-        "fecha": datetime.now().isoformat(),
+        "fecha": ahora_colombia().isoformat(),
         "cobrador_id": session["user_id"]
     }).execute()
 
@@ -1022,7 +1025,9 @@ def registrar_pago():
         }).eq("id", credito_id).execute()
 
     return redirect(url_for("recibo_pago", pago_id=pago_id))
-from datetime import datetime
+
+
+from datetime import datetime, timedelta
 
 @app.route("/recibo/<pago_id>")
 def recibo_pago(pago_id):
@@ -1056,7 +1061,7 @@ def recibo_pago(pago_id):
     fecha_iso = pago.get("fecha")
 
     if fecha_iso:
-        fecha_obj = datetime.fromisoformat(fecha_iso.replace("Z", ""))
+        fecha_obj = datetime.fromisoformat(fecha_iso)
         pago["fecha_formateada"] = fecha_obj.strftime("%d/%m/%Y %H:%M")
 
     # =========================
@@ -2019,6 +2024,294 @@ def todas_las_ventas(ruta_id):
         ruta_id=ruta_id
     )
 
+@app.route("/liquidacion")
+def liquidacion():
+
+    if "user_id" not in session:
+        return redirect(url_for("login"))
+
+    oficina_id = session.get("oficina_id")
+
+    fecha_inicio = request.args.get("fecha_inicio")
+    fecha_fin = request.args.get("fecha_fin")
+    ruta_id_filtro = request.args.get("ruta_id")
+
+    hoy = date.today()
+
+    if fecha_inicio and fecha_fin:
+        inicio = datetime.fromisoformat(fecha_inicio + "T00:00:00")
+        fin = datetime.fromisoformat(fecha_fin + "T23:59:59")
+    else:
+        inicio = datetime.combine(hoy, time.min)
+        fin = datetime.combine(hoy, time.max)
+        fecha_inicio = hoy.isoformat()
+        fecha_fin = hoy.isoformat()
+
+    # =============================
+    # RUTAS ACTIVAS DE LA OFICINA
+    # =============================
+    rutas_query = supabase.table("rutas") \
+        .select("id, nombre") \
+        .eq("oficina_id", oficina_id) \
+        .execute()
+
+    rutas_db = rutas_query.data or []
+
+    if ruta_id_filtro:
+        rutas_db = [r for r in rutas_db if str(r["id"]) == str(ruta_id_filtro)]
+
+    lista_rutas = []
+    total_estimado_intereses_general = 0
+    total_ganancia_alcanzada_general = 0
+    total_saldo_anterior = 0
+    total_transferencias_recibidas = 0
+    total_capital_entregado = 0
+    total_saldo_final = 0
+    total_cartera_final = 0
+    total_creditos_colocados = 0
+    total_saldo_por_recuperar = 0
+    total_gastos_general = 0
+
+    for r in rutas_db:
+
+        ruta_id = r["id"]
+
+        # =============================
+        # 1. SALDO ANTERIOR AL INICIO
+        # =============================
+        cierre_anterior = supabase.table("caja_diaria") \
+            .select("saldo_cierre") \
+            .eq("ruta_id", ruta_id) \
+            .lt("fecha", fecha_inicio) \
+            .order("fecha", desc=True) \
+            .limit(1) \
+            .execute()
+
+        saldo_anterior = 0
+        if cierre_anterior.data:
+            saldo_anterior = float(cierre_anterior.data[0]["saldo_cierre"] or 0)
+
+        # =============================
+        # 2. TRANSFERENCIAS RECIBIDAS
+        # =============================
+        transferencias_recibidas = supabase.table("transferencias") \
+            .select("valor, created_at") \
+            .eq("ruta_destino", ruta_id) \
+            .gte("created_at", inicio.isoformat()) \
+            .lte("created_at", fin.isoformat()) \
+            .execute().data or []
+
+        total_recibido_transferencias = sum(
+            float(t["valor"] or 0)
+            for t in transferencias_recibidas
+        )
+
+        # =============================
+        # 3. CAPITAL ENTREGADO
+        # =============================
+        capital_entregado_db = supabase.table("capital") \
+            .select("valor, created_at") \
+            .eq("ruta_id", ruta_id) \
+            .gte("created_at", inicio.isoformat()) \
+            .lte("created_at", fin.isoformat()) \
+            .execute().data or []
+
+        total_capital_entregado_rango = sum(
+            float(c["valor"] or 0)
+            for c in capital_entregado_db
+        )
+
+        # =============================
+        # 4. COBROS
+        # =============================
+        pagos_rango = supabase.table("pagos") \
+            .select("monto, fecha, creditos!inner(ruta_id)") \
+            .eq("creditos.ruta_id", ruta_id) \
+            .gte("fecha", inicio.isoformat()) \
+            .lte("fecha", fin.isoformat()) \
+            .execute().data or []
+
+        total_cobros = sum(float(p["monto"] or 0) for p in pagos_rango)
+
+        # =============================
+        # 5. PRÉSTAMOS
+        # =============================
+        prestamos_rango = supabase.table("creditos") \
+            .select("valor_venta, created_at") \
+            .eq("ruta_id", ruta_id) \
+            .gte("created_at", inicio.isoformat()) \
+            .lte("created_at", fin.isoformat()) \
+            .execute().data or []
+
+        total_prestamos_rango = sum(
+            float(p["valor_venta"] or 0)
+            for p in prestamos_rango
+        )
+
+        # =============================
+        # 6. GASTOS
+        # =============================
+        gastos_rango = supabase.table("gastos") \
+            .select("valor, created_at") \
+            .eq("ruta_id", ruta_id) \
+            .gte("created_at", inicio.isoformat()) \
+            .lte("created_at", fin.isoformat()) \
+            .execute().data or []
+
+        total_gastos_rango = sum(
+            float(g["valor"] or 0)
+            for g in gastos_rango
+        )
+
+        # =============================
+        # 7. TRANSFERENCIAS ENVIADAS
+        # =============================
+        transferencias_enviadas = supabase.table("transferencias") \
+            .select("valor, created_at") \
+            .eq("ruta_origen", ruta_id) \
+            .gte("created_at", inicio.isoformat()) \
+            .lte("created_at", fin.isoformat()) \
+            .execute().data or []
+
+        total_enviado_transferencias = sum(
+            float(t["valor"] or 0)
+            for t in transferencias_enviadas
+        )
+
+        # =============================
+        # 8. SALDO FINAL CAJA
+        # =============================
+        saldo_final = (
+            saldo_anterior
+            + total_recibido_transferencias
+            + total_capital_entregado_rango
+            + total_cobros
+            - total_prestamos_rango
+            - total_gastos_rango
+            - total_enviado_transferencias
+        )
+
+        # =============================
+        # 9. CRÉDITOS / CARTERA
+        # =============================
+        creditos_ruta = supabase.table("creditos") \
+            .select("id, valor_venta, valor_total, estado") \
+            .eq("ruta_id", ruta_id) \
+            .execute().data or []
+
+        total_creditos_solo_capital = 0
+        saldo_por_recuperar_ruta = 0
+        total_cobrado_historico = 0
+        total_estimado_con_intereses = 0
+        total_ganancia_alcanzada = 0
+
+        for credito in creditos_ruta:
+
+            credito_id = credito["id"]
+
+            cuotas = supabase.table("cuotas") \
+                .select("valor, monto_pagado") \
+                .eq("credito_id", credito_id) \
+                .execute().data or []
+
+            pagado_credito = sum(
+                float(c.get("monto_pagado") or 0)
+                for c in cuotas
+            )
+
+            valor_venta = float(credito.get("valor_venta") or 0)
+            valor_total = float(credito.get("valor_total") or 0)
+
+            saldo_capital_credito = valor_venta - pagado_credito
+            saldo_total_credito = valor_total - pagado_credito
+
+            if saldo_capital_credito > 0:
+                total_creditos_solo_capital += saldo_capital_credito
+
+            if saldo_total_credito > 0:
+                saldo_por_recuperar_ruta += saldo_total_credito
+
+            total_cobrado_historico += pagado_credito
+
+            total_estimado_con_intereses += valor_total
+
+            ganancia_esperada_credito = valor_total - valor_venta
+
+            porcentaje_recuperado = 0
+            if valor_total > 0:
+                porcentaje_recuperado = pagado_credito / valor_total
+
+            if porcentaje_recuperado > 1:
+                porcentaje_recuperado = 1
+
+            ganancia_alcanzada_credito = ganancia_esperada_credito * porcentaje_recuperado
+            total_ganancia_alcanzada += ganancia_alcanzada_credito
+
+        # =============================
+        # 10. CARTERA FINAL
+        # cuotas pagadas + gastos
+        # =============================
+        cartera_final = total_cobrado_historico + total_gastos_rango
+
+        lista_rutas.append({
+            "ruta_id": ruta_id,
+            "ruta_nombre": r["nombre"],
+            "saldo_anterior": saldo_anterior,
+            "transferencias_recibidas": total_recibido_transferencias,
+            "gastos": total_gastos_rango,
+            "capital_entregado": total_capital_entregado_rango,
+            "saldo_final": saldo_final,
+            "cartera_final": cartera_final,
+            "creditos_colocados": total_creditos_solo_capital,
+            "saldo_por_recuperar": saldo_por_recuperar_ruta,
+            "total_estimado_con_intereses": total_estimado_con_intereses,
+            "ganancia_alcanzada": total_ganancia_alcanzada,
+            "total_cobros": total_cobros,
+            "total_prestamos": total_prestamos_rango,
+            "total_gastos": total_gastos_rango,
+            "transferencias_enviadas": total_enviado_transferencias
+        })
+
+        total_saldo_anterior += saldo_anterior
+        total_transferencias_recibidas += total_recibido_transferencias
+        total_capital_entregado += total_capital_entregado_rango
+        total_saldo_final += saldo_final
+        total_cartera_final += cartera_final
+        total_creditos_colocados += total_creditos_solo_capital
+        total_saldo_por_recuperar += saldo_por_recuperar_ruta
+        total_estimado_intereses_general += total_estimado_con_intereses
+        total_ganancia_alcanzada_general += total_ganancia_alcanzada
+        total_gastos_general += total_gastos_rango
+
+    cantidad_rutas = len(lista_rutas) if lista_rutas else 1
+
+    promedio_saldo_rutas = total_saldo_final / cantidad_rutas
+    promedio_cartera_final = total_cartera_final / cantidad_rutas
+    promedio_creditos_colocados = total_creditos_colocados / cantidad_rutas
+    promedio_saldo_recuperar = total_saldo_por_recuperar / cantidad_rutas
+
+    return render_template(
+        "liquidacion.html",
+        rutas=lista_rutas,
+        rutas_activas=rutas_query.data or [],
+        fecha_inicio=fecha_inicio,
+        fecha_fin=fecha_fin,
+        ruta_id_filtro=ruta_id_filtro,
+        promedio_saldo_rutas=promedio_saldo_rutas,
+        promedio_cartera_final=promedio_cartera_final,
+        promedio_creditos_colocados=promedio_creditos_colocados,
+        promedio_saldo_recuperar=promedio_saldo_recuperar,
+        total_saldo_anterior=total_saldo_anterior,
+        total_transferencias_recibidas=total_transferencias_recibidas,
+        total_capital_entregado=total_capital_entregado,
+        total_saldo_final=total_saldo_final,
+        total_cartera_final=total_cartera_final,
+        total_creditos_colocados=total_creditos_colocados,
+        total_saldo_por_recuperar=total_saldo_por_recuperar,
+        total_estimado_intereses_general=total_estimado_intereses_general,
+        total_ganancia_alcanzada_general=total_ganancia_alcanzada_general,
+        total_gastos_general=total_gastos_general
+    )
 @app.route("/caja_oficina")
 def caja_oficina():
 
@@ -3225,11 +3518,9 @@ def ver_ruta(ruta_id):
         return redirect(url_for("login_app"))
 
     user_id = int(session["user_id"])
-
     rol = session.get("rol")
 
     # 🔎 2️⃣ Validar acceso a la ruta
-
     if rol == "cobrador":
 
         ruta_resp = supabase.table("rutas") \
@@ -3259,8 +3550,6 @@ def ver_ruta(ruta_id):
         return redirect(url_for("dashboard_cobrador"))
 
     ruta = ruta_resp.data[0]
-
- 
 
     # 🔥 3️⃣ Guardar ruta activa en sesión
     session["ruta_id"] = ruta_id
@@ -3293,7 +3582,7 @@ def ver_ruta(ruta_id):
     for c in creditos:
 
         cuotas = supabase.table("cuotas") \
-            .select("valor, estado, fecha_pago") \
+            .select("valor, monto_pagado, estado, fecha_pago") \
             .eq("credito_id", c["id"]) \
             .order("numero") \
             .execute().data
@@ -3308,23 +3597,25 @@ def ver_ruta(ruta_id):
 
             fecha_pago = date.fromisoformat(cuota["fecha_pago"])
 
-            if cuota["estado"] == "pagado":
-                total_pagado += float(cuota["valor"])
+            pagado = float(cuota.get("monto_pagado") or 0)
+            total_pagado += pagado
 
             if cuota["estado"] == "pendiente":
 
-                # Mostrar si es hoy o vencida
                 if fecha_pago <= hoy:
                     mostrar_en_buzon = True
 
-                # Calcular mora real
                 if fecha_pago < hoy:
                     dias_mora += (hoy - fecha_pago).days
 
                 if not proxima_cuota:
                     proxima_cuota = cuota["fecha_pago"]
 
-        saldo = float(c["valor_total"]) - total_pagado
+        saldo = float(c.get("valor_total") or 0) - total_pagado
+
+        # evitar negativos
+        if saldo < 0:
+            saldo = 0
 
         # 🚫 Si no debe mostrarse hoy, saltar
         if not mostrar_en_buzon:
@@ -3348,21 +3639,20 @@ def ver_ruta(ruta_id):
             "telefono": c["clientes"]["telefono_principal"],
             "direccion": c["clientes"]["direccion"],
             "tipo_prestamo": c["tipo_prestamo"],
-            "saldo": "{:,.0f}".format(saldo),
+            "saldo": saldo,
             "dias_mora": dias_mora,
             "proxima_cuota": proxima_cuota,
             "codigo": c["id"][:6],
-            "color_estado": color_estado  # 👈 IMPORTANTE
+            "color_estado": color_estado
         })
 
-    # 🔥 6️⃣ Enviar ruta_id al template (clave para el layout)
+    # 🔥 6️⃣ Render
     return render_template(
         "cobrador/ventas_ruta.html",
         ruta=ruta,
         creditos=lista_creditos,
         ruta_id=ruta_id
     )
-
 
 @app.route("/oficinas/crear", methods=["POST"])
 def crear_oficina():

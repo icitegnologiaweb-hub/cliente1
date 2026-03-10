@@ -118,7 +118,7 @@
                         {% endif %}
 
                         <div class="text-green-400">
-                            Saldo: ${{ credito.saldo }}
+                            Saldo Actual: ${{ "{:,.0f}".format(credito.saldo) }}
                         </div>
 
                         {% if credito.dias_mora > 0 %}
