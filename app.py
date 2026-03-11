@@ -1811,6 +1811,7 @@ def guardar_venta_cobrador():
     flash("Venta registrada correctamente", "success")
     return redirect(url_for("ver_ruta", ruta_id=ruta_id))
 
+
 @app.route("/cambiar_posicion", methods=["POST"])
 def cambiar_posicion():
 
@@ -1829,9 +1830,9 @@ def cambiar_posicion():
     if nueva_posicion == vieja_posicion:
         return redirect(url_for("todas_las_ventas"))
 
-    # mover temporalmente
+    # 1️⃣ sacar temporalmente el crédito
     supabase.table("creditos") \
-        .update({"posicion": -1}) \
+        .update({"posicion": -9999}) \
         .eq("id", credito_id) \
         .execute()
 
@@ -1840,8 +1841,10 @@ def cambiar_posicion():
         creditos = supabase.table("creditos") \
             .select("id, posicion") \
             .eq("ruta_id", ruta_id) \
+            .eq("estado", "activo") \
             .gte("posicion", nueva_posicion) \
             .lt("posicion", vieja_posicion) \
+            .order("posicion", desc=True) \
             .execute().data
 
         for c in creditos:
@@ -1855,8 +1858,10 @@ def cambiar_posicion():
         creditos = supabase.table("creditos") \
             .select("id, posicion") \
             .eq("ruta_id", ruta_id) \
+            .eq("estado", "activo") \
             .gt("posicion", vieja_posicion) \
             .lte("posicion", nueva_posicion) \
+            .order("posicion") \
             .execute().data
 
         for c in creditos:
@@ -1865,13 +1870,13 @@ def cambiar_posicion():
                 .eq("id", c["id"]) \
                 .execute()
 
-    # colocar en posición final
+    # 3️⃣ colocar el crédito en su posición final
     supabase.table("creditos") \
         .update({"posicion": nueva_posicion}) \
         .eq("id", credito_id) \
         .execute()
 
-    return redirect(url_for("todas_las_ventas"))
+    return redirect(url_for("todas_las_ventas", ruta_id=ruta_id))
 
 @app.route("/rutas/asignar-cobrador", methods=["POST"])
 def asignar_cobrador_ruta():
@@ -1968,6 +1973,7 @@ def todas_las_ventas(ruta_id):
 
     creditos = response.data if response.data else []
     lista = []
+
     for c in creditos:
 
         cuotas = supabase.table("cuotas") \
@@ -1976,11 +1982,15 @@ def todas_las_ventas(ruta_id):
             .order("fecha_pago") \
             .execute().data
 
-        pago_hoy = None   # 🔥 importante
+        pago_hoy = None
         valor_hoy = 0
         proxima_cuota = None
+        dias_mora = 0
+        hoy_fecha = date.today()
 
         for cuota in cuotas:
+
+            fecha_pago = date.fromisoformat(cuota["fecha_pago"])
 
             # 🔹 Detectar cuota de hoy
             if cuota["fecha_pago"] == hoy:
@@ -1995,9 +2005,23 @@ def todas_las_ventas(ruta_id):
             if cuota["estado"] == "pendiente" and not proxima_cuota:
                 proxima_cuota = cuota["fecha_pago"]
 
+            # 🔹 Calcular mora (igual que en ver_ruta)
+            if cuota["estado"] == "pendiente" and fecha_pago < hoy_fecha:
+                dias_mora += (hoy_fecha - fecha_pago).days
+
         # 🔥 Si no tiene cuota hoy, no debe pagar hoy
         if pago_hoy is None:
             pago_hoy = True
+
+        # 🎨 Semáforo (igual que en ver_ruta)
+        if dias_mora >= 30:
+            color_estado = "rojo"
+        elif dias_mora >= 7:
+            color_estado = "naranja"
+        elif dias_mora > 0:
+            color_estado = "verde"
+        else:
+            color_estado = "verde"
 
         lista.append({
             "id": c["id"],
@@ -2008,10 +2032,10 @@ def todas_las_ventas(ruta_id):
             "valor_total": "{:,.0f}".format(c["valor_total"]),
             "valor_hoy": "{:,.0f}".format(valor_hoy),
             "proxima_cuota": proxima_cuota,
-            "pago_hoy": pago_hoy
+            "pago_hoy": pago_hoy,
+            "dias_mora": dias_mora,
+            "color_estado": color_estado
         })
-
-
 
     return render_template(
         "cobrador/todas_las_ventas.html",
