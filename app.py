@@ -104,21 +104,16 @@ def cerrar_cajas_automatico():
             continue
 
         # =====================================
-        # SALDO INICIAL (CIERRE ANTERIOR)
+        # SALDO ACTUAL REAL DE CAJA
         # =====================================
 
-        cierre_anterior = supabase.table("caja_diaria") \
-            .select("saldo_cierre") \
+        saldo_actual_resp = supabase.table("capital") \
+            .select("saldo_actual") \
             .eq("ruta_id", ruta_id) \
-            .lt("fecha", hoy) \
-            .order("fecha", desc=True) \
-            .limit(1) \
+            .single() \
             .execute()
 
-        saldo_inicio = 0
-
-        if cierre_anterior.data:
-            saldo_inicio = float(cierre_anterior.data[0]["saldo_cierre"] or 0)
+        saldo_inicio = float(saldo_actual_resp.data["saldo_actual"] or 0)
 
         # =====================================
         # COBROS DEL DIA
@@ -2120,7 +2115,6 @@ def liquidacion():
             float(c["valor"] or 0)
             for c in capital_entregado_db
         )
-
         # =============================
         # 4. COBROS
         # =============================
@@ -2129,9 +2123,14 @@ def liquidacion():
             .eq("creditos.ruta_id", ruta_id) \
             .gte("fecha", inicio.isoformat()) \
             .lte("fecha", fin.isoformat()) \
-            .execute().data or []
+            .execute()
 
-        total_cobros = sum(float(p["monto"] or 0) for p in pagos_rango)
+        pagos_rango = pagos_rango.data or []
+
+        total_cobros = sum(
+            float(p.get("monto") or 0)
+            for p in pagos_rango
+        )
 
         # =============================
         # 5. PRÉSTAMOS
@@ -2204,6 +2203,7 @@ def liquidacion():
         total_cobrado_historico = 0
         total_estimado_con_intereses = 0
         total_ganancia_alcanzada = 0
+        total_cobros_general = 0
 
         for credito in creditos_ruta:
 
@@ -2282,6 +2282,7 @@ def liquidacion():
         total_estimado_intereses_general += total_estimado_con_intereses
         total_ganancia_alcanzada_general += total_ganancia_alcanzada
         total_gastos_general += total_gastos_rango
+        total_cobros_general += total_cobros
 
     cantidad_rutas = len(lista_rutas) if lista_rutas else 1
 
@@ -2310,7 +2311,8 @@ def liquidacion():
         total_saldo_por_recuperar=total_saldo_por_recuperar,
         total_estimado_intereses_general=total_estimado_intereses_general,
         total_ganancia_alcanzada_general=total_ganancia_alcanzada_general,
-        total_gastos_general=total_gastos_general
+        total_gastos_general=total_gastos_general,
+        total_cobros=total_cobros_general
     )
 @app.route("/caja_oficina")
 def caja_oficina():
