@@ -230,7 +230,7 @@
         {% for pago in credito.pagos %}
         <tr>
             <td class="px-3 py-2 font-semibold">
-{{ pago.numero or "-" }}            </td>
+{{ pago.cuotas.numero if pago.cuotas and pago.cuotas.numero else "-" }}          </td>
             <td class="px-3 py-2">
               {{ pago.fecha[8:10] }}/{{ pago.fecha[5:7] }}/{{ pago.fecha[:4] }}
               {{ pago.fecha[11:16] }}

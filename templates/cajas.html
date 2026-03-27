@@ -1,16 +1,16 @@
 {% extends "base.html" %}
 {% block content %}
 
-<div class="px-12 py-10 bg-slate-100 min-h-screen">
+<div class="px-6 lg:px-12 py-10 bg-slate-100 min-h-screen">
 
     <!-- HEADER -->
-    <div class="flex justify-between items-center mb-12">
+    <div class="flex justify-between items-center mb-10">
         <div>
             <h1 class="text-3xl font-bold text-slate-800">
                 Caja General Oficina
             </h1>
             <p class="text-slate-500 text-sm mt-1">
-                Resumen financiero consolidado
+                Resumen financiero consolidado por rutas
             </p>
         </div>
     </div>
@@ -18,24 +18,25 @@
     <!-- TOGGLE + FILTRO -->
     <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 mb-10">
 
-        <div class="flex items-center gap-4 mb-6">
+        <div class="flex flex-wrap items-center gap-4 mb-6">
 
             <a href="{{ url_for('caja_oficina') }}"
                class="px-6 py-2 rounded-lg font-semibold transition
-               {% if not fecha_inicio %}
+               {% if not es_filtro_manual %}
                     bg-blue-600 text-white shadow
                {% else %}
-                    bg-slate-200 text-slate-700
+                    bg-slate-200 text-slate-700 hover:bg-slate-300
                {% endif %}">
                 Caja del Día
             </a>
 
-            <button onclick="toggleFechas()"
+            <button type="button"
+                    onclick="toggleFechas()"
                     class="px-6 py-2 rounded-lg font-semibold transition
-                    {% if fecha_inicio %}
+                    {% if es_filtro_manual %}
                         bg-blue-600 text-white shadow
                     {% else %}
-                        bg-slate-200 text-slate-700
+                        bg-slate-200 text-slate-700 hover:bg-slate-300
                     {% endif %}">
                 Caja por Fechas
             </button>
@@ -44,25 +45,25 @@
 
         <form method="GET"
               id="filtroFechas"
-              class="{% if not fecha_inicio %}hidden{% endif %} flex items-end gap-4">
+              class="{% if not es_filtro_manual %}hidden{% endif %} flex flex-wrap items-end gap-4">
 
             <div>
-                <label class="text-xs text-slate-500">Desde</label>
+                <label class="block text-xs text-slate-500 mb-1">Desde</label>
                 <input type="date"
                        name="fecha_inicio"
                        value="{{ fecha_inicio }}"
-                       class="border border-slate-300 rounded-lg px-4 py-2 w-48 focus:ring-2 focus:ring-blue-500">
+                       class="border border-slate-300 rounded-lg px-4 py-2 w-48 focus:ring-2 focus:ring-blue-500 focus:outline-none">
             </div>
 
             <div>
-                <label class="text-xs text-slate-500">Hasta</label>
+                <label class="block text-xs text-slate-500 mb-1">Hasta</label>
                 <input type="date"
                        name="fecha_fin"
                        value="{{ fecha_fin }}"
-                       class="border border-slate-300 rounded-lg px-4 py-2 w-48 focus:ring-2 focus:ring-blue-500">
+                       class="border border-slate-300 rounded-lg px-4 py-2 w-48 focus:ring-2 focus:ring-blue-500 focus:outline-none">
             </div>
 
-            <button class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg shadow">
+            <button class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg shadow transition">
                 Filtrar
             </button>
 
@@ -70,30 +71,49 @@
     </div>
 
     <!-- RESUMEN GENERAL -->
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12">
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-10">
 
         <!-- SALDO TOTAL CONSOLIDADO -->
         <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-8">
             <div class="text-xs uppercase tracking-wide text-slate-500">
-                Saldo Total Consolidado
+                Saldo Actual Consolidado
             </div>
 
-            <div class="mt-4 text-5xl font-bold
+            <div class="mt-4 text-4xl lg:text-5xl font-bold
                 {% if saldo_total >= 0 %}
                     text-emerald-600
                 {% else %}
                     text-red-600
                 {% endif %}">
-                $ {{ "{:,.0f}".format(saldo_total or 0) }}
+                $ {{ "{:,.2f}".format(saldo_total or 0) }}
             </div>
 
             <div class="mt-3 text-sm text-slate-400">
-                Total consolidado de todas las rutas
+                Total consolidado de la caja actual de todas las rutas
             </div>
         </div>
 
-        <!-- GRÁFICA -->
+        <!-- RESUMEN FORMULA -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-8">
+            <div class="text-xs uppercase tracking-wide text-slate-500">
+                Fórmula de Cálculo
+            </div>
+
+            <div class="mt-4 text-sm text-slate-700 leading-7">
+                <span class="font-semibold">Saldo actual</span> =
+                saldo anterior + capital ingresado + cobros - préstamos - gastos
+            </div>
+
+            <div class="mt-3 text-sm text-slate-400">
+                El saldo se reinicia por día en movimientos, pero arranca desde el último cierre registrado.
+            </div>
+        </div>
+
+        <!-- GRAFICA -->
         <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+            <div class="text-xs uppercase tracking-wide text-slate-500 mb-4">
+                Saldo Actual por Ruta
+            </div>
             <canvas id="graficaCaja"></canvas>
         </div>
 
@@ -111,86 +131,77 @@
         {% if rutas and rutas|length > 0 %}
 
         <div class="overflow-x-auto">
-        <table class="min-w-full text-sm">
+            <table class="min-w-full text-sm">
 
-            <thead class="bg-slate-800 text-white text-xs uppercase tracking-wide">
-                <tr>
-                    <th class="px-6 py-4 text-left">Ruta</th>
-                    <th class="px-6 py-4 text-right">Cobros</th>
-                    <th class="px-6 py-4 text-right">Préstamos</th>
-                    <th class="px-6 py-4 text-right">Gastos</th>
-                    <th class="px-6 py-4 text-right">Saldo Periodo</th>
-                    <th class="px-6 py-4 text-right">Capital Asignado</th>
-                    <th class="px-6 py-4 text-right">Capital Colocado</th>
-                    <th class="px-6 py-4 text-right">Capital Disponible</th>
-                    <th class="px-6 py-4 text-center">Detalle</th>
-                </tr>
-            </thead>
+                <thead class="bg-slate-800 text-white text-xs uppercase tracking-wide">
+                    <tr>
+                        <th class="px-6 py-4 text-left">Ruta</th>
+                        <th class="px-6 py-4 text-right">Saldo Anterior</th>
+                        <th class="px-6 py-4 text-right">Capital Ingresado</th>
+                        <th class="px-6 py-4 text-right">Cobros</th>
+                        <th class="px-6 py-4 text-right">Préstamos</th>
+                        <th class="px-6 py-4 text-right">Gastos</th>
+                        <th class="px-6 py-4 text-right">Saldo Actual Caja</th>
+                        <th class="px-6 py-4 text-center">Detalle</th>
+                    </tr>
+                </thead>
 
-            <tbody class="divide-y divide-slate-200">
+                <tbody class="divide-y divide-slate-200">
 
-                {% for ruta in rutas %}
-                <tr class="hover:bg-slate-50 transition">
+                    {% for ruta in rutas %}
+                    <tr class="hover:bg-slate-50 transition">
 
-                    <td class="px-6 py-4 font-semibold text-slate-800">
-                        {{ ruta.ruta_nombre }}
-                    </td>
+                        <td class="px-6 py-4 font-semibold text-slate-800">
+                            {{ ruta.ruta_nombre }}
+                        </td>
 
-                    <td class="px-6 py-4 text-right text-emerald-600 font-semibold">
-                        $ {{ "{:,.0f}".format(ruta.total_cobros or 0) }}
-                    </td>
+                        <td class="px-6 py-4 text-right text-slate-700 font-semibold">
+                            $ {{ "{:,.2f}".format(ruta.saldo_anterior or 0) }}
+                        </td>
 
-                    <td class="px-6 py-4 text-right text-blue-600 font-semibold">
-                        $ {{ "{:,.0f}".format(ruta.total_prestamos or 0) }}
-                    </td>
+                        <td class="px-6 py-4 text-right text-indigo-600 font-semibold">
+                            $ {{ "{:,.2f}".format(ruta.capital_asignado or 0) }}
+                        </td>
 
-                    <td class="px-6 py-4 text-right text-red-600 font-semibold">
-                        $ {{ "{:,.0f}".format(ruta.total_gastos or 0) }}
-                    </td>
+                        <td class="px-6 py-4 text-right text-emerald-600 font-semibold">
+                            $ {{ "{:,.2f}".format(ruta.total_cobros or 0) }}
+                        </td>
 
-                    <!-- SALDO PERIODO -->
-                    <td class="px-6 py-4 text-right font-bold
-                        {% if ruta.saldo_actual >= 0 %}
-                            text-emerald-600
-                        {% else %}
-                            text-red-600
-                        {% endif %}">
-                        $ {{ "{:,.0f}".format(ruta.saldo_actual or 0) }}
-                    </td>
+                        <td class="px-6 py-4 text-right text-blue-600 font-semibold">
+                            $ {{ "{:,.2f}".format(ruta.total_prestamos or 0) }}
+                        </td>
 
-                    <td class="px-6 py-4 text-right text-indigo-600 font-semibold">
-                        $ {{ "{:,.0f}".format(ruta.capital_asignado or 0) }}
-                    </td>
+                        <td class="px-6 py-4 text-right text-red-600 font-semibold">
+                            $ {{ "{:,.2f}".format(ruta.total_gastos or 0) }}
+                        </td>
 
-                    <td class="px-6 py-4 text-right text-orange-600 font-semibold">
-                        $ {{ "{:,.0f}".format(ruta.capital_colocado or 0) }}
-                    </td>
+                        <td class="px-6 py-4 text-right font-bold text-base
+                            {% if ruta.saldo_actual >= 0 %}
+                                text-emerald-600
+                            {% else %}
+                                text-red-600
+                            {% endif %}">
+                            $ {{ "{:,.2f}".format(ruta.saldo_actual or 0) }}
+                        </td>
 
-                    <td class="px-6 py-4 text-right font-bold
-                        {% if ruta.capital_disponible >= 0 %}
-                            text-emerald-600
-                        {% else %}
-                            text-red-600
-                        {% endif %}">
-                        $ {{ "{:,.0f}".format(ruta.capital_disponible or 0) }}
-                    </td>
+        
 
-                    <td class="px-6 py-4 text-center">
-                        <a href="{{ url_for('detalle_caja_ruta',
-                                            ruta_id=ruta.ruta_id,
-                                            fecha_inicio=fecha_inicio,
-                                            fecha_fin=fecha_fin) }}"
-                           class="text-blue-600 hover:text-blue-800 font-medium">
-                            Ver detalle →
-                        </a>
-                    </td>
+                        <td class="px-6 py-4 text-center">
+                            <a href="{{ url_for('detalle_caja_ruta',
+                                                ruta_id=ruta.ruta_id,
+                                                fecha_inicio=fecha_inicio,
+                                                fecha_fin=fecha_fin) }}"
+                               class="text-blue-600 hover:text-blue-800 font-medium">
+                                Ver detalle →
+                            </a>
+                        </td>
 
-                </tr>
-                {% endfor %}
+                    </tr>
+                    {% endfor %}
 
-            </tbody>
+                </tbody>
 
-        </table>
+            </table>
         </div>
 
         {% else %}
@@ -207,9 +218,10 @@
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
+
 <script>
-function toggleFechas(){
-    document.getElementById("filtroFechas").classList.toggle("hidden")
+function toggleFechas() {
+    document.getElementById("filtroFechas").classList.toggle("hidden");
 }
 
 const ctx = document.getElementById('graficaCaja');
@@ -219,9 +231,9 @@ new Chart(ctx, {
     data: {
         labels: [{% for r in rutas %}"{{ r.ruta_nombre }}",{% endfor %}],
         datasets: [{
-            label: 'Capital Disponible por Ruta',
-            data: [{% for r in rutas %}{{ r.capital_disponible or 0 }},{% endfor %}],
-            backgroundColor: 'rgba(37,99,235,0.6)',
+            label: 'Saldo Actual por Ruta',
+            data: [{% for r in rutas %}{{ r.saldo_actual or 0 }},{% endfor %}],
+            backgroundColor: [{% for r in rutas %}{% if (r.saldo_actual or 0) >= 0 %}'rgba(16, 185, 129, 0.65)'{% else %}'rgba(239, 68, 68, 0.65)'{% endif %}{% if not loop.last %},{% endif %}{% endfor %}],
             borderRadius: 6
         }]
     },
@@ -234,7 +246,7 @@ new Chart(ctx, {
             y: {
                 ticks: {
                     callback: function(value) {
-                        return '$ ' + value.toLocaleString();
+                        return '$ ' + Number(value).toLocaleString();
                     }
                 }
             }
@@ -242,5 +254,6 @@ new Chart(ctx, {
     }
 });
 </script>
+
 
 {% endblock %}

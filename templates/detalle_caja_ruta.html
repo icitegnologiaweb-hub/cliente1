@@ -48,7 +48,7 @@
             {% else %}
                 text-red-600
             {% endif %}">
-            $ {{ "{:,.0f}".format(saldo_actual or 0) }}
+            $ {{ "{:,.2f}".format(saldo_actual or 0) }}
         </div>
 
         <div class="mt-2 text-xs text-gray-500">
@@ -64,28 +64,28 @@
         <div class="py-6 border-r">
             <div class="text-gray-500 text-xs uppercase">Cobros</div>
             <div class="mt-2 font-bold text-green-600">
-                + $ {{ "{:,.0f}".format(total_cobros or 0) }}
+                + $ {{ "{:,.2f}".format(total_cobros or 0) }}
             </div>
         </div>
 
         <div class="py-6 border-r">
             <div class="text-gray-500 text-xs uppercase">Préstamos</div>
             <div class="mt-2 font-bold text-blue-600">
-                - $ {{ "{:,.0f}".format(total_prestamos or 0) }}
+                - $ {{ "{:,.2f}".format(total_prestamos or 0) }}
             </div>
         </div>
 
         <div class="py-6 border-r">
             <div class="text-gray-500 text-xs uppercase">Gastos</div>
             <div class="mt-2 font-bold text-red-600">
-                - $ {{ "{:,.0f}".format(total_gastos or 0) }}
+                - $ {{ "{:,.2f}".format(total_gastos or 0) }}
             </div>
         </div>
 
         <div class="py-6 border-r">
             <div class="text-gray-500 text-xs uppercase">Transferencias</div>
             <div class="mt-2 font-bold text-purple-600">
-                + $ {{ "{:,.0f}".format(total_transferencias or 0) }}
+                + $ {{ "{:,.2f}".format(total_transferencias or 0) }}
             </div>
         </div>
 
@@ -97,7 +97,7 @@
                 {% else %}
                     text-red-600
                 {% endif %}">
-                $ {{ "{:,.0f}".format(saldo_actual or 0) }}
+                $ {{ "{:,.2f}".format(saldo_actual or 0) }}
             </div>
         </div>
 
@@ -115,7 +115,7 @@
             </h2>
 
             <span class="text-indigo-700 font-bold">
-                Disponible: $ {{ "{:,.0f}".format(saldo_actual) }}
+                Disponible: $ {{ "{:,.2f}".format(saldo_actual) }}
             </span>
         </button>
 
@@ -126,7 +126,7 @@
                 <div>
                     <div class="text-gray-500 uppercase text-xs">Capital Asignado</div>
                     <div class="mt-2 font-bold text-indigo-600 text-lg">
-                        $ {{ "{:,.0f}".format(capital_asignado) }}
+                        $ {{ "{:,.2f}".format(capital_asignado) }}
                     </div>
                 </div>
 
@@ -134,7 +134,7 @@
                 <div>
                     <div class="text-gray-500 uppercase text-xs">Capital Disponible</div>
                     <div class="mt-2 font-bold text-emerald-600 text-lg">
-                        $ {{ "{:,.0f}".format(saldo_actual) }}
+                        $ {{ "{:,.2f}".format(saldo_actual) }}
                     </div>
                 </div>
 
@@ -155,7 +155,7 @@
             </h2>
 
             <span class="text-green-600 font-bold">
-                $ {{ "{:,.0f}".format(total_cobros) }}
+                $ {{ "{:,.2f}".format(total_cobros) }}
             </span>
         </button>
 
@@ -186,7 +186,7 @@
                             {{ c.fecha[11:19] }}
                         </td>
                         <td class="px-6 py-3 text-right text-green-600 font-semibold">
-                            $ {{ "{:,.0f}".format(c.monto) }}
+                            $ {{ "{:,.2f}".format(c.monto) }}
                         </td>
                         <td class="px-6 py-3 text-center">
                             {{ c.cobrador_nombre }}
@@ -214,7 +214,7 @@
             </h2>
 
             <span class="text-blue-600 font-bold">
-                $ {{ "{:,.0f}".format(total_prestamos) }}
+                $ {{ "{:,.2f}".format(total_prestamos) }}
             </span>
         </button>
 
@@ -248,7 +248,7 @@
                             {{ p.tipo_prestamo }}
                         </td>
                         <td class="px-6 py-3 text-right font-semibold">
-                            $ {{ "{:,.0f}".format(p.valor_venta) }}
+                            $ {{ "{:,.2f}".format(p.valor_venta) }}
                         </td>
                     </tr>
                     {% endfor %}
@@ -273,7 +273,7 @@
             </h2>
 
             <span class="text-red-600 font-bold">
-                $ {{ "{:,.0f}".format(total_gastos) }}
+                $ {{ "{:,.2f}".format(total_gastos) }}
             </span>
         </button>
 
@@ -295,7 +295,7 @@
                         <td class="px-6 py-3">{{ g.descripcion }}</td>
                         <td class="px-6 py-3">{{ g.created_at[:10] }}</td>
                         <td class="px-6 py-3 text-right text-red-600 font-semibold">
-                            $ {{ "{:,.0f}".format(g.valor) }}
+                            $ {{ "{:,.2f}".format(g.valor) }}
                         </td>
                     </tr>
                     {% endfor %}
@@ -317,7 +317,7 @@
         </h2>
 
         <span class="text-purple-600 font-bold">
-            $ {{ "{:,.0f}".format(total_transferencias) }}
+            $ {{ "{:,.2f}".format(total_transferencias) }}
         </span>
     </button>
 
@@ -347,7 +347,7 @@
                         {{ t.descripcion }}
                     </td>
                     <td class="px-6 py-3 text-right text-purple-600 font-semibold">
-                        $ {{ "{:,.0f}".format(t.valor) }}
+                        $ {{ "{:,.2f}".format(t.valor) }}
                     </td>
                 </tr>
                 {% endfor %}
