@@ -4655,7 +4655,7 @@ def listar_ventas():
                 "longitud": c["longitud"],
             })
 
-            saldo_total += saldo
+            saldo_total += float(c["valor_venta"])
 
     return render_template(
         "ventas.html",
@@ -5066,6 +5066,7 @@ def eliminar_pago(pago_id):
     flash("Pago eliminado correctamente", "success")
 
     return redirect(request.referrer)
+    
 # HISTORIAL DE CUOTAS
 @app.route("/historial_creditos/<cliente_id>")
 def historial_creditos(cliente_id):

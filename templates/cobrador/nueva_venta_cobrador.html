@@ -213,7 +213,7 @@
 
                 <div id="alertaCupo"
                     class="text-xs text-red-400 mt-1 hidden">
-                    ⚠ El valor supera el cupo permitido
+                    ⚠ El valor supera el cupo permitido, solicitar aumentar al encargado
                 </div>
 
             </div>
@@ -426,7 +426,6 @@
             </div>
 
         </div>
-
         <!-- ================= UBICACIÓN ================= -->
         <div class="bg-[#123b63] rounded-2xl p-4 shadow-md space-y-4">
 
@@ -435,8 +434,9 @@
             </div>
 
             <button type="button"
+                    id="btnUbicacion"
                     onclick="obtenerUbicacion()"
-                    class="bg-blue-600 hover:bg-blue-800 py-2 w-full rounded-xl">
+                    class="bg-blue-600 hover:bg-blue-800 py-2 w-full rounded-xl transition">
                 📍 Registrar Ubicación Actual
             </button>
 
@@ -451,12 +451,19 @@
                 class="text-xs text-center opacity-70">
             </div>
 
+            <!-- 🔴 ERROR -->
+            <div id="errorUbicacion"
+                class="text-red-400 text-xs text-center hidden">
+                Este campo es obligatorio
+            </div>
+
         </div>
 
         <!-- BOTÓN -->
         <button type="submit"
+                id="btnSubmit"
                 class="w-full bg-blue-600 hover:bg-blue-700
-                       py-4 rounded-2xl font-semibold shadow-lg">
+                    py-4 rounded-2xl font-semibold shadow-lg transition">
             Guardar Venta
         </button>
 
@@ -479,6 +486,65 @@ window.addEventListener("DOMContentLoaded", function() {
 
     // 🔥 recalcular apenas cargue si ya viene valor precargado
     calcular();
+});
+</script>
+
+<script>
+function obtenerUbicacion() {
+
+    const btn = document.getElementById("btnUbicacion");
+    const texto = document.getElementById("ubicacionTexto");
+    const error = document.getElementById("errorUbicacion");
+
+    btn.innerText = "Obteniendo ubicación...";
+    btn.classList.add("opacity-70");
+
+    if (!navigator.geolocation) {
+        alert("Tu navegador no soporta geolocalización");
+        return;
+    }
+
+    navigator.geolocation.getCurrentPosition(function(position) {
+
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+
+        document.getElementById("latitud").value = lat;
+        document.getElementById("longitud").value = lng;
+
+        texto.innerText = "✅ Ubicación registrada correctamente";
+
+        // Cambiar botón a verde
+        btn.innerText = "Ubicación registrada ✔";
+        btn.classList.remove("bg-blue-600", "hover:bg-blue-800");
+        btn.classList.add("bg-green-600");
+
+        // Quitar error
+        error.classList.add("hidden");
+
+    }, function() {
+        alert("No se pudo obtener la ubicación");
+        btn.innerText = "📍 Registrar Ubicación Actual";
+        btn.classList.remove("opacity-70");
+    });
+}
+
+
+// VALIDACIÓN AL ENVIAR
+document.querySelector("form").addEventListener("submit", function(e) {
+
+    const lat = document.getElementById("latitud").value;
+    const lng = document.getElementById("longitud").value;
+    const error = document.getElementById("errorUbicacion");
+
+    if (!lat || !lng) {
+        e.preventDefault();
+
+        error.classList.remove("hidden");
+
+        // scroll automático al error 🔥
+        error.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
 });
 </script>
 
