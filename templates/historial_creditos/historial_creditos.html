@@ -220,7 +220,6 @@
 <table class="w-full text-sm">
     <thead class="bg-gray-100 text-xs uppercase text-gray-600">
         <tr>
-            <th class="px-3 py-2">Cuota #</th>
             <th class="px-3 py-2">Fecha Pago</th>
             <th class="px-3 py-2">Valor</th>
             <th class="px-3 py-2">Acción</th>
@@ -229,8 +228,6 @@
     <tbody class="divide-y">
         {% for pago in credito.pagos %}
         <tr>
-            <td class="px-3 py-2 font-semibold">
-{{ pago.cuotas.numero if pago.cuotas and pago.cuotas.numero else "-" }}          </td>
             <td class="px-3 py-2">
               {{ pago.fecha[8:10] }}/{{ pago.fecha[5:7] }}/{{ pago.fecha[:4] }}
               {{ pago.fecha[11:16] }}
