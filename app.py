@@ -874,6 +874,9 @@ from datetime import date, datetime, timedelta
 def money(value):
     return Decimal(str(value or 0)).quantize(Decimal("0.01"))
 
+from decimal import Decimal
+from datetime import date
+
 @app.route("/credito/<credito_id>")
 def detalle_credito(credito_id):
 
@@ -905,9 +908,9 @@ def detalle_credito(credito_id):
         .order("numero") \
         .execute().data or []
 
-    total_pagado = Decimal("0.00")
     cuotas = []
     proxima_cuota = None
+    total_pagado_visual = Decimal("0.00")
 
     valor_venta = money(credito.get("valor_venta"))
     tasa = money(credito.get("tasa"))
@@ -917,29 +920,41 @@ def detalle_credito(credito_id):
     interes_cuota = (interes_total / Decimal(str(cantidad_cuotas))).quantize(Decimal("0.01"))
 
     for c in cuotas_db:
-
         dias_mora = 0
         valor_cuota = money(c.get("valor"))
         pagado = money(c.get("monto_pagado"))
 
-        total_pagado += pagado
-
-        # 🔥 Estado real calculado por dinero pagado
-        estado_real = "pagado" if pagado >= valor_cuota else "pendiente"
-
-        if estado_real == "pendiente":
-            fecha = date.fromisoformat(c["fecha_pago"])
-
-            if fecha < date.today():
-                dias_mora = (date.today() - fecha).days
-
-            if not proxima_cuota:
-                proxima_cuota = c["fecha_pago"]
-
-        capital = (valor_cuota - interes_cuota).quantize(Decimal("0.01"))
-        restante = (valor_cuota - pagado).quantize(Decimal("0.01"))
+        aplicado = pagado if pagado <= valor_cuota else valor_cuota
+        restante = (valor_cuota - aplicado).quantize(Decimal("0.01"))
         if restante < 0:
             restante = Decimal("0.00")
+
+        total_pagado_visual += aplicado
+
+        estado_db = (c.get("estado") or "").strip().lower()
+
+        if estado_db not in ["pagado", "pendiente", "parcial"]:
+            if aplicado <= 0:
+                estado_db = "pendiente"
+            elif aplicado < valor_cuota:
+                estado_db = "parcial"
+            else:
+                estado_db = "pagado"
+
+        if estado_db != "pagado":
+            try:
+                fecha = date.fromisoformat(str(c.get("fecha_pago"))[:10])
+                if fecha < date.today():
+                    dias_mora = (date.today() - fecha).days
+            except Exception:
+                pass
+
+            if not proxima_cuota:
+                proxima_cuota = c.get("fecha_pago")
+
+        capital = (valor_cuota - interes_cuota).quantize(Decimal("0.01"))
+        if capital < 0:
+            capital = Decimal("0.00")
 
         cuotas.append({
             "id": c["id"],
@@ -949,35 +964,41 @@ def detalle_credito(credito_id):
             "restante": float(restante),
             "capital": float(capital),
             "interes": float(interes_cuota),
-            "estado": estado_real,
-            "fecha_pago": c["fecha_pago"],
+            "estado": estado_db,
+            "fecha_pago": c.get("fecha_pago"),
             "dias_mora": dias_mora,
             "valor_interes_mora": float(money(c.get("valor_interes_mora"))),
             "porcentaje_mora": float(money(c.get("porcentaje_mora"))),
         })
 
-    saldo = money(credito.get("valor_total")) - total_pagado
-    if saldo < 0:
-        saldo = Decimal("0.00")
+    # ✅ USAR EL SALDO REAL DEL CRÉDITO
+    saldo = money(credito.get("saldo"))
+
+    # fallback por si algún crédito viejo no tiene saldo guardado
+    if saldo == Decimal("0.00") and credito.get("saldo") in [None, ""]:
+        valor_total = money(credito.get("valor_total"))
+        saldo = (valor_total - total_pagado_visual).quantize(Decimal("0.01"))
+        if saldo < 0:
+            saldo = Decimal("0.00")
 
     cuotas_pagadas = sum(
-        1 for c in cuotas_db
-        if money(c.get("monto_pagado")) >= money(c.get("valor"))
+        1 for c in cuotas
+        if c["estado"] == "pagado"
     )
 
-    puede_renovar = cuotas_pagadas >= 3
+    # ✅ renovar solo si ya no debe nada
+    puede_renovar = saldo <= 0
 
     return render_template(
         "cobrador/detalle_credito.html",
         credito=credito,
         cuotas=cuotas,
         saldo=float(saldo),
-        total_pagado=float(total_pagado),
+        total_pagado=float(total_pagado_visual),
         proxima_cuota=proxima_cuota,
         puede_renovar=puede_renovar,
         cuotas_pagadas=cuotas_pagadas
     )
-    
 from datetime import datetime
 def ahora_colombia():
     return datetime.utcnow() - timedelta(hours=5)
@@ -1192,8 +1213,27 @@ from decimal import Decimal, ROUND_HALF_UP
 
 def money(valor):
     return Decimal(str(valor or 0)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-
 def recalcular_credito(credito_id):
+    """
+    Recalcula un crédito completo con base en los pagos registrados,
+    distribuyendo el total pagado sobre las cuotas en orden.
+    """
+
+    # =========================
+    # TRAER CRÉDITO
+    # =========================
+    credito = supabase.table("creditos") \
+        .select("*") \
+        .eq("id", credito_id) \
+        .single() \
+        .execute().data
+
+    if not credito:
+        return {
+            "ok": False,
+            "credito_id": credito_id,
+            "mensaje": "Crédito no encontrado"
+        }
 
     # =========================
     # TRAER CUOTAS
@@ -1216,25 +1256,32 @@ def recalcular_credito(credito_id):
     # =========================
     # SUMAR TODO LO PAGADO
     # =========================
-    total_pagado = sum((money(p.get("monto")) for p in pagos), Decimal("0.00"))
+    total_pagado = sum(
+        (money(p.get("monto")) for p in pagos),
+        Decimal("0.00")
+    ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
     saldo_disponible = total_pagado
+    total_aplicado = Decimal("0.00")
+    cambios = []
 
     # =========================
     # RECALCULAR CUOTAS
     # =========================
     for c in cuotas:
 
-        valor = money(c.get("valor"))
+        valor = money(c.get("valor")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        monto_actual = money(c.get("monto_pagado")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        estado_actual = (c.get("estado") or "").strip().lower()
 
         if saldo_disponible >= valor:
             nuevo_pagado = valor
             estado = "pagado"
             saldo_disponible = (saldo_disponible - valor).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
         else:
-            nuevo_pagado = saldo_disponible
+            nuevo_pagado = saldo_disponible.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
-            # 🔥 Si por redondeo quedó prácticamente pagada, la marcamos pagada
+            # misma lógica tuya
             if nuevo_pagado >= valor:
                 nuevo_pagado = valor
                 estado = "pagado"
@@ -1243,13 +1290,23 @@ def recalcular_credito(credito_id):
 
             saldo_disponible = Decimal("0.00")
 
-        # Evitar guardar más de lo que vale la cuota
         if nuevo_pagado > valor:
             nuevo_pagado = valor
 
-        # Si por cualquier motivo quedó exacta, dejarla pagada sí o sí
         if nuevo_pagado == valor:
             estado = "pagado"
+
+        total_aplicado += nuevo_pagado
+
+        if monto_actual != nuevo_pagado or estado_actual != estado:
+            cambios.append({
+                "cuota_id": c["id"],
+                "numero": c.get("numero"),
+                "monto_anterior": float(monto_actual),
+                "monto_nuevo": float(nuevo_pagado),
+                "estado_anterior": estado_actual,
+                "estado_nuevo": estado
+            })
 
         supabase.table("cuotas").update({
             "monto_pagado": float(nuevo_pagado),
@@ -1264,12 +1321,92 @@ def recalcular_credito(credito_id):
         .eq("credito_id", credito_id) \
         .execute().data or []
 
-    hay_pendientes = any(c["estado"] == "pendiente" for c in cuotas_actualizadas)
+    hay_pendientes = any(
+        (c.get("estado") or "").strip().lower() == "pendiente"
+        for c in cuotas_actualizadas
+    )
+
+    nuevo_estado_credito = "pendiente" if hay_pendientes else "pagado"
 
     supabase.table("creditos").update({
-        "estado": "pendiente" if hay_pendientes else "pagado"
+        "estado": nuevo_estado_credito
     }).eq("id", credito_id).execute()
-    
+
+    valor_total = money(credito.get("valor_total")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    saldo_final = (valor_total - total_aplicado).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+    if saldo_final < 0:
+        saldo_final = Decimal("0.00")
+
+    return {
+        "ok": True,
+        "credito_id": credito_id,
+        "valor_total": float(valor_total),
+        "total_pagado": float(total_pagado),
+        "total_aplicado": float(total_aplicado),
+        "saldo_final_calculado": float(saldo_final),
+        "estado_final": nuevo_estado_credito,
+        "cuotas_actualizadas": len(cambios),
+        "detalle_cambios": cambios
+    }
+
+
+@app.route("/admin/recalcular_todos_los_creditos")
+def recalcular_todos_los_creditos():
+    """
+    Recalcula todos los créditos del sistema.
+    Puedes usar ?test=1 para solo ver qué procesaría.
+    """
+
+
+    modo_test = request.args.get("test") == "1"
+
+    creditos = supabase.table("creditos") \
+        .select("id, estado, valor_total, created_at") \
+        .order("created_at") \
+        .execute().data or []
+
+    resultados = []
+    total_creditos = 0
+    total_ok = 0
+    total_error = 0
+
+    for credito in creditos:
+        total_creditos += 1
+        credito_id = credito["id"]
+
+        try:
+            if modo_test:
+                resultados.append({
+                    "credito_id": credito_id,
+                    "mensaje": "Listo para recalcular"
+                })
+                total_ok += 1
+            else:
+                resultado = recalcular_credito(credito_id)
+                resultados.append(resultado)
+
+                if resultado.get("ok"):
+                    total_ok += 1
+                else:
+                    total_error += 1
+
+        except Exception as e:
+            total_error += 1
+            resultados.append({
+                "ok": False,
+                "credito_id": credito_id,
+                "mensaje": str(e)
+            })
+
+    return jsonify({
+        "modo": "TEST" if modo_test else "EJECUTADO",
+        "total_creditos": total_creditos,
+        "total_ok": total_ok,
+        "total_error": total_error,
+        "detalle": resultados
+    })
+
 @app.route("/recalcular/<credito_id>")
 def recalcular(credito_id):
 
