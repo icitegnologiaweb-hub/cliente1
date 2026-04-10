@@ -868,10 +868,16 @@ def editar_venta_maxima():
 
 # 🔎 Traer crédito + cliente APP
 # 🔎 Traer crédito + cliente APP
+from decimal import Decimal
+from datetime import date, datetime, timedelta
+
+def money(value):
+    return Decimal(str(value or 0)).quantize(Decimal("0.01"))
+
 @app.route("/credito/<credito_id>")
 def detalle_credito(credito_id):
 
-    if "user_id" not in session or session.get("rol") not in ["cobrador","supervisor", "administrador"]:
+    if "user_id" not in session or session.get("rol") not in ["cobrador", "supervisor", "administrador"]:
         return redirect(url_for("login_app"))
 
     credito = supabase.table("creditos") \
@@ -897,30 +903,31 @@ def detalle_credito(credito_id):
         .select("*") \
         .eq("credito_id", credito_id) \
         .order("numero") \
-        .execute().data
+        .execute().data or []
 
-    total_pagado = 0
+    total_pagado = Decimal("0.00")
     cuotas = []
     proxima_cuota = None
 
-    valor_venta = float(credito.get("valor_venta") or 0)
-    tasa = float(credito.get("tasa") or 0)
+    valor_venta = money(credito.get("valor_venta"))
+    tasa = money(credito.get("tasa"))
     cantidad_cuotas = int(credito.get("cantidad_cuotas") or 1)
 
-    interes_total = valor_venta * tasa / 100
-    interes_cuota = interes_total / cantidad_cuotas
+    interes_total = (valor_venta * tasa) / Decimal("100")
+    interes_cuota = (interes_total / Decimal(str(cantidad_cuotas))).quantize(Decimal("0.01"))
 
     for c in cuotas_db:
 
         dias_mora = 0
-        valor_cuota = float(c["valor"] or 0)
-        pagado = float(c.get("monto_pagado") or 0)
+        valor_cuota = money(c.get("valor"))
+        pagado = money(c.get("monto_pagado"))
 
-        # 🔹 SUMAR TODO LO PAGADO (clave)
         total_pagado += pagado
 
-        # 🔹 detectar mora
-        if c["estado"] == "pendiente":
+        # 🔥 Estado real calculado por dinero pagado
+        estado_real = "pagado" if pagado >= valor_cuota else "pendiente"
+
+        if estado_real == "pendiente":
             fecha = date.fromisoformat(c["fecha_pago"])
 
             if fecha < date.today():
@@ -929,28 +936,33 @@ def detalle_credito(credito_id):
             if not proxima_cuota:
                 proxima_cuota = c["fecha_pago"]
 
-        capital = valor_cuota - interes_cuota
+        capital = (valor_cuota - interes_cuota).quantize(Decimal("0.01"))
+        restante = (valor_cuota - pagado).quantize(Decimal("0.01"))
+        if restante < 0:
+            restante = Decimal("0.00")
 
         cuotas.append({
             "id": c["id"],
             "numero": c["numero"],
-            "valor": valor_cuota,
-            "pagado": pagado,
-            "capital": capital,
-            "interes": interes_cuota,
-            "estado": c["estado"],
+            "valor": float(valor_cuota),
+            "pagado": float(pagado),
+            "restante": float(restante),
+            "capital": float(capital),
+            "interes": float(interes_cuota),
+            "estado": estado_real,
             "fecha_pago": c["fecha_pago"],
             "dias_mora": dias_mora,
-            "valor_interes_mora": float(c.get("valor_interes_mora", 0) or 0),
-            "porcentaje_mora": float(c.get("porcentaje_mora", 0) or 0),
-            
+            "valor_interes_mora": float(money(c.get("valor_interes_mora"))),
+            "porcentaje_mora": float(money(c.get("porcentaje_mora"))),
         })
 
-    saldo = float(credito["valor_total"]) - total_pagado
+    saldo = money(credito.get("valor_total")) - total_pagado
+    if saldo < 0:
+        saldo = Decimal("0.00")
 
     cuotas_pagadas = sum(
         1 for c in cuotas_db
-        if float(c.get("monto_pagado", 0)) >= float(c.get("valor", 0))
+        if money(c.get("monto_pagado")) >= money(c.get("valor"))
     )
 
     puede_renovar = cuotas_pagadas >= 3
@@ -959,8 +971,8 @@ def detalle_credito(credito_id):
         "cobrador/detalle_credito.html",
         credito=credito,
         cuotas=cuotas,
-        saldo=saldo,
-        total_pagado=total_pagado,
+        saldo=float(saldo),
+        total_pagado=float(total_pagado),
         proxima_cuota=proxima_cuota,
         puede_renovar=puede_renovar,
         cuotas_pagadas=cuotas_pagadas
@@ -1176,48 +1188,88 @@ def recibo_pago(pago_id):
         saldo_restante=saldo_restante
     )
 
+from decimal import Decimal, ROUND_HALF_UP
+
+def money(valor):
+    return Decimal(str(valor or 0)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 def recalcular_credito(credito_id):
 
-    # traer cuotas
+    # =========================
+    # TRAER CUOTAS
+    # =========================
     cuotas = supabase.table("cuotas") \
         .select("*") \
         .eq("credito_id", credito_id) \
         .order("numero") \
-        .execute().data
+        .execute().data or []
 
-    # traer pagos
+    # =========================
+    # TRAER PAGOS
+    # =========================
     pagos = supabase.table("pagos") \
         .select("*") \
         .eq("credito_id", credito_id) \
         .order("fecha") \
-        .execute().data
+        .execute().data or []
 
-    total_pagado = sum(float(p["monto"]) for p in pagos)
+    # =========================
+    # SUMAR TODO LO PAGADO
+    # =========================
+    total_pagado = sum((money(p.get("monto")) for p in pagos), Decimal("0.00"))
 
-    saldo = total_pagado
+    saldo_disponible = total_pagado
 
+    # =========================
+    # RECALCULAR CUOTAS
+    # =========================
     for c in cuotas:
 
-        valor = float(c["valor"])
+        valor = money(c.get("valor"))
 
-        if saldo >= valor:
-
+        if saldo_disponible >= valor:
             nuevo_pagado = valor
             estado = "pagado"
-            saldo -= valor
-
+            saldo_disponible = (saldo_disponible - valor).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
         else:
+            nuevo_pagado = saldo_disponible
 
-            nuevo_pagado = saldo
-            estado = "pendiente"
-            saldo = 0
+            # 🔥 Si por redondeo quedó prácticamente pagada, la marcamos pagada
+            if nuevo_pagado >= valor:
+                nuevo_pagado = valor
+                estado = "pagado"
+            else:
+                estado = "pendiente"
+
+            saldo_disponible = Decimal("0.00")
+
+        # Evitar guardar más de lo que vale la cuota
+        if nuevo_pagado > valor:
+            nuevo_pagado = valor
+
+        # Si por cualquier motivo quedó exacta, dejarla pagada sí o sí
+        if nuevo_pagado == valor:
+            estado = "pagado"
 
         supabase.table("cuotas").update({
-            "monto_pagado": nuevo_pagado,
+            "monto_pagado": float(nuevo_pagado),
             "estado": estado
         }).eq("id", c["id"]).execute()
-        
+
+    # =========================
+    # ACTUALIZAR ESTADO DEL CRÉDITO
+    # =========================
+    cuotas_actualizadas = supabase.table("cuotas") \
+        .select("id, estado") \
+        .eq("credito_id", credito_id) \
+        .execute().data or []
+
+    hay_pendientes = any(c["estado"] == "pendiente" for c in cuotas_actualizadas)
+
+    supabase.table("creditos").update({
+        "estado": "pendiente" if hay_pendientes else "pagado"
+    }).eq("id", credito_id).execute()
+    
 @app.route("/recalcular/<credito_id>")
 def recalcular(credito_id):
 
