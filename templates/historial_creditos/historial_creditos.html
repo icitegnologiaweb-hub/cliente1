@@ -1,325 +1,648 @@
 {% extends "base.html" %}
 {% block content %}
 
-<div class="min-h-screen bg-gray-100 py-6 px-4">
-
-  <div class="max-w-6xl mx-auto">
+<div class="min-h-screen bg-gradient-to-br from-slate-100 via-gray-100 to-slate-200 py-6 px-4 md:px-6">
+  <div class="max-w-7xl mx-auto">
 
     {% set credito_principal = creditos[0] if creditos else None %}
 
-    <div class="flex flex-col lg:flex-row gap-6">
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
 
-      <!-- COLUMNA PERFIL -->
-      <div class="w-full lg:w-1/3">
+      <!-- ===================================== -->
+      <!-- COLUMNA IZQUIERDA -->
+      <!-- ===================================== -->
+      <div class="lg:col-span-4 space-y-6">
 
-        <div class="bg-white rounded-2xl shadow-md p-6">
+        <!-- PERFIL -->
+        <div class="bg-white rounded-3xl shadow-xl border border-gray-100 overflow-hidden">
+          <div class="h-24 bg-gradient-to-r from-slate-800 via-slate-700 to-slate-800"></div>
 
-          <!-- PERFIL -->
-          <div class="flex flex-col items-center text-center">
+          <div class="px-6 pb-6 -mt-12">
+            <div class="flex flex-col items-center text-center">
 
-            {% if credito_principal and credito_principal.foto_cliente %}
-              <img src="{{ credito_principal.foto_cliente }}"
-                   onclick="verImagen(this.src)"
-                   class="w-28 h-28 md:w-32 md:h-32 rounded-full object-cover border-4 border-gray-200 shadow cursor-pointer">
+              {% if credito_principal and credito_principal.foto_cliente %}
+                <img src="{{ credito_principal.foto_cliente }}"
+                     onclick="verImagen(this.src)"
+                     class="w-28 h-28 md:w-32 md:h-32 rounded-full object-cover border-4 border-white shadow-xl cursor-pointer bg-white">
+              {% else %}
+                <div class="w-28 h-28 md:w-32 md:h-32 rounded-full bg-white border-4 border-white shadow-xl flex items-center justify-center text-gray-400 text-4xl">
+                  👤
+                </div>
+              {% endif %}
+
+              <h2 class="text-2xl md:text-3xl font-extrabold text-gray-800 mt-4 leading-tight">
+                {{ cliente.nombre }}
+              </h2>
+
+              <p class="text-gray-600 text-sm mt-2">
+                {{ cliente.identificacion }}
+              </p>
+
+              <p class="text-gray-500 text-sm mt-3">
+                Historial financiero del cliente
+              </p>
+            </div>
+
+            <!-- RESUMEN -->
+            <div class="grid grid-cols-2 gap-4 mt-6">
+              <div class="bg-slate-50 border border-slate-100 rounded-2xl p-4">
+                <div class="text-xs uppercase tracking-wide text-gray-500">Créditos</div>
+                <div class="text-2xl font-extrabold text-slate-800 mt-2">
+                  {{ creditos|length }}
+                </div>
+              </div>
+
+              <div class="bg-slate-50 border border-slate-100 rounded-2xl p-4">
+                <div class="text-xs uppercase tracking-wide text-gray-500">Cliente</div>
+                <div class="text-sm font-bold text-slate-800 mt-2 break-all">
+                  {{ cliente.identificacion }}
+                </div>
+              </div>
+            </div>
+
+            <!-- GALERÍA -->
+            {% if credito_principal %}
+            <div class="mt-6">
+              <h3 class="text-sm font-bold text-gray-700 mb-3">Soportes del cliente</h3>
+
+              <div class="grid grid-cols-3 gap-3">
+                {% if credito_principal.foto_cedula %}
+                <img src="{{ credito_principal.foto_cedula }}"
+                     onclick="verImagen(this.src)"
+                     class="w-full h-24 object-cover rounded-xl shadow cursor-pointer hover:scale-105 transition">
+                {% endif %}
+
+                {% if credito_principal.foto_negocio %}
+                <img src="{{ credito_principal.foto_negocio }}"
+                     onclick="verImagen(this.src)"
+                     class="w-full h-24 object-cover rounded-xl shadow cursor-pointer hover:scale-105 transition">
+                {% endif %}
+
+                {% if credito_principal.firma_cliente %}
+                <img src="{{ credito_principal.firma_cliente }}"
+                     onclick="verImagen(this.src)"
+                     class="w-full h-24 object-cover rounded-xl shadow cursor-pointer hover:scale-105 transition bg-white">
+                {% endif %}
+              </div>
+            </div>
+            {% endif %}
+
+          </div>
+        </div>
+
+        <!-- MODULO CREDITOS RELACIONADOS -->
+        <div class="bg-white rounded-3xl shadow-xl border border-gray-100 overflow-hidden">
+          <div class="px-6 py-5 border-b border-gray-100">
+            <h3 class="text-xl font-extrabold text-gray-800">
+              Créditos relacionados
+            </h3>
+            <p class="text-sm text-gray-500 mt-1">
+              Selecciona un crédito para ver su detalle completo o eliminarlo si fue registrado por error.
+            </p>
+          </div>
+
+          <div class="p-4 space-y-3 max-h-[580px] overflow-y-auto">
+            {% if creditos %}
+              {% for credito in creditos %}
+              <div id="mini-credito-{{ credito.id }}"
+                   class="rounded-2xl border border-gray-200 bg-gray-50 p-4 transition-all duration-200 hover:shadow-md">
+
+                <div class="flex items-start justify-between gap-3">
+                  <div class="min-w-0">
+                    <div class="text-sm font-extrabold text-slate-800">
+                      Crédito #{{ loop.index }}
+                    </div>
+                    <div class="text-xs text-gray-500 mt-1">
+                      {{ credito.created_at[8:10] }}/{{ credito.created_at[5:7] }}/{{ credito.created_at[:4] }}
+                      {{ credito.created_at[11:16] }}
+                    </div>
+                  </div>
+
+                  <span class="px-3 py-1 rounded-full text-[11px] font-bold whitespace-nowrap
+                    {% if credito.estado|string|lower == 'activo' %}
+                      bg-green-100 text-green-700
+                    {% elif credito.estado|string|lower == 'pagado' %}
+                      bg-blue-100 text-blue-700
+                    {% else %}
+                      bg-yellow-100 text-yellow-700
+                    {% endif %}">
+                    {{ credito.estado }}
+                  </span>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3 mt-4">
+                  <div class="bg-white rounded-xl p-3 border border-gray-100">
+                    <div class="text-xs text-gray-500">Valor total</div>
+                    <div class="font-extrabold text-slate-800 mt-1">
+                      $ {{ "{:,.2f}".format(credito.valor_total|float) }}
+                    </div>
+                  </div>
+
+                  <div class="bg-white rounded-xl p-3 border border-gray-100">
+                    <div class="text-xs text-gray-500">Saldo</div>
+                    <div class="font-extrabold mt-1 {% if credito.saldo|float > 0 %}text-red-600{% else %}text-green-600{% endif %}">
+                      $ {{ "{:,.2f}".format(credito.saldo|float) }}
+                    </div>
+                  </div>
+                </div>
+
+                <div class="mt-4 flex gap-2">
+                  <button type="button"
+                          onclick="irADetalleCredito('{{ credito.id }}')"
+                          class="flex-1 px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-900 text-white text-sm font-bold shadow transition">
+                    Ver detalle
+                  </button>
+
+                  {% if session.get("rol") in ["administrador", "admin", "supervisor"] %}
+                  <button type="button"
+                          onclick="abrirModalEliminar('{{ url_for('eliminar_credito_cliente', credito_id=credito.id) }}', 'Crédito #{{ loop.index }} - {{ cliente.nombre|e }}')"
+                          class="px-4 py-2.5 rounded-xl bg-red-50 hover:bg-red-600 text-red-600 hover:text-white text-sm font-bold border border-red-200 transition">
+                    Eliminar
+                  </button>
+                  {% endif %}
+                </div>
+              </div>
+              {% endfor %}
             {% else %}
-              <div class="w-28 h-28 md:w-32 md:h-32 rounded-full bg-gray-200 flex items-center justify-center text-gray-500 text-3xl">
-                👤
+              <div class="rounded-2xl bg-gray-50 border border-gray-200 p-4 text-sm text-gray-500">
+                Este cliente no tiene créditos registrados.
               </div>
             {% endif %}
-
-            <h2 class="text-xl md:text-2xl font-bold text-gray-800 mt-4">
-              {{ cliente.nombre }}
-            </h2>
-
-            <p class="text-gray-600 text-sm mt-1">
-              {{ cliente.identificacion }}
-            </p>
-
-            <p class="text-gray-500 text-sm mt-2">
-              Historial financiero del cliente
-            </p>
-
           </div>
+        </div>
 
-          <!-- GALERÍA -->
-          {% if credito_principal %}
-          <div class="mt-6 grid grid-cols-3 sm:grid-cols-4 gap-3">
+      </div>
 
-            {% if credito_principal.foto_cedula %}
-            <img src="{{ credito_principal.foto_cedula }}"
-                 onclick="verImagen(this.src)"
-                 class="w-full h-20 object-cover rounded-lg shadow cursor-pointer hover:scale-105 transition">
-            {% endif %}
+      <!-- ===================================== -->
+      <!-- COLUMNA DERECHA -->
+      <!-- ===================================== -->
+      <div class="lg:col-span-8 space-y-6">
 
-            {% if credito_principal.foto_negocio %}
-            <img src="{{ credito_principal.foto_negocio }}"
-                 onclick="verImagen(this.src)"
-                 class="w-full h-20 object-cover rounded-lg shadow cursor-pointer hover:scale-105 transition">
-            {% endif %}
+        <!-- HEADER -->
+        <div class="bg-white rounded-3xl shadow-xl border border-gray-100 p-6">
+          <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div>
+              <h2 class="text-2xl font-extrabold text-gray-800">
+                Historial del cliente
+              </h2>
+              <p class="text-sm text-gray-600 mt-1">
+                {{ cliente.nombre }} | {{ cliente.identificacion }}
+              </p>
+            </div>
 
-            {% if credito_principal.firma_cliente %}
-            <img src="{{ credito_principal.firma_cliente }}"
-                 onclick="verImagen(this.src)"
-                 class="w-full h-20 object-cover rounded-lg shadow cursor-pointer hover:scale-105 transition">
-            {% endif %}
+            <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
+              <div class="rounded-2xl bg-slate-50 border border-slate-100 px-4 py-3">
+                <div class="text-[11px] uppercase tracking-wide text-gray-500">Créditos</div>
+                <div class="text-xl font-extrabold text-slate-800 mt-1">
+                  {{ creditos|length }}
+                </div>
+              </div>
 
+              <div class="rounded-2xl bg-slate-50 border border-slate-100 px-4 py-3">
+                <div class="text-[11px] uppercase tracking-wide text-gray-500">Cliente</div>
+                <div class="text-sm font-bold text-slate-800 mt-2 break-all">
+                  {{ cliente.identificacion }}
+                </div>
+              </div>
+
+              <div class="rounded-2xl bg-slate-50 border border-slate-100 px-4 py-3">
+                <div class="text-[11px] uppercase tracking-wide text-gray-500">Último crédito</div>
+                <div class="text-sm font-bold text-slate-800 mt-2">
+                  {% if creditos %}
+                    {{ creditos[0].created_at[8:10] }}/{{ creditos[0].created_at[5:7] }}/{{ creditos[0].created_at[:4] }}
+                  {% else %}
+                    --
+                  {% endif %}
+                </div>
+              </div>
+            </div>
           </div>
-          {% endif %}
-
         </div>
+
+        <!-- LISTA DETALLE DE CREDITOS -->
+        {% if creditos %}
+          {% for credito in creditos %}
+          <div id="credito-{{ credito.id }}"
+               class="grupo-credito bg-white rounded-3xl shadow-xl border border-gray-100 overflow-hidden scroll-mt-24 transition-all duration-300">
+
+            <!-- CABECERA -->
+            <div class="px-6 py-5 border-b border-gray-100 bg-gradient-to-r from-white to-slate-50">
+              <div class="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
+
+                <div>
+                  <div class="flex items-center gap-3 flex-wrap">
+                    <h3 class="text-xl font-extrabold text-gray-800">
+                      Crédito #{{ loop.index }}
+                    </h3>
+
+                    <span class="px-3 py-1 rounded-full text-xs font-bold
+                      {% if credito.estado|string|lower == 'activo' %}
+                        bg-green-100 text-green-700
+                      {% elif credito.estado|string|lower == 'pagado' %}
+                        bg-blue-100 text-blue-700
+                      {% else %}
+                        bg-yellow-100 text-yellow-700
+                      {% endif %}">
+                      {{ credito.estado }}
+                    </span>
+                  </div>
+
+                  <p class="text-sm text-gray-500 mt-2">
+                    Fecha de registro:
+                    {{ credito.created_at[8:10] }}/{{ credito.created_at[5:7] }}/{{ credito.created_at[:4] }}
+                    {{ credito.created_at[11:16] }}
+                  </p>
+                </div>
+
+                <div class="flex gap-2 flex-wrap">
+                  <button type="button"
+                          onclick="irATopModulo()"
+                          class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-bold transition">
+                    Volver arriba
+                  </button>
+
+                  {% if session.get("rol") in ["administrador", "admin", "supervisor"] %}
+                  <button type="button"
+                          onclick="abrirModalEliminar('{{ url_for('eliminar_credito_cliente', credito_id=credito.id) }}', 'Crédito #{{ loop.index }} - {{ cliente.nombre|e }}')"
+                          class="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-bold shadow transition">
+                    Eliminar crédito
+                  </button>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+
+            <!-- RESUMEN -->
+            <div class="p-6">
+              <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+
+                <div class="rounded-2xl border border-gray-100 bg-slate-50 p-4">
+                  <div class="text-xs uppercase tracking-wide text-gray-500">Valor venta</div>
+                  <div class="text-xl font-extrabold text-slate-800 mt-2">
+                    $ {{ "{:,.2f}".format(credito.valor_venta|float) }}
+                  </div>
+                </div>
+
+                <div class="rounded-2xl border border-gray-100 bg-slate-50 p-4">
+                  <div class="text-xs uppercase tracking-wide text-gray-500">Valor total con interes</div>
+                  <div class="text-xl font-extrabold text-slate-800 mt-2">
+                    $ {{ "{:,.2f}".format(credito.valor_total|float) }}
+                  </div>
+                </div>
+
+                <div class="rounded-2xl border border-gray-100 bg-slate-50 p-4">
+                  <div class="text-xs uppercase tracking-wide text-gray-500">Saldo</div>
+                  <div class="text-xl font-extrabold mt-2 {% if credito.saldo|float > 0 %}text-red-600{% else %}text-green-600{% endif %}">
+                    $ {{ "{:,.2f}".format(credito.saldo|float) }}
+                  </div>
+                </div>
+
+                <div class="rounded-2xl border border-gray-100 bg-slate-50 p-4">
+                  <div class="text-xs uppercase tracking-wide text-gray-500"># Cuotas</div>
+                  <div class="text-xl font-extrabold text-slate-800 mt-2">
+                    {{ credito.cuotas | length }}
+                  </div>
+                </div>
+
+                <div class="rounded-2xl border border-gray-100 bg-slate-50 p-4">
+                  <div class="text-xs uppercase tracking-wide text-gray-500">Tipo préstamo</div>
+                  <div class="text-base font-bold text-slate-800 mt-2">
+                    {{ credito.tipo_prestamo }}
+                  </div>
+                </div>
+
+                <div class="rounded-2xl border border-gray-100 bg-slate-50 p-4">
+                  <div class="text-xs uppercase tracking-wide text-gray-500">Pagos registrados</div>
+                  <div class="text-xl font-extrabold text-slate-800 mt-2">
+                    {{ credito.pagos | length }}
+                  </div>
+                </div>
+
+              </div>
+            </div>
+
+            <!-- TABS -->
+            <div class="border-t border-gray-100">
+
+              <div class="flex text-sm font-semibold text-gray-600 bg-gray-50 overflow-x-auto">
+                <button type="button"
+                        onclick="cambiarTab('{{ credito.id }}','cuotas')"
+                        id="btn-cuotas-{{ credito.id }}"
+                        class="flex-1 min-w-[120px] py-4 border-b-2 border-blue-500 text-blue-600 transition">
+                  Cuotas
+                </button>
+
+                <button type="button"
+                        onclick="cambiarTab('{{ credito.id }}','pagos')"
+                        id="btn-pagos-{{ credito.id }}"
+                        class="flex-1 min-w-[120px] py-4 hover:bg-gray-100 transition">
+                  Pagos
+                </button>
+
+                <button type="button"
+                        onclick="cambiarTab('{{ credito.id }}','comentarios')"
+                        id="btn-comentarios-{{ credito.id }}"
+                        class="flex-1 min-w-[120px] py-4 hover:bg-gray-100 transition">
+                  Comentarios
+                </button>
+              </div>
+
+              <!-- CUOTAS -->
+              <div id="cuotas-{{ credito.id }}" class="p-4 overflow-x-auto">
+                <table class="w-full text-sm text-left min-w-[620px]">
+                  <thead class="bg-gray-100 text-gray-600 text-xs uppercase">
+                    <tr>
+                      <th class="px-3 py-3 rounded-l-xl">#</th>
+                      <th class="px-3 py-3">Fecha venc.</th>
+                      <th class="px-3 py-3">Valor</th>
+                      <th class="px-3 py-3">Días mora</th>
+                      <th class="px-3 py-3 text-center rounded-r-xl">Estado</th>
+                    </tr>
+                  </thead>
+
+                  <tbody class="divide-y divide-gray-100">
+                    {% for cuota in credito.cuotas %}
+                    <tr class="hover:bg-gray-50">
+                      <td class="px-3 py-3 font-bold text-slate-700">
+                        {{ cuota.numero }}
+                      </td>
+
+                      <td class="px-3 py-3 text-gray-700">
+                        {{ cuota.fecha_programada }}
+                      </td>
+
+                      <td class="px-3 py-3 font-semibold text-gray-700">
+                        $ {{ "{:,.2f}".format(cuota.valor|float) }}
+                      </td>
+
+                      <td class="px-3 py-3">
+                        {% if cuota.dias_mora > 0 %}
+                          <span class="text-red-500 font-semibold">
+                            {{ cuota.dias_mora }} días
+                          </span>
+                        {% else %}
+                          <span class="text-green-600 font-medium">
+                            Sin mora
+                          </span>
+                        {% endif %}
+                      </td>
+
+                      <td class="px-3 py-3 text-center">
+                        {% if cuota.estado == "pagado" %}
+                          <span class="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-bold">
+                            Pagado
+                          </span>
+                        {% else %}
+                          <span class="bg-yellow-100 text-yellow-700 px-3 py-1 rounded-full text-xs font-bold">
+                            Pendiente
+                          </span>
+                        {% endif %}
+                      </td>
+                    </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+
+              <!-- PAGOS -->
+              <div id="pagos-{{ credito.id }}" class="p-4 hidden overflow-x-auto">
+                {% if credito.pagos and credito.pagos|length > 0 %}
+                <table class="w-full text-sm min-w-[620px]">
+                  <thead class="bg-gray-100 text-xs uppercase text-gray-600">
+                    <tr>
+                      <th class="px-3 py-3 rounded-l-xl">Fecha pago</th>
+                      <th class="px-3 py-3">Valor</th>
+                      <th class="px-3 py-3 text-center rounded-r-xl">Acción</th>
+                    </tr>
+                  </thead>
+
+                  <tbody class="divide-y divide-gray-100">
+                    {% for pago in credito.pagos %}
+                    <tr class="hover:bg-gray-50">
+                      <td class="px-3 py-3">
+                        {{ pago.fecha[8:10] }}/{{ pago.fecha[5:7] }}/{{ pago.fecha[:4] }}
+                        {{ pago.fecha[11:16] }}
+                      </td>
+
+                      <td class="px-3 py-3 text-green-600 font-bold">
+                        $ {{ "{:,.2f}".format(pago.monto|float) }}
+                      </td>
+
+                      <td class="px-3 py-3 text-center">
+                        <a href="{{ url_for('eliminar_pago',
+                                            pago_id=pago.id,
+                                            cuota_id=pago.cuota_id,
+                                            credito_id=credito.id) }}"
+                           onclick="return confirm('¿Eliminar este pago?')"
+                           class="inline-flex items-center justify-center w-10 h-10 rounded-full bg-red-50 text-red-600 hover:bg-red-600 hover:text-white transition">
+                          <i class="bi bi-trash-fill text-sm"></i>
+                        </a>
+                      </td>
+                    </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+                {% else %}
+                <div class="rounded-2xl bg-gray-50 border border-gray-200 p-4 text-sm text-gray-500">
+                  No hay pagos registrados en este crédito.
+                </div>
+                {% endif %}
+              </div>
+
+              <!-- COMENTARIOS -->
+              <div id="comentarios-{{ credito.id }}" class="p-4 hidden">
+                <div class="rounded-2xl bg-gray-50 border border-gray-200 p-4 text-sm text-gray-500">
+                  Sin comentarios registrados.
+                </div>
+              </div>
+
+            </div>
+          </div>
+          {% endfor %}
+        {% else %}
+          <div class="bg-white rounded-3xl shadow-xl border border-gray-100 p-10 text-center">
+            <div class="text-5xl mb-3">📂</div>
+            <h3 class="text-xl font-extrabold text-gray-800">No hay créditos registrados</h3>
+            <p class="text-sm text-gray-500 mt-2">
+              Este cliente todavía no tiene historial de créditos.
+            </p>
+          </div>
+        {% endif %}
 
       </div>
-
-      <!-- COLUMNA HISTORIAL -->
-      <div class="w-full lg:w-2/3">
-
-        <div class="bg-white rounded-2xl shadow-md p-6 mb-6">
-          <h2 class="text-xl font-bold text-gray-800">
-            Historial cliente
-          </h2>
-          <p class="text-sm text-gray-600 mt-1">
-            {{ cliente.nombre }} | {{ cliente.identificacion }}
-          </p>
-        </div>
-
-        {% for credito in creditos %}
-
-    <!-- TARJETA CREDITO -->
-    <div class="bg-white rounded-xl shadow mb-6 overflow-hidden">
-
-      <!-- INFO PRINCIPAL -->
-      <div class="p-5 space-y-3 text-sm">
-
-        <div class="flex justify-between">
-          <span class="text-gray-500">Estado</span>
-          <span class="bg-blue-100 text-blue-600 px-3 py-1 rounded-lg text-xs font-semibold">
-            {{ credito.estado }}
-          </span>
-        </div>
-
-        <div class="flex justify-between">
-          <span class="text-gray-500">Valor Venta</span>
-          <span>$ {{ credito.valor_venta }}</span>
-        </div>
-
-        <div class="flex justify-between">
-          <span class="text-gray-500">Valor Total</span>
-          <span>$ {{ credito.valor_total }}</span>
-        </div>
-
-        <div class="flex justify-between font-semibold">
-          <span class="text-gray-500">Saldo</span>
-          <span class="text-red-500">$ {{ credito.saldo }}</span>
-        </div>
-
-        <div class="flex justify-between">
-          <span class="text-gray-500"># Cuotas</span>
-          <span>{{ credito.cuotas | length }}</span>
-        </div>
-
-        <div class="flex justify-between">
-          <span class="text-gray-500">Tipo de prestamo</span>
-          <span>{{ credito.tipo_prestamo }}</span>
-        </div>
-
-      <div class="flex justify-between">
-        <span class="text-gray-500">Fecha registro</span>
-        <span>
-          {{ credito.created_at[8:10] }}/{{ credito.created_at[5:7] }}/{{ credito.created_at[:4] }}
-          {{ credito.created_at[11:16] }}
-        </span>
-      </div>
-      </div>
-
-      <!-- TABS -->
-      <!-- TABS -->
-<div class="border-t">
-
-  <!-- Botones -->
-  <div class="flex text-sm font-medium text-gray-600 bg-gray-50">
-    <button onclick="cambiarTab('{{ credito.id }}','cuotas')"
-            id="btn-cuotas-{{ credito.id }}"
-            class="flex-1 py-3 border-b-2 border-blue-500 text-blue-600 transition">
-      Cuotas
-    </button>
-
-    <button onclick="cambiarTab('{{ credito.id }}','pagos')"
-            id="btn-pagos-{{ credito.id }}"
-            class="flex-1 py-3 hover:bg-gray-100 transition">
-      Pagos
-    </button>
-
-    <button onclick="cambiarTab('{{ credito.id }}','comentarios')"
-            id="btn-comentarios-{{ credito.id }}"
-            class="flex-1 py-3 hover:bg-gray-100 transition">
-      Comentarios
-    </button>
-  </div>
-
-  <!-- ================= CUOTAS ================= -->
-  <div id="cuotas-{{ credito.id }}" class="p-4 overflow-x-auto">
-
-    <table class="w-full text-sm text-left">
-
-      <thead class="bg-gray-100 text-gray-600 text-xs uppercase">
-        <tr>
-          <th class="px-3 py-2">Fecha Venc.</th>
-          <th class="px-3 py-2">Días Mora</th>
-          <th class="px-3 py-2 text-center">Estado</th>
-        </tr>
-      </thead>
-
-      <tbody class="divide-y">
-
-        {% for cuota in credito.cuotas %}
-        <tr class="hover:bg-gray-50">
-
-          <td class="px-3 py-2">
-            {{ cuota.fecha_programada }}
-          </td>
-
-          <td class="px-3 py-2">
-            {% if cuota.dias_mora > 0 %}
-              <span class="text-red-500 font-semibold">
-                {{ cuota.dias_mora }} días
-              </span>
-            {% else %}
-              <span class="text-green-600">
-                Sin mora
-              </span>
-            {% endif %}
-          </td>
-
-          <td class="px-3 py-2 text-center">
-
-            {% if cuota.estado == "pagado" %}
-              <span class="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-semibold">
-                Pagado
-              </span>
-            {% else %}
-              <span class="bg-yellow-100 text-yellow-700 px-3 py-1 rounded-full text-xs font-semibold">
-                Pendiente
-              </span>
-            {% endif %}
-
-          </td>
-
-        </tr>
-        {% endfor %}
-
-      </tbody>
-    </table>
-
-  </div>
-
-  <!-- ================= PAGOS ================= -->
-  <div id="pagos-{{ credito.id }}" class="p-4 hidden overflow-x-auto">
-
- {% if credito.pagos and credito.pagos|length > 0 %}
-
-<table class="w-full text-sm">
-    <thead class="bg-gray-100 text-xs uppercase text-gray-600">
-        <tr>
-            <th class="px-3 py-2">Fecha Pago</th>
-            <th class="px-3 py-2">Valor</th>
-            <th class="px-3 py-2">Acción</th>
-        </tr>
-    </thead>
-    <tbody class="divide-y">
-        {% for pago in credito.pagos %}
-        <tr>
-            <td class="px-3 py-2">
-              {{ pago.fecha[8:10] }}/{{ pago.fecha[5:7] }}/{{ pago.fecha[:4] }}
-              {{ pago.fecha[11:16] }}
-            </td>
-            <td class="px-3 py-2 text-green-600 font-semibold">
-                $ {{ pago.monto }}
-            </td>
-            <td class="px-3 py-2 text-center">
-
-              <a href="{{ url_for('eliminar_pago',
-                                  pago_id=pago.id,
-                                  cuota_id=pago.cuota_id,
-                                  credito_id=credito.id) }}"
-                onclick="return confirm('¿Eliminar este pago?')"
-                class="text-red-600 hover:text-red-800">
-                  🗑
-              </a>
-
-            </td>
-        </tr>
-        {% endfor %}
-    </tbody>
-</table>
-
-{% else %}
-<div class="text-gray-500 text-sm">
-    No hay pagos registrados
-</div>
-{% endif %}
-  <!-- ================= COMENTARIOS ================= -->
-  <div id="comentarios-{{ credito.id }}" class="p-4 hidden">
-    <div class="text-gray-500 text-sm">
-      Sin comentarios registrados.
     </div>
   </div>
-
 </div>
 
-    </div>
-
-    {% endfor %}
-
-  </div>
-
-</div>
 <!-- MODAL IMAGEN -->
 <div id="modalImagen"
-     class="fixed inset-0 bg-black/70 hidden items-center justify-center z-50">
-
+     class="fixed inset-0 bg-black/80 hidden items-center justify-center z-[999] p-4">
   <img id="imagenGrande"
-       class="max-w-3xl max-h-[90vh] rounded-xl shadow-2xl">
-
+       class="max-w-4xl max-h-[90vh] rounded-2xl shadow-2xl border border-white/20">
 </div>
 
-      </div>
-
+<!-- MODAL ELIMINAR CREDITO -->
+<div id="modalEliminarCredito"
+     class="fixed inset-0 bg-black/70 backdrop-blur-sm hidden items-center justify-center z-[1000] p-4">
+  <div class="w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden">
+    <div class="bg-gradient-to-r from-red-600 to-red-500 px-6 py-5 text-white">
+      <h3 class="text-xl font-extrabold">
+        Eliminar crédito definitivamente
+      </h3>
+      <p class="text-sm text-red-50 mt-1">
+        Esta acción no se puede deshacer.
+      </p>
     </div>
 
+    <div class="p-6">
+      <div class="flex items-start gap-4">
+        <div class="w-12 h-12 rounded-2xl bg-red-100 text-red-600 flex items-center justify-center text-2xl shrink-0">
+          <i class="bi bi-exclamation-triangle-fill"></i>
+        </div>
+
+        <div>
+          <p class="text-gray-800 font-semibold">
+            Estás a punto de eliminar:
+          </p>
+          <p id="textoEliminarCredito" class="text-sm text-gray-600 mt-1">
+            Crédito seleccionado
+          </p>
+        </div>
+      </div>
+
+      <div class="mt-5 rounded-2xl bg-red-50 border border-red-100 p-4 text-sm text-red-700">
+        <p class="font-semibold mb-1">Advertencia</p>
+        <p>
+          Se eliminarán también las <strong>cuotas</strong>, los <strong>pagos</strong> y la información relacionada con este crédito.
+        </p>
+      </div>
+
+      <form id="formEliminarCredito" method="POST" action="" class="mt-6 flex gap-3">
+        <button type="button"
+                onclick="cerrarModalEliminar()"
+                class="flex-1 px-4 py-3 rounded-2xl bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold transition">
+          Cancelar
+        </button>
+
+        <button type="submit"
+                class="flex-1 px-4 py-3 rounded-2xl bg-red-600 hover:bg-red-700 text-white font-bold shadow-md transition">
+          Sí, eliminar
+        </button>
+      </form>
+    </div>
   </div>
-
 </div>
-
-
-    
 
 <script>
 function verImagen(src){
-  document.getElementById("imagenGrande").src = src;
-  document.getElementById("modalImagen").classList.remove("hidden");
-  document.getElementById("modalImagen").classList.add("flex");
+  const modal = document.getElementById("modalImagen");
+  const imagen = document.getElementById("imagenGrande");
+  imagen.src = src;
+  modal.classList.remove("hidden");
+  modal.classList.add("flex");
 }
 
 document.getElementById("modalImagen").addEventListener("click", function(){
   this.classList.add("hidden");
+  this.classList.remove("flex");
 });
-</script>
-<script>
-function cambiarTab(id, tab){
 
+function cambiarTab(id, tab){
   const tabs = ["cuotas","pagos","comentarios"];
 
-  tabs.forEach(t => {
-      document.getElementById(t + "-" + id).classList.add("hidden");
-      document.getElementById("btn-" + t + "-" + id)
-          .classList.remove("border-blue-500","text-blue-600");
+  tabs.forEach(function(t){
+    const panel = document.getElementById(t + "-" + id);
+    const boton = document.getElementById("btn-" + t + "-" + id);
+
+    if(panel){
+      panel.classList.add("hidden");
+    }
+
+    if(boton){
+      boton.classList.remove("border-blue-500", "text-blue-600");
+    }
   });
 
-  document.getElementById(tab + "-" + id).classList.remove("hidden");
+  const panelActivo = document.getElementById(tab + "-" + id);
+  const botonActivo = document.getElementById("btn-" + tab + "-" + id);
 
-  document.getElementById("btn-" + tab + "-" + id)
-      .classList.add("border-blue-500","text-blue-600");
+  if(panelActivo){
+    panelActivo.classList.remove("hidden");
+  }
+
+  if(botonActivo){
+    botonActivo.classList.add("border-blue-500", "text-blue-600");
+  }
 }
+
+function abrirModalEliminar(actionUrl, resumen){
+  const modal = document.getElementById("modalEliminarCredito");
+  const form = document.getElementById("formEliminarCredito");
+  const texto = document.getElementById("textoEliminarCredito");
+
+  form.action = actionUrl;
+  texto.textContent = resumen;
+
+  modal.classList.remove("hidden");
+  modal.classList.add("flex");
+}
+
+function cerrarModalEliminar(){
+  const modal = document.getElementById("modalEliminarCredito");
+  modal.classList.add("hidden");
+  modal.classList.remove("flex");
+}
+
+document.getElementById("modalEliminarCredito").addEventListener("click", function(e){
+  if(e.target === this){
+    cerrarModalEliminar();
+  }
+});
+
+function irADetalleCredito(id){
+  const tarjeta = document.getElementById("credito-" + id);
+
+  if(!tarjeta) return;
+
+  tarjeta.scrollIntoView({
+    behavior: "smooth",
+    block: "start"
+  });
+
+  document.querySelectorAll(".grupo-credito").forEach(function(item){
+    item.classList.remove("ring-2", "ring-blue-500", "shadow-2xl");
+  });
+
+  document.querySelectorAll("[id^='mini-credito-']").forEach(function(item){
+    item.classList.remove("ring-2", "ring-blue-400", "bg-blue-50");
+  });
+
+  tarjeta.classList.add("ring-2", "ring-blue-500", "shadow-2xl");
+
+  const mini = document.getElementById("mini-credito-" + id);
+  if(mini){
+    mini.classList.add("ring-2", "ring-blue-400", "bg-blue-50");
+  }
+
+  setTimeout(function(){
+    tarjeta.classList.remove("ring-2", "ring-blue-500");
+  }, 2500);
+}
+
+function irATopModulo(){
+  window.scrollTo({
+    top: 0,
+    behavior: "smooth"
+  });
+}
+
+document.addEventListener("keydown", function(e){
+  if(e.key === "Escape"){
+    document.getElementById("modalImagen").classList.add("hidden");
+    document.getElementById("modalImagen").classList.remove("flex");
+    cerrarModalEliminar();
+  }
+});
 </script>
 
 {% endblock %}

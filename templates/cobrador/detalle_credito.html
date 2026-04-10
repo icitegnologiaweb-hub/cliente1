@@ -100,7 +100,7 @@
         <div class="flex justify-between pt-3 border-t border-blue-500/30">
             <span>Total Venta Con Intereses</span>
             <span class="text-green-400 font-semibold">
-                ${{ "{:,.0f}".format(credito.valor_total) }}
+                ${{ "{:,.2f}".format(credito.valor_total) }}
             </span>
         </div>
 
@@ -108,7 +108,7 @@
         <div class="flex justify-between">
             <span>Saldo Restante Venta</span>
             <span class="text-green-400 font-semibold">
-                ${{ "{:,.0f}".format(saldo) }}
+                ${{ "{:,.2f}".format(saldo) }}
             </span>
         </div>
 

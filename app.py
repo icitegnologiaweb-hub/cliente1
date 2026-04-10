@@ -2147,41 +2147,7 @@ def asignar_cobrador_ruta():
     flash("Cobrador asignado correctamente", "success")
     return redirect(url_for("listar_rutas"))
 
-# listar todas las ventas en el motudlo de cobrador
-
-@app.route("/eliminar_credito/<credito_id>")
-def eliminar_credito(credito_id):
-
-    if "user_id" not in session:
-        return redirect(url_for("login_app"))
-
-    try:
-
-        # 🔹 1. Eliminar pagos
-        supabase.table("pagos") \
-            .delete() \
-            .eq("credito_id", credito_id) \
-            .execute()
-
-        # 🔹 2. Eliminar cuotas
-        supabase.table("cuotas") \
-            .delete() \
-            .eq("credito_id", credito_id) \
-            .execute()
-
-        # 🔹 3. Eliminar crédito
-        supabase.table("creditos") \
-            .delete() \
-            .eq("id", credito_id) \
-            .execute()
-
-        flash("Venta eliminada completamente.", "success")
-
-    except Exception as e:
-        print("Error eliminando crédito:", e)
-        flash("Ocurrió un error al eliminar la venta.", "danger")
-
-    return redirect(request.referrer)
+# listar todas las ventas
 
 @app.route("/todas_las_ventas/<ruta_id>")
 def todas_las_ventas(ruta_id):
@@ -5242,48 +5208,135 @@ def historial_cliente(cliente_id):
         cliente=cliente,
         creditos=lista_creditos
     )
-    
+from postgrest.exceptions import APIError
+@app.route("/eliminar_credito_cliente/<credito_id>", methods=["POST"])
+def eliminar_credito_cliente(credito_id):
+
+    if "user_id" not in session:
+        return redirect(url_for("login"))
+
+    rol = session.get("rol")
+
+    if rol not in ["administrador", "admin", "supervisor"]:
+        flash("No tienes permisos para eliminar créditos", "danger")
+        return redirect(url_for("clientes"))
+
+    # Buscar crédito
+    credito_resp = supabase.table("creditos") \
+        .select("id, cliente_id") \
+        .eq("id", credito_id) \
+        .single() \
+        .execute()
+
+    credito = credito_resp.data if credito_resp.data else None
+
+    if not credito:
+        flash("Crédito no encontrado", "danger")
+        return redirect(url_for("clientes"))
+
+    try:
+        # 1. Eliminar pagos relacionados
+        supabase.table("pagos") \
+            .delete() \
+            .eq("credito_id", credito_id) \
+            .execute()
+
+        # 2. Eliminar cuotas relacionadas
+        supabase.table("cuotas") \
+            .delete() \
+            .eq("credito_id", credito_id) \
+            .execute()
+
+        # 3. Si tienes más tablas relacionadas, agrégalas aquí
+        # supabase.table("comentarios_credito").delete().eq("credito_id", credito_id).execute()
+        # supabase.table("historico_bancario").delete().eq("credito_id", credito_id).execute()
+
+        # 4. Eliminar crédito
+        supabase.table("creditos") \
+            .delete() \
+            .eq("id", credito_id) \
+            .execute()
+
+        flash("Crédito eliminado correctamente", "success")
+        return redirect(url_for("historial_creditos", cliente_id=credito["cliente_id"]))
+
+    except Exception as e:
+        flash(f"Error al eliminar el crédito: {str(e)}", "danger")
+        return redirect(url_for("historial_creditos", cliente_id=credito["cliente_id"]))
+
 @app.route("/clientes")
 def clientes():
 
     if "user_id" not in session:
         return redirect(url_for("login"))
 
-    # 🔥 Usar oficina desde sesión (igual que en usuarios)
     oficina_id = session.get("oficina_id")
 
     if not oficina_id:
         flash("Debe seleccionar una oficina", "warning")
         return redirect(url_for("cambiar_oficina"))
 
-    # 1️⃣ Obtener rutas de esa oficina
+    # 1️⃣ Obtener rutas de la oficina
     rutas = supabase.table("rutas") \
-        .select("id") \
+        .select("*") \
         .eq("oficina_id", oficina_id) \
-        .execute().data
+        .order("id") \
+        .execute().data or []
 
-    ruta_ids = [r["id"] for r in rutas]
+    ruta_ids_oficina = [r["id"] for r in rutas]
 
-    if not ruta_ids:
-        return render_template("clientes.html", clientes=[])
+    # Si no hay rutas, devolver vacío
+    if not ruta_ids_oficina:
+        return render_template(
+            "clientes.html",
+            clientes=[],
+            rutas=[],
+            ruta_seleccionada=None
+        )
 
-    # 2️⃣ Obtener créditos de esas rutas
+    # 2️⃣ Capturar ruta seleccionada desde el filtro GET
+    ruta_id_seleccionada = request.args.get("ruta_id")
+
+    # Normalizar tipo del id seleccionado para que coincida con los ids de BD
+    if ruta_id_seleccionada:
+        primer_id = ruta_ids_oficina[0]
+
+        if isinstance(primer_id, int):
+            try:
+                ruta_id_seleccionada = int(ruta_id_seleccionada)
+            except ValueError:
+                ruta_id_seleccionada = None
+
+    # Validar que la ruta pertenezca a la oficina actual
+    if ruta_id_seleccionada and ruta_id_seleccionada not in ruta_ids_oficina:
+        flash("La ruta seleccionada no pertenece a la oficina actual", "warning")
+        ruta_id_seleccionada = None
+
+    # 3️⃣ Definir rutas a consultar
+    rutas_filtrar = [ruta_id_seleccionada] if ruta_id_seleccionada else ruta_ids_oficina
+
+    # 4️⃣ Obtener créditos de las rutas filtradas
     creditos = supabase.table("creditos") \
-        .select("cliente_id") \
-        .in_("ruta_id", ruta_ids) \
-        .execute().data
+        .select("cliente_id, ruta_id") \
+        .in_("ruta_id", rutas_filtrar) \
+        .execute().data or []
 
-    cliente_ids = list(set([c["cliente_id"] for c in creditos]))
+    cliente_ids = list({c["cliente_id"] for c in creditos if c.get("cliente_id")})
 
     if not cliente_ids:
-        return render_template("clientes.html", clientes=[])
+        return render_template(
+            "clientes.html",
+            clientes=[],
+            rutas=rutas,
+            ruta_seleccionada=ruta_id_seleccionada
+        )
 
-    # 3️⃣ Obtener clientes finales
+    # 5️⃣ Obtener clientes finales
     clientes = supabase.table("clientes") \
         .select("*") \
         .in_("id", cliente_ids) \
         .order("posicion") \
-        .execute().data
+        .execute().data or []
 
     # 🔥 Mantengo tu cálculo de mora EXACTAMENTE igual
     for cliente in clientes:
@@ -5293,7 +5346,7 @@ def clientes():
         creditos_cliente = supabase.table("creditos") \
             .select("id") \
             .eq("cliente_id", cliente["id"]) \
-            .execute().data
+            .execute().data or []
 
         for credito in creditos_cliente:
 
@@ -5301,21 +5354,24 @@ def clientes():
                 .select("fecha_pago, estado") \
                 .eq("credito_id", credito["id"]) \
                 .eq("estado", "pendiente") \
-                .execute().data
+                .execute().data or []
 
             for cuota in cuotas:
-                fecha = date.fromisoformat(cuota["fecha_pago"])
+                if cuota.get("fecha_pago"):
+                    fecha = date.fromisoformat(cuota["fecha_pago"])
 
-                if fecha < date.today():
-                    dias = (date.today() - fecha).days
-                    if dias > mayor_mora:
-                        mayor_mora = dias
+                    if fecha < date.today():
+                        dias = (date.today() - fecha).days
+                        if dias > mayor_mora:
+                            mayor_mora = dias
 
         cliente["dias_mora"] = mayor_mora
 
     return render_template(
         "clientes.html",
-        clientes=clientes
+        clientes=clientes,
+        rutas=rutas,
+        ruta_seleccionada=ruta_id_seleccionada
     )
 
 @app.route("/editar_cliente/<cliente_id>")

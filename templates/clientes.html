@@ -49,12 +49,51 @@
 
     </div>
 
-    <!-- ================= FILTRO ================= -->
+    <!-- ================= FILTROS ================= -->
     <div class="bg-white rounded-2xl shadow-md p-5 mb-6">
-        <input type="text"
-               id="filtroCliente"
-               placeholder="🔎 Buscar por nombre o identificación..."
-               class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+        <form method="GET" action="{{ url_for('clientes') }}" class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+
+            <!-- BUSCADOR -->
+            <div class="md:col-span-2">
+                <label class="block text-sm font-semibold text-gray-600 mb-2">
+                    Buscar cliente
+                </label>
+                <input type="text"
+                       id="filtroCliente"
+                       placeholder="🔎 Buscar por nombre o identificación..."
+                       class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+            </div>
+
+            <!-- FILTRO RUTA -->
+            <div>
+                <label class="block text-sm font-semibold text-gray-600 mb-2">
+                    Filtrar por ruta
+                </label>
+
+                <div class="flex gap-2">
+                    <select name="ruta_id"
+                            onchange="this.form.submit()"
+                            class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white">
+                        <option value="">Todas las rutas</option>
+
+                        {% for ruta in rutas %}
+                            <option value="{{ ruta.id }}"
+                                {% if ruta_seleccionada == ruta.id %}selected{% endif %}>
+                                {{ ruta.nombre if ruta.nombre else 'Ruta ' ~ ruta.id }}
+                            </option>
+                        {% endfor %}
+                    </select>
+
+                    {% if ruta_seleccionada %}
+                    <a href="{{ url_for('clientes') }}"
+                       class="px-4 py-3 rounded-xl bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold whitespace-nowrap transition">
+                        Limpiar
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+
+        </form>
     </div>
 
     <!-- ================= TABLA PRO ================= -->
@@ -77,99 +116,100 @@
 
                 <tbody id="tablaClientes" class="divide-y divide-gray-100 bg-white">
 
-                    {% for cliente in clientes %}
-                    <tr class="hover:bg-gray-50 transition duration-150">
+                    {% if clientes %}
+                        {% for cliente in clientes %}
+                        <tr class="hover:bg-gray-50 transition duration-150">
 
-             
-                        <!-- NOMBRE -->
-                        <td class="px-6 py-4 font-semibold text-gray-800">
-                            {{ cliente.nombre }}
-                        </td>
+                            <!-- NOMBRE -->
+                            <td class="px-6 py-4 font-semibold text-gray-800">
+                                {{ cliente.nombre }}
+                            </td>
 
-                        <!-- IDENTIFICACIÓN -->
-                        <td class="px-6 py-4 text-gray-600">
-                            {{ cliente.identificacion }}
-                        </td>
+                            <!-- IDENTIFICACIÓN -->
+                            <td class="px-6 py-4 text-gray-600">
+                                {{ cliente.identificacion }}
+                            </td>
 
-                        <!-- DIRECCIÓN -->
-                        <td class="px-6 py-4 text-gray-600">
-                            {{ cliente.direccion }}
-                        </td>
+                            <!-- DIRECCIÓN -->
+                            <td class="px-6 py-4 text-gray-600">
+                                {{ cliente.direccion }}
+                            </td>
 
-                        <!-- TELÉFONO -->
-                        <td class="px-6 py-4 text-gray-600">
-                            {{ cliente.telefono_principal }}
-                        </td>
+                            <!-- TELÉFONO -->
+                            <td class="px-6 py-4 text-gray-600">
+                                {{ cliente.telefono_principal }}
+                            </td>
 
-                        <!-- MORA -->
-                        <td class="px-6 py-4 text-center">
-                            {% if cliente.dias_mora > 0 %}
-                                <span class="px-4 py-1 text-xs rounded-full 
-                                             bg-red-600 text-white font-semibold shadow-md">
-                                    {{ cliente.dias_mora }} días
-                                </span>
-                            {% else %}
-                                <span class="px-4 py-1 text-xs rounded-full 
-                                             bg-green-600 text-white font-semibold shadow-md">
-                                    0
-                                </span>
-                            {% endif %}
-                        </td>
+                            <!-- MORA -->
+                            <td class="px-6 py-4 text-center">
+                                {% if cliente.dias_mora > 0 %}
+                                    <span class="px-4 py-1 text-xs rounded-full 
+                                                 bg-red-600 text-white font-semibold shadow-md">
+                                        {{ cliente.dias_mora }} días
+                                    </span>
+                                {% else %}
+                                    <span class="px-4 py-1 text-xs rounded-full 
+                                                 bg-green-600 text-white font-semibold shadow-md">
+                                        0
+                                    </span>
+                                {% endif %}
+                            </td>
 
-                        <!-- ACCIONES -->
-                        <td class="px-6 py-4 text-center">
-                            <div class="flex items-center justify-center gap-3">
-                                <a href="{{ url_for('editar_cliente', cliente_id=cliente.id) }}"
-                                class="w-9 h-9 flex items-center justify-center rounded-full
-                                    bg-yellow-50 text-yellow-600
-                                    hover:bg-yellow-600 hover:text-white
-                                    hover:scale-110
-                                    transition-all duration-200 shadow-sm"
-                                title="Editar cliente">
-
-                                <i class="bi bi-pencil-fill text-sm"></i>
-
-                                </a>
-
-                                <!-- Ver cuotas -->
-                                <a href="{{ url_for('historial_creditos', cliente_id=cliente.id) }}"
-                                class="w-9 h-9 flex items-center justify-center rounded-full
-                                        bg-blue-50 text-blue-600
-                                        hover:bg-blue-600 hover:text-white
+                            <!-- ACCIONES -->
+                            <td class="px-6 py-4 text-center">
+                                <div class="flex items-center justify-center gap-3">
+                                    <a href="{{ url_for('editar_cliente', cliente_id=cliente.id) }}"
+                                    class="w-9 h-9 flex items-center justify-center rounded-full
+                                        bg-yellow-50 text-yellow-600
+                                        hover:bg-yellow-600 hover:text-white
                                         hover:scale-110
                                         transition-all duration-200 shadow-sm"
-                                title="Ver Creditos">
-                                    <i class="bi bi-eye-fill text-sm"></i>
-                                </a>
+                                    title="Editar cliente">
+                                        <i class="bi bi-pencil-fill text-sm"></i>
+                                    </a>
 
-                                <!-- Histórico bancario -->
-                                <a href="{{ url_for('historico_bancario_cliente', cliente_id=cliente.id) }}"
-                                class="w-9 h-9 flex items-center justify-center rounded-full
-                                        bg-indigo-50 text-indigo-600
-                                        hover:bg-indigo-600 hover:text-white
-                                        hover:scale-110
-                                        transition-all duration-200 shadow-sm"
-                                title="Histórico financiero">
-                                    <i class="bi bi-bank text-sm"></i>
-                                </a>
-
-                                <!-- Ubicación -->
-                                <button type="button"
-                                        onclick="verUbicacion('{{ cliente.latitud }}','{{ cliente.longitud }}')"
-                                        class="w-9 h-9 flex items-center justify-center rounded-full
-                                            bg-red-50 text-red-600
-                                            hover:bg-red-600 hover:text-white
+                                    <a href="{{ url_for('historial_creditos', cliente_id=cliente.id) }}"
+                                    class="w-9 h-9 flex items-center justify-center rounded-full
+                                            bg-blue-50 text-blue-600
+                                            hover:bg-blue-600 hover:text-white
                                             hover:scale-110
                                             transition-all duration-200 shadow-sm"
-                                        title="Ver ubicación">
-                                    <i class="bi bi-geo-alt-fill text-sm"></i>
-                                </button>
+                                    title="Ver Creditos">
+                                        <i class="bi bi-eye-fill text-sm"></i>
+                                    </a>
 
-                            </div>
-                        </td>
+                                    <a href="{{ url_for('historico_bancario_cliente', cliente_id=cliente.id) }}"
+                                    class="w-9 h-9 flex items-center justify-center rounded-full
+                                            bg-indigo-50 text-indigo-600
+                                            hover:bg-indigo-600 hover:text-white
+                                            hover:scale-110
+                                            transition-all duration-200 shadow-sm"
+                                    title="Histórico financiero">
+                                        <i class="bi bi-bank text-sm"></i>
+                                    </a>
 
-                    </tr>
-                    {% endfor %}
+                                    <button type="button"
+                                            onclick="verUbicacion('{{ cliente.latitud }}','{{ cliente.longitud }}')"
+                                            class="w-9 h-9 flex items-center justify-center rounded-full
+                                                bg-red-50 text-red-600
+                                                hover:bg-red-600 hover:text-white
+                                                hover:scale-110
+                                                transition-all duration-200 shadow-sm"
+                                            title="Ver ubicación">
+                                        <i class="bi bi-geo-alt-fill text-sm"></i>
+                                    </button>
+                                </div>
+                            </td>
+
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="6" class="px-6 py-10 text-center text-gray-500">
+                                No se encontraron clientes para la ruta seleccionada.
+                            </td>
+                        </tr>
+                    {% endif %}
 
                 </tbody>
 
@@ -260,6 +300,7 @@ function editarPosicion(id, nombre, posicion){
 
 function cerrarModal(){
     document.getElementById("modalPosicion").classList.add("hidden");
+    document.getElementById("modalPosicion").classList.remove("flex");
 }
 </script>
 
