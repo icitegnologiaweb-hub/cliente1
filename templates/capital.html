@@ -151,7 +151,8 @@
                         </td>
 
                         <td class="px-6 py-4 text-center">
-                            <button class="text-red-600 hover:text-red-800 transition">
+                            <button onclick="confirmarEliminar('{{ item.id }}')" 
+                                    class="text-red-600 hover:text-red-800 transition">
                                 <i class="bi bi-trash"></i>
                             </button>
                         </td>
@@ -245,8 +246,104 @@
     </div>
 
 </div>
+<div id="modalEliminar"
+     class="fixed inset-0 bg-black/40 backdrop-blur-sm hidden items-center justify-center z-50">
 
+    <div class="bg-white rounded-2xl w-full max-w-md p-8 shadow-2xl text-center">
 
+        <div class="mb-4">
+            <div class="w-14 h-14 mx-auto bg-red-100 rounded-full flex items-center justify-center">
+                <i class="bi bi-exclamation-triangle text-red-600 text-2xl"></i>
+            </div>
+        </div>
+
+        <h2 class="text-xl font-semibold text-gray-800 mb-2">
+            ¿Eliminar movimiento?
+        </h2>
+
+        <p class="text-gray-500 text-sm mb-6">
+            Esta acción no se puede deshacer
+        </p>
+
+        <div class="flex gap-3">
+            <button onclick="cerrarModalEliminar()"
+                    class="w-full border border-gray-300 py-3 rounded-lg hover:bg-gray-100">
+                Cancelar
+            </button>
+
+            <button onclick="eliminarConfirmado()"
+                    class="w-full bg-red-600 hover:bg-red-700 text-white py-3 rounded-lg shadow">
+                Eliminar
+            </button>
+        </div>
+
+    </div>
+</div>
+<script>
+function eliminarConfirmado(){
+
+    fetch(`/eliminar_capital/${idEliminar}`, {
+        method: "POST"
+    })
+    .then(res => res.json())
+    .then(data => {
+        console.log(data); // debug
+
+        if(data.success){
+            cerrarModalEliminar(); // 👈 clave
+
+            mostrarToast("Capital eliminado correctamente", "success");
+
+            setTimeout(() => {
+                location.reload();
+            }, 1200);
+
+        }else{
+            mostrarToast("Error al eliminar", "error");
+        }
+    })
+    .catch(err => {
+        console.error(err);
+        mostrarToast("Error en la petición", "error");
+    });
+
+}
+</script>
+<script>
+let idEliminar = null;
+
+function confirmarEliminar(id){
+    idEliminar = id;
+    document.getElementById("modalEliminar").classList.remove("hidden");
+    document.getElementById("modalEliminar").classList.add("flex");
+}
+
+function cerrarModalEliminar(){
+    document.getElementById("modalEliminar").classList.add("hidden");
+    idEliminar = null;
+}
+
+</script>
+
+<div id="toast"
+     class="fixed bottom-6 right-6 bg-gray-900 text-white px-6 py-3 rounded-lg shadow-lg hidden">
+</div>
+
+<script>
+function mostrarToast(mensaje, tipo="success"){
+
+    let toast = document.getElementById("toast");
+
+    toast.innerText = mensaje;
+
+    toast.classList.remove("hidden");
+    toast.classList.add("opacity-100");
+
+    setTimeout(() => {
+        toast.classList.add("hidden");
+    }, 2500);
+}
+</script>
 <!-- ================= FILTRO JS ================= -->
 <script>
 document.getElementById("filtroRuta").addEventListener("keyup", function() {

@@ -6013,6 +6013,35 @@ def capital():
         ruta_id_filtro=ruta_id_filtro
     )
 
+@app.route("/eliminar_capital/<id>", methods=["POST"])
+def eliminar_capital(id):
+
+    try:
+
+        # 🔥 Eliminar SOLO si pertenece a su oficina
+        resp = supabase.table("capital") \
+            .delete() \
+            .eq("id", id) \
+            .execute()
+
+        # 🧪 Validar si realmente eliminó algo
+        if not resp.data:
+            return jsonify({
+                "success": False,
+                "error": "No se encontró el registro o no se pudo eliminar"
+            }), 404
+
+        return jsonify({
+            "success": True,
+            "message": "Capital eliminado correctamente"
+        })
+
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
 @app.route("/capital/crear", methods=["POST"])
 def crear_capital():
 
