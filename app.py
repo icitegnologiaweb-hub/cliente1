@@ -876,7 +876,6 @@ def money(value):
 
 from decimal import Decimal
 from datetime import date
-
 @app.route("/credito/<credito_id>")
 def detalle_credito(credito_id):
 
@@ -971,10 +970,8 @@ def detalle_credito(credito_id):
             "porcentaje_mora": float(money(c.get("porcentaje_mora"))),
         })
 
-    # ✅ USAR EL SALDO REAL DEL CRÉDITO
     saldo = money(credito.get("saldo"))
 
-    # fallback por si algún crédito viejo no tiene saldo guardado
     if saldo == Decimal("0.00") and credito.get("saldo") in [None, ""]:
         valor_total = money(credito.get("valor_total"))
         saldo = (valor_total - total_pagado_visual).quantize(Decimal("0.01"))
@@ -986,7 +983,6 @@ def detalle_credito(credito_id):
         if c["estado"] == "pagado"
     )
 
-    # ✅ renovar solo si ya no debe nada
     puede_renovar = saldo <= 0
 
     return render_template(
@@ -999,9 +995,11 @@ def detalle_credito(credito_id):
         puede_renovar=puede_renovar,
         cuotas_pagadas=cuotas_pagadas
     )
-from datetime import datetime
+
+
 def ahora_colombia():
     return datetime.utcnow() - timedelta(hours=5)
+
 
 @app.route("/registrar_pago", methods=["POST"])
 def registrar_pago():
@@ -1027,6 +1025,26 @@ def registrar_pago():
     cuota = cuota_resp.data
     credito_id = cuota["credito_id"]
     numero_cuota_inicio = cuota["numero"]
+
+    # =========================
+    # VALIDAR POSIBLE DUPLICADO
+    # =========================
+    fecha_limite = (ahora_colombia() - timedelta(seconds=10)).isoformat()
+
+    pago_duplicado = supabase.table("pagos") \
+        .select("id, fecha, monto") \
+        .eq("cuota_id", cuota_id) \
+        .eq("credito_id", credito_id) \
+        .eq("monto", monto_pago) \
+        .eq("cobrador_id", session["user_id"]) \
+        .gte("fecha", fecha_limite) \
+        .order("fecha", desc=True) \
+        .limit(1) \
+        .execute()
+
+    if pago_duplicado.data:
+        flash("Este pago ya se está procesando o fue registrado hace unos segundos.", "warning")
+        return redirect(url_for("detalle_credito", credito_id=credito_id))
 
     # =========================
     # TRAER CUOTAS DEL CRÉDITO
@@ -1125,7 +1143,7 @@ def registrar_pago():
     }).execute()
 
     pago_id = pago_resp.data[0]["id"]
-    
+
     # 🔥 REPARAR TODAS LAS CUOTAS SIEMPRE
     recalcular_credito(credito_id)
 
@@ -1144,8 +1162,6 @@ def registrar_pago():
         }).eq("id", credito_id).execute()
 
     return redirect(url_for("recibo_pago", pago_id=pago_id))
-
-
 # =====================================
 # RECIBO
 # =====================================

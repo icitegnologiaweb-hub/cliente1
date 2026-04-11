@@ -2,7 +2,6 @@
 
 {% block titulo %}
 {{ credito.clientes.nombre }}
-
 {% endblock %}
 
 {% block content %}
@@ -35,31 +34,29 @@
 
             Regresar
         </button>
-        <!-- Nombre -->
+
         <div class="text-lg font-semibold text-blue-200 mb-2">
             {{ credito.clientes.nombre }}
         </div>
 
-        <!-- Teléfono con WhatsApp -->
         <div class="flex justify-between items-center">
             <span class="opacity-70">Teléfono</span>
 
             {% set codigo = credito.clientes.codigo_pais or '57' %}
-            {% set telefono_limpio = (credito.clientes.telefono_principal or '') 
-                | replace(' ', '') 
-                | replace('-', '') 
-                | replace('(', '') 
-                | replace(')', '') 
+            {% set telefono_limpio = (credito.clientes.telefono_principal or '')
+                | replace(' ', '')
+                | replace('-', '')
+                | replace('(', '')
+                | replace(')', '')
             %}
 
             <a href="https://wa.me/{{ codigo }}{{ telefono_limpio }}"
-            target="_blank"
-            class="text-green-400 font-semibold">
+               target="_blank"
+               class="text-green-400 font-semibold">
                 +{{ codigo }} {{ credito.clientes.telefono_principal }}
             </a>
         </div>
-    
-        <!-- Dirección -->
+
         <div class="flex justify-between">
             <span class="opacity-70">Dirección</span>
             <span class="text-blue-300">
@@ -67,14 +64,13 @@
             </span>
         </div>
 
-        <!-- Tipo préstamo -->
         <div class="flex justify-between">
             <span class="opacity-70">Tipo Préstamo</span>
             <span class="text-blue-300">
                 {{ credito.tipo_prestamo }}
             </span>
         </div>
-        <!-- Fecha Registro Crédito -->
+
         <div class="flex justify-between">
             <span class="opacity-70">Registro Crédito</span>
             <span class="text-blue-300">
@@ -82,13 +78,14 @@
                 {{ credito.created_at[11:16] }}
             </span>
         </div>
+
         <div class="flex justify-between">
             <span class="opacity-70">Cuotas Pactadas</span>
             <span class="text-blue-300">
                 {{ cuotas|length }}
             </span>
         </div>
-        <!-- Próxima cuota -->
+
         <div class="flex justify-between">
             <span class="opacity-70">Próxima Cuota</span>
             <span class="text-green-400 font-semibold">
@@ -96,7 +93,6 @@
             </span>
         </div>
 
-        <!-- Total venta -->
         <div class="flex justify-between pt-3 border-t border-blue-500/30">
             <span>Total Venta Con Intereses</span>
             <span class="text-green-400 font-semibold">
@@ -104,7 +100,6 @@
             </span>
         </div>
 
-        <!-- Saldo -->
         <div class="flex justify-between">
             <span>Saldo Restante Venta</span>
             <span class="text-green-400 font-semibold">
@@ -119,115 +114,128 @@
                 py-3 rounded-xl text-sm font-semibold shadow-md transition">
         Ver Imagen de la Venta
     </button>
+
     <a href="{{ url_for('historial_cliente', cliente_id=credito.clientes.id) }}"
-    class="w-full mt-3 block bg-indigo-600 hover:bg-indigo-700
-            py-2 rounded-xl text-sm font-semibold text-center transition">
+       class="w-full mt-3 block bg-indigo-600 hover:bg-indigo-700
+              py-2 rounded-xl text-sm font-semibold text-center transition">
         Ver historial de créditos
     </a>
+
     <a href="javascript:void(0);"
-    onclick="verUbicacion()"
-    class="w-full mt-3 block bg-green-600 hover:bg-green-700
-            py-2 rounded-xl text-sm font-semibold text-center transition">
+       onclick="verUbicacion()"
+       class="w-full mt-3 block bg-green-600 hover:bg-green-700
+              py-2 rounded-xl text-sm font-semibold text-center transition">
         📍 Ir a ubicación del cliente
     </a>
 
-<!-- ================= MODAL GALERÍA MODERNO ================= -->
-<div id="modalGaleria"
-     class="fixed inset-0 bg-black/40 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
+    <!-- FLASH -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="mt-4 space-y-2">
+                {% for category, message in messages %}
+                    <div class="rounded-xl px-4 py-3 text-sm font-medium
+                        {% if category == 'warning' %}
+                            bg-yellow-500/20 text-yellow-200 border border-yellow-400/30
+                        {% elif category == 'error' %}
+                            bg-red-500/20 text-red-200 border border-red-400/30
+                        {% else %}
+                            bg-green-500/20 text-green-200 border border-green-400/30
+                        {% endif %}">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
 
-    <div class="relative w-full max-w-md 
-            bg-gradient-to-br from-[#123b63] to-[#0b2847]
-            rounded-3xl shadow-2xl overflow-hidden text-white">
+    <!-- ================= MODAL GALERÍA MODERNO ================= -->
+    <div id="modalGaleria"
+         class="fixed inset-0 bg-black/40 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
 
-        <!-- Header -->
-        <div class="flex items-center justify-between px-5 py-4 border-b border-white/10">
+        <div class="relative w-full max-w-md
+                bg-gradient-to-br from-[#123b63] to-[#0b2847]
+                rounded-3xl shadow-2xl overflow-hidden text-white">
 
-            <div class="text-sm font-semibold text-blue-200">
-                Documentos del Crédito
+            <div class="flex items-center justify-between px-5 py-4 border-b border-white/10">
+                <div class="text-sm font-semibold text-blue-200">
+                    Documentos del Crédito
+                </div>
+
+                <button onclick="cerrarGaleria()"
+                        class="h-8 w-8 rounded-full bg-gray-100 hover:bg-gray-200
+                               flex items-center justify-center text-gray-600 transition">
+                    ✕
+                </button>
             </div>
 
-            <button onclick="cerrarGaleria()"
-                    class="h-8 w-8 rounded-full bg-gray-100 hover:bg-gray-200
-                           flex items-center justify-center text-gray-600 transition">
-                ✕
-            </button>
+            <div class="relative bg-transparent">
+                <div id="sliderImagenes"
+                     class="flex transition-transform duration-300">
 
-        </div>
-
-        <!-- Contenedor imágenes -->
-        <div class="relative bg-transparent">
-
-            <div id="sliderImagenes"
-                 class="flex transition-transform duration-300">
-
-                {% if credito.foto_cliente %}
-                <div class="w-full flex-shrink-0 p-6">
-                    <img src="{{ credito.foto_cliente }}"
-                         class="w-full h-72 object-contain rounded-xl shadow">
-                    <div class="text-center text-xs text-gray-500 mt-2">
-                        Foto Cliente
+                    {% if credito.foto_cliente %}
+                    <div class="w-full flex-shrink-0 p-6">
+                        <img src="{{ credito.foto_cliente }}"
+                             class="w-full h-72 object-contain rounded-xl shadow">
+                        <div class="text-center text-xs text-gray-500 mt-2">
+                            Foto Cliente
+                        </div>
                     </div>
-                </div>
-                {% endif %}
+                    {% endif %}
 
-                {% if credito.foto_cedula %}
-                <div class="w-full flex-shrink-0 p-6">
-                    <img src="{{ credito.foto_cedula }}"
-                         class="w-full h-72 object-contain rounded-xl shadow">
-                    <div class="text-center text-xs text-gray-500 mt-2">
-                        Foto Cédula
+                    {% if credito.foto_cedula %}
+                    <div class="w-full flex-shrink-0 p-6">
+                        <img src="{{ credito.foto_cedula }}"
+                             class="w-full h-72 object-contain rounded-xl shadow">
+                        <div class="text-center text-xs text-gray-500 mt-2">
+                            Foto Cédula
+                        </div>
                     </div>
-                </div>
-                {% endif %}
+                    {% endif %}
 
-                {% if credito.foto_negocio %}
-                <div class="w-full flex-shrink-0 p-6">
-                    <img src="{{ credito.foto_negocio }}"
-                         class="w-full h-72 object-contain rounded-xl shadow">
-                    <div class="text-center text-xs text-gray-500 mt-2">
-                        Foto Negocio
+                    {% if credito.foto_negocio %}
+                    <div class="w-full flex-shrink-0 p-6">
+                        <img src="{{ credito.foto_negocio }}"
+                             class="w-full h-72 object-contain rounded-xl shadow">
+                        <div class="text-center text-xs text-gray-500 mt-2">
+                            Foto Negocio
+                        </div>
                     </div>
-                </div>
-                {% endif %}
+                    {% endif %}
 
-                {% if credito.firma_cliente %}
-                <div class="w-full flex-shrink-0 p-6">
-                    <img src="{{ credito.firma_cliente }}"
-                         class="w-full h-48 object-contain bg-white rounded-xl shadow">
-                    <div class="text-center text-xs text-gray-500 mt-2">
-                        Firma Cliente
+                    {% if credito.firma_cliente %}
+                    <div class="w-full flex-shrink-0 p-6">
+                        <img src="{{ credito.firma_cliente }}"
+                             class="w-full h-48 object-contain bg-white rounded-xl shadow">
+                        <div class="text-center text-xs text-gray-500 mt-2">
+                            Firma Cliente
+                        </div>
                     </div>
-                </div>
-                {% endif %}
+                    {% endif %}
 
+                </div>
+            </div>
+
+            <div class="flex items-center justify-between px-6 py-4 border-t border-white/10 bg-transparent">
+                <button onclick="prevImagen()"
+                        class="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-xl transition">
+                    ← Anterior
+                </button>
+
+                <div id="contadorImagen"
+                     class="text-xs text-gray-500">
+                    1 / 3
+                </div>
+
+                <button onclick="nextImagen()"
+                        class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition">
+                    Siguiente →
+                </button>
             </div>
 
         </div>
-
-        <!-- Footer navegación -->
-        <div class="flex items-center justify-between px-6 py-4 border-t border-white/10 bg-transparent">
-
-            <button onclick="prevImagen()"
-                   class="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-xl transition">
-                ← Anterior
-            </button>
-
-            <div id="contadorImagen"
-                 class="text-xs text-gray-500">
-                1 / 3
-            </div>
-
-            <button onclick="nextImagen()"
-                    class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition">
-                Siguiente →
-            </button>
-
-        </div>
-
     </div>
-
 </div>
-     </div>
+
 <!-- =========================
      LISTA DE CUOTAS
 ========================= -->
@@ -244,10 +252,7 @@ class="bg-white/5 border border-white/10 rounded-2xl p-4 backdrop-blur">
 
 <div class="flex justify-between items-center">
 
-    <!-- IZQUIERDA -->
     <div class="flex items-center gap-4">
-
-        <!-- NUMERO CUOTA -->
         <div class="h-10 w-10 rounded-full bg-blue-600 flex items-center justify-center font-bold">
             {{ cuota.numero }}
         </div>
@@ -292,7 +297,6 @@ class="bg-white/5 border border-white/10 rounded-2xl p-4 backdrop-blur">
                 </div>
                 {% endif %}
 
-                <!-- barra progreso -->
                 {% set progreso = (aplicado / cuota.valor) * 100 %}
 
                 <div class="w-32 bg-white/10 rounded-full h-1.5 mt-1">
@@ -301,7 +305,8 @@ class="bg-white/5 border border-white/10 rounded-2xl p-4 backdrop-blur">
                     </div>
                 </div>
 
-                {% endif %}
+            {% endif %}
+
             {% if cuota.dias_mora > 0 %}
             <div class="text-xs text-red-400">
                 Mora: {{ cuota.dias_mora }} días
@@ -309,12 +314,9 @@ class="bg-white/5 border border-white/10 rounded-2xl p-4 backdrop-blur">
             {% endif %}
 
         </div>
-
     </div>
 
-    <!-- ESTADO -->
     <div>
-
         {% if cuota.estado == "pagado" %}
         <div class="h-9 w-9 rounded-full bg-green-500 flex items-center justify-center font-bold">
             ✓
@@ -329,27 +331,39 @@ class="bg-white/5 border border-white/10 rounded-2xl p-4 backdrop-blur">
         <div class="h-9 w-9 rounded-full bg-gray-500 flex items-center justify-center font-bold">
             🔒
         </div>
-
         {% endif %}
-
     </div>
 
 </div>
-
 </div>
 
 {% endfor %}
-
 </div>
 
-
+<!-- =========================
+     MODAL MODERNO DE PAGO
+========================= -->
 <!-- =========================
      MODAL MODERNO DE PAGO
 ========================= -->
 <div id="modalPago"
      class="fixed inset-0 bg-black/70 backdrop-blur-sm hidden items-end sm:items-center justify-center z-50 transition">
 
-    <div class="bg-white w-full sm:w-[380px] rounded-t-3xl sm:rounded-3xl p-6 text-gray-800 shadow-2xl animate-fadeInUp">
+    <div class="relative bg-white w-full sm:w-[380px] rounded-t-3xl sm:rounded-3xl p-6 text-gray-800 shadow-2xl animate-fadeInUp overflow-hidden">
+
+        <!-- Loader moderno -->
+        <div id="loadingPago"
+             class="absolute inset-0 bg-white/90 backdrop-blur-sm hidden items-center justify-center z-20 rounded-t-3xl sm:rounded-3xl">
+            <div class="text-center px-6">
+                <div class="mx-auto h-16 w-16 rounded-full border-4 border-green-200 border-t-green-600 animate-spin"></div>
+                <h4 class="mt-5 text-lg font-bold text-gray-800">
+                    Generando recibo
+                </h4>
+                <p class="text-sm text-gray-500 mt-2">
+                    Espera un momento, estamos registrando el pago.
+                </p>
+            </div>
+        </div>
 
         <!-- Handle estilo app móvil -->
         <div class="w-10 h-1.5 bg-gray-300 rounded-full mx-auto mb-5 sm:hidden"></div>
@@ -359,7 +373,7 @@ class="bg-white/5 border border-white/10 rounded-2xl p-4 backdrop-blur">
             Registrar Pago
         </h3>
 
-        <form method="POST" action="{{ url_for('registrar_pago') }}">
+        <form method="POST" action="{{ url_for('registrar_pago') }}" id="formPago">
 
             <input type="hidden" name="cuota_id" id="cuota_id">
 
@@ -377,10 +391,11 @@ class="bg-white/5 border border-white/10 rounded-2xl p-4 backdrop-blur">
                         step="0.01"
                         min="0"
                         class="w-full mt-2 border border-gray-300
-                                focus:border-green-500 focus:ring-2
-                                focus:ring-green-200 rounded-xl
-                                p-3 text-center text-lg font-semibold"
-                        oninput="calcularTotal()">
+                               focus:border-green-500 focus:ring-2
+                               focus:ring-green-200 rounded-xl
+                               p-3 text-center text-lg font-semibold"
+                        oninput="calcularTotal()"
+                        required>
                 </div>
 
                 <div class="text-xs text-gray-500 mt-4">
@@ -392,18 +407,19 @@ class="bg-white/5 border border-white/10 rounded-2xl p-4 backdrop-blur">
 
             </div>
 
-
             <!-- Botones -->
             <div class="space-y-3">
 
                 <button type="submit"
+                        id="btnConfirmarPago"
                         class="w-full bg-green-600 hover:bg-green-700
-                               text-white py-3 rounded-xl font-semibold shadow-md transition">
-                    Confirmar Pago
+                               text-white py-3 rounded-xl font-semibold shadow-md transition flex items-center justify-center gap-2">
+                    <span>Confirmar Pago</span>
                 </button>
 
                 <button type="button"
                         onclick="cerrarModal()"
+                        id="btnCancelarPago"
                         class="w-full bg-gray-200 hover:bg-gray-300
                                text-gray-700 py-3 rounded-xl font-medium transition">
                     Cancelar
@@ -452,14 +468,12 @@ class="bg-white/5 border border-white/10 rounded-2xl p-4 backdrop-blur">
 
     </div>
 </div>
+
 <script>
 function handleCardClick(e, cuotaId, valor) {
-
-    // Si el click viene del botón de menú o del menú, no hacer nada
     if (e.target.closest('#menuOpciones') || e.target.closest('[onclick*="toggleMenu"]')) {
         return;
     }
-
     abrirModal(cuotaId, valor);
 }
 </script>
@@ -477,8 +491,6 @@ function toggleAcciones() {
         icon.innerText = "▴";
     }
 }
-
-
 
 function verPagos(){
     document.getElementById("modalPagos").classList.remove("hidden");
@@ -513,10 +525,9 @@ function intentarRenovar(){
 function verFicha(){
     window.location.href = "/ficha_cliente/{{ credito.clientes.id }}";
 }
-
 </script>
-<script>
 
+<script>
 let indexImagen = 0;
 
 function abrirGaleria() {
@@ -553,21 +564,28 @@ function prevImagen() {
         actualizarSlider();
     }
 }
-
 </script>
-<!-- =========================
-     SCRIPT
-========================= -->
 <script>
-
 function abrirModal(cuotaId, valor) {
 
     document.getElementById("cuota_id").value = cuotaId;
-
-    // valor por defecto
     document.getElementById("valorPago").value = parseFloat(valor).toFixed(2);
-
     calcularTotal();
+
+    const btn = document.getElementById("btnConfirmarPago");
+    const btnCancelar = document.getElementById("btnCancelarPago");
+    const loading = document.getElementById("loadingPago");
+    const inputPago = document.getElementById("valorPago");
+
+    btn.disabled = false;
+    btn.innerHTML = "<span>Confirmar Pago</span>";
+    btn.classList.remove("opacity-70", "cursor-not-allowed");
+
+    btnCancelar.disabled = false;
+    inputPago.readOnly = false;
+
+    loading.classList.add("hidden");
+    loading.classList.remove("flex");
 
     document.getElementById("modalPago").classList.remove("hidden");
     document.getElementById("modalPago").classList.add("flex");
@@ -578,13 +596,37 @@ function cerrarModal() {
 }
 
 function calcularTotal() {
-
     let valor = parseFloat(document.getElementById("valorPago").value) || 0;
-
-    document.getElementById("totalTexto").innerText =
-        "$" + valor.toFixed(2);
+    document.getElementById("totalTexto").innerText = "$" + valor.toFixed(2);
 }
 
+document.getElementById("formPago").addEventListener("submit", function(e) {
+    const btn = document.getElementById("btnConfirmarPago");
+    const btnCancelar = document.getElementById("btnCancelarPago");
+    const loading = document.getElementById("loadingPago");
+    const inputPago = document.getElementById("valorPago");
+
+    if (btn.disabled) {
+        e.preventDefault();
+        return;
+    }
+
+    btn.disabled = true;
+    btnCancelar.disabled = true;
+    inputPago.readOnly = true;
+
+    btn.classList.add("opacity-70", "cursor-not-allowed");
+    btn.innerHTML = `
+        <svg class="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-90" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+        </svg>
+        <span>Generando recibo...</span>
+    `;
+
+    loading.classList.remove("hidden");
+    loading.classList.add("flex");
+});
 </script>
 
 {% endblock %}
