@@ -73,8 +73,8 @@
         <div class="bg-[#123b63] rounded-2xl p-4 text-center">
             <div class="text-xs opacity-60">Saldo Actual</div>
             <div class="font-semibold text-red-400 mt-1">
-                $ {{ "{:,.0f}".format(saldo_total_cliente or 0) }}
-            </div>
+    $ {{ "{:,.0f}".format((saldo_credito_activo if tiene_credito_activo else saldo_total_cliente) or 0) }}
+</div>
         </div>
 
     </div>

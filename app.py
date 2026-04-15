@@ -3759,7 +3759,6 @@ def clientes_ruta(ruta_id):
         clientes=clientes_lista,
         ruta_id=ruta_id
     )
-
 @app.route("/detalle_cliente/<cliente_id>/<ruta_id>")
 def detalle_cliente(cliente_id, ruta_id):
 
@@ -3794,51 +3793,45 @@ def detalle_cliente(cliente_id, ruta_id):
     credito = None
     credito_activo = None
     total_prestado = 0
+    total_financiado = 0
     total_pagado = 0
     total_pagado_credito_activo = 0
     saldo_credito_activo = 0
     fotos = []
+    fotos_vistas = set()
     credito_ids = []
+
+    def agregar_foto(url, tipo, fecha):
+        if not url:
+            return
+
+        url_limpia = str(url).strip()
+        if not url_limpia:
+            return
+
+        if url_limpia in fotos_vistas:
+            return
+
+        fotos_vistas.add(url_limpia)
+        fotos.append({
+            "url": url_limpia,
+            "tipo": tipo,
+            "fecha": fecha
+        })
 
     for c in historial_creditos:
         credito_ids.append(c["id"])
 
-        # 🔥 Mejor usar valor_venta para total prestado real
         total_prestado += float(c.get("valor_venta") or 0)
+        total_financiado += float(c.get("valor_total") or 0)
 
         if not credito:
             credito = c
 
-        if c.get("estado") == "activo":
-            credito_activo = c
-
-        if c.get("foto_cedula"):
-            fotos.append({
-                "url": c["foto_cedula"],
-                "tipo": "Cédula",
-                "fecha": c.get("created_at")
-            })
-
-        if c.get("foto_negocio"):
-            fotos.append({
-                "url": c["foto_negocio"],
-                "tipo": "Negocio",
-                "fecha": c.get("created_at")
-            })
-
-        if c.get("foto_vivienda"):
-            fotos.append({
-                "url": c["foto_vivienda"],
-                "tipo": "Vivienda",
-                "fecha": c.get("created_at")
-            })
-
-        if c.get("foto_cliente"):
-            fotos.append({
-                "url": c["foto_cliente"],
-                "tipo": "Cliente",
-                "fecha": c.get("created_at")
-            })
+        agregar_foto(c.get("foto_cedula"), "Cédula", c.get("created_at"))
+        agregar_foto(c.get("foto_negocio"), "Negocio", c.get("created_at"))
+        agregar_foto(c.get("foto_vivienda"), "Vivienda", c.get("created_at"))
+        agregar_foto(c.get("foto_cliente"), "Cliente", c.get("created_at"))
 
     # =====================================================
     # PAGOS
@@ -3860,57 +3853,78 @@ def detalle_cliente(cliente_id, ruta_id):
         )
 
     # =====================================================
+    # BUSCAR CRÉDITO REALMENTE ACTIVO
+    # =====================================================
+    cuotas_credito_activo = []
+    puede_renovar = False
+
+    for c in historial_creditos:
+        cuotas_resp = supabase.table("cuotas") \
+            .select("estado") \
+            .eq("credito_id", c["id"]) \
+            .execute()
+
+        cuotas_tmp = cuotas_resp.data or []
+
+        total_pagado_tmp = sum(
+            float(p.get("monto") or 0)
+            for p in historial_pagos
+            if str(p.get("credito_id")) == str(c["id"])
+        )
+
+        saldo_tmp = round(
+            float(c.get("valor_total") or 0) - total_pagado_tmp,
+            2
+        )
+
+        tiene_cuotas_pendientes = any(
+            q.get("estado") == "pendiente"
+            for q in cuotas_tmp
+        )
+
+        estado_credito = (c.get("estado") or "").strip().lower()
+
+        # ✅ Considerar activo si:
+        # - estado es activo
+        # - o tiene cuotas pendientes
+        # - o todavía tiene saldo
+        if estado_credito == "activo" or tiene_cuotas_pendientes or saldo_tmp > 0:
+            credito_activo = c
+            cuotas_credito_activo = cuotas_tmp
+            total_pagado_credito_activo = total_pagado_tmp
+            saldo_credito_activo = saldo_tmp
+            break
+
+    # =====================================================
     # SALDO TOTAL CLIENTE
     # =====================================================
-    saldo_total_cliente = round(total_prestado - total_pagado, 2)
+    saldo_total_cliente = round(total_financiado - total_pagado, 2)
 
     # =====================================================
     # VALIDAR RENOVACIÓN
     # =====================================================
-    cuotas = []
-    puede_renovar = False
+    cuotas = cuotas_credito_activo
 
     if credito_activo:
-
-        cuotas_resp = supabase.table("cuotas") \
-            .select("estado") \
-            .eq("credito_id", credito_activo["id"]) \
-            .execute()
-
-        cuotas = cuotas_resp.data or []
-
-        total_pagado_credito_activo = sum(
-            float(p.get("monto") or 0)
-            for p in historial_pagos
-            if str(p.get("credito_id")) == str(credito_activo["id"])
-        )
-
         todas_pagadas = len(cuotas) > 0 and all(
             c.get("estado") == "pagado"
             for c in cuotas
         )
 
-        saldo_credito_activo = round(
-            float(credito_activo.get("valor_total") or 0) - total_pagado_credito_activo,
-            2
-        )
-
         if todas_pagadas and saldo_credito_activo <= 0:
             puede_renovar = True
 
-            if credito_activo.get("estado") != "finalizado":
+            if (credito_activo.get("estado") or "").strip().lower() != "finalizado":
                 supabase.table("creditos") \
                     .update({"estado": "finalizado"}) \
                     .eq("id", credito_activo["id"]) \
                     .execute()
         else:
             puede_renovar = False
-
     else:
-        # 🔥 Si no hay crédito activo, igual validar que no quede saldo pendiente
         puede_renovar = saldo_total_cliente <= 0
 
-    # ✅ Mostrar crédito activo solo si realmente existe uno abierto
+    # ✅ Mostrar crédito activo si realmente encontró uno con deuda o pendiente
     tiene_credito_activo = credito_activo is not None
 
     return render_template(
@@ -3924,6 +3938,7 @@ def detalle_cliente(cliente_id, ruta_id):
         puede_renovar=puede_renovar,
         ruta_id=ruta_id,
         total_prestado=total_prestado,
+        total_financiado=total_financiado,
         total_pagado=total_pagado,
         total_pagado_credito_activo=total_pagado_credito_activo,
         saldo_credito_activo=saldo_credito_activo,
