@@ -11,7 +11,7 @@
 
 
     <h1 class="text-white text-lg font-semibold">
-        Ventas 
+        Ventas pendientes o vencidas
     </h1>
 <!-- BUSCADOR -->
 <div class="mb-4">
@@ -25,7 +25,15 @@
                   focus:outline-none focus:ring-2 focus:ring-blue-400">
     </div>
 </div>
+<div class="text-white text-xs mb-2">
+    Total créditos cargados: {{ creditos|length }}
+</div>
 
+{% for credito in creditos %}
+    <div class="text-yellow-300 text-[10px]">
+        DEBUG → {{ credito.id }} | {{ credito.cliente }} | mora: {{ credito.dias_mora }} | prox: {{ credito.proxima_cuota }} | saldo: {{ credito.saldo }}
+    </div>
+{% endfor %}
     {% if creditos %}
 
         {% for credito in creditos %}

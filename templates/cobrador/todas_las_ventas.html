@@ -4,120 +4,302 @@
 {% block content %}
 
 <div class="max-w-md mx-auto px-4 pt-4 pb-28 space-y-4">
-    <div class="sticky top-0 bg-[#0b2847] p-3 rounded-2xl shadow-lg mb-4">
 
-        <input type="text"
-            id="buscador"
-            placeholder="Buscar por nombre o cédula..."
-            class="w-full bg-[#123b63] border border-gray-600
-                    rounded-xl p-3 text-white placeholder-gray-400
-                    focus:outline-none focus:ring-2 focus:ring-blue-500">
+    <!-- HEADER SUPERIOR -->
+    <div class="sticky top-0 z-30 bg-[#0b2847] rounded-2xl shadow-lg mb-4 overflow-hidden border border-blue-900/40">
+        
+        <!-- RESUMEN -->
+        <div class="p-4 bg-gradient-to-br from-[#123b63] to-[#0b2847]">
+            <div class="flex items-center justify-between mb-3">
+                <div>
+                   
+                    <div class="text-white font-bold text-lg">
+                        Gestión de creditos
+                    </div>
+                    <div class="text-xs text-blue-200">
+                        Control diario de créditos y recaudo
+                    </div>
+                </div>
+
+                <div class="h-12 w-12 rounded-2xl bg-white/10 border border-white/10 flex items-center justify-center text-xl shadow-inner">
+                    💼
+                </div>
+            </div>
+
+        
+        </div>
+
+        <!-- BUSCADOR -->
+        <div class="p-3 border-t border-white/5">
+            <input type="text"
+                id="buscador"
+                placeholder="Buscar por nombre o cédula..."
+                class="w-full bg-[#123b63] border border-gray-600 rounded-xl p-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500">
+        </div>
+
+        <!-- TABS -->
+        <div class="px-3 pb-3">
+            <div class="bg-[#123b63] rounded-2xl p-1 flex gap-1 border border-blue-800/40">
+                <button type="button"
+                        id="tabPendientes"
+                        onclick="cambiarTab('pendientes')"
+                        class="flex-1 py-3 rounded-xl text-sm font-semibold transition bg-[#1d4f7a] text-white shadow-md border border-blue-400/30">
+                    Por cobrar
+                </button>
+
+                <button type="button"
+                        id="tabPagados"
+                        onclick="cambiarTab('pagados')"
+                        class="flex-1 py-3 rounded-xl text-sm font-semibold transition bg-[#1d4f7a] text-white shadow-md border border-blue-400/30">
+                    Pagados hoy
+                </button>
+            </div>
+        </div>
 
     </div>
-    {% for c in creditos %}
 
-    <a href="{{ url_for('detalle_credito', credito_id=c.id) }}"
-        class="credito-item block bg-gradient-to-br from-[#123b63] to-[#0b2847]
-                rounded-2xl p-4 shadow-lg text-white
-                transition hover:scale-[1.02] active:scale-[0.98] relative"
-        data-nombre="{{ c.cliente|lower }}"
-        data-cedula="{{ c.identificacion|default('')|lower }}">
+    <!-- LISTA PENDIENTES -->
+    <div id="contenedorPendientes" class="space-y-4">
+        {% for c in creditos %}
 
-        {% if c.color_estado == "rojo" %}
-        <div class="absolute right-0 top-0 bg-red-500 text-xs px-2 py-1 rotate-45 translate-x-6 -translate-y-2">
-        MORA
-        </div>
-        {% elif c.color_estado == "naranja" %}
-        <div class="absolute right-0 top-0 bg-orange-500 text-xs px-2 py-1 rotate-45 translate-x-6 -translate-y-2">
-        MORA
-        </div>
+        <a href="{{ url_for('detalle_credito', credito_id=c.id) }}"
+            class="credito-item credito-pendiente block bg-gradient-to-br from-[#123b63] to-[#0b2847]
+                    rounded-2xl p-4 shadow-lg text-white
+                    transition hover:scale-[1.02] active:scale-[0.98] relative border border-blue-900/30"
+            data-nombre="{{ c.cliente|lower }}"
+            data-cedula="{{ c.identificacion|default('')|lower }}"
+            data-tab="pendientes">
+
+            {% if c.color_estado == "rojo" %}
+            <div class="absolute right-0 top-0 bg-red-500 text-[10px] font-bold px-3 py-1 rounded-bl-xl rounded-tr-2xl shadow">
+                MORA ALTA
+            </div>
+            {% elif c.color_estado == "naranja" %}
+            <div class="absolute right-0 top-0 bg-orange-500 text-[10px] font-bold px-3 py-1 rounded-bl-xl rounded-tr-2xl shadow">
+                MORA MEDIA
+            </div>
+            {% elif c.color_estado == "amarillo" %}
+            <div class="absolute right-0 top-0 bg-yellow-500 text-[10px] font-bold px-3 py-1 rounded-bl-xl rounded-tr-2xl shadow text-black">
+                ATRASADO
+            </div>
+            {% else %}
+            <div class="absolute right-0 top-0 bg-green-500 text-[10px] font-bold px-3 py-1 rounded-bl-xl rounded-tr-2xl shadow">
+                AL DÍA
+            </div>
+            {% endif %}
+
+            <div class="flex justify-between items-start gap-3">
+
+                <!-- IZQUIERDA -->
+                <div class="flex gap-3 min-w-0">
+
+                    <!-- POSICIÓN -->
+                    <div class="relative shrink-0">
+                        <div class="h-12 w-12 rounded-full bg-gradient-to-br from-gray-300 to-blue-600 flex items-center justify-center font-bold text-white shadow-md">
+                            {{ c.posicion }}
+                        </div>
+
+                        <button type="button"
+                                onclick="editarPosicion(event, '{{ c.id }}','{{ c.posicion }}')"
+                                class="absolute -bottom-1 -right-1 bg-blue-500 hover:bg-blue-600 text-xs px-1.5 py-0.5 rounded-full shadow">
+                            ✏
+                        </button>
+                    </div>
+
+                    <!-- INFO -->
+                    <div class="min-w-0">
+                        <div class="font-semibold text-sm truncate pr-10">
+                            {{ c.cliente }}
+                        </div>
+
+                        {% if c.identificacion %}
+                        <div class="text-xs text-blue-300 mt-1">
+                            CC: {{ c.identificacion }}
+                        </div>
+                        {% endif %}
+
+                        <div class="text-xs text-blue-300 mt-1">
+                            📱 {{ c.telefono or 'Sin teléfono' }}
+                        </div>
+
+                        {% if c.proxima_cuota %}
+                        <div class="text-xs text-blue-300 mt-1">
+                            📆 Próx: {{ c.proxima_cuota }}
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- DERECHA -->
+                <div class="text-right shrink-0">
+                    <div class="text-[11px] text-blue-300">
+                        Cuota hoy
+                    </div>
+                    <div class="font-bold text-green-400 text-base">
+                        $ {{ c.valor_hoy }}
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- PROGRESO -->
+            {% if c.total_cuotas is defined and c.total_cuotas > 0 %}
+            <div class="mt-4">
+                <div class="flex justify-between text-[11px] text-blue-200 mb-1">
+                    <span>Progreso del crédito</span>
+                    <span>{{ c.cuotas_pagadas }}/{{ c.total_cuotas }} cuotas</span>
+                </div>
+                <div class="w-full h-2 bg-[#0a223c] rounded-full overflow-hidden">
+                    <div class="h-2 bg-gradient-to-r from-green-400 to-emerald-500 rounded-full"
+                         style="width: {{ c.porcentaje_pagado }}%"></div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- BLOQUE FINANCIERO -->
+            <div class="mt-4 grid grid-cols-2 gap-4 text-sm">
+                <div class="bg-[#0b2847] rounded-xl p-3 text-center border border-blue-900/30">
+                    <div class="text-xs opacity-70">
+                        Saldo pendiente
+                    </div>
+                    <div class="font-bold text-yellow-300 mt-1">
+                        $ {{ c.saldo_pendiente }}
+                    </div>
+                </div>
+
+                <div class="bg-[#0b2847] rounded-xl p-3 text-center border border-blue-900/30">
+                    <div class="text-xs opacity-70">
+                        Total Crédito
+                    </div>
+                    <div class="font-bold text-white mt-1">
+                        $ {{ c.valor_total }}
+                    </div>
+                </div>
+            </div>
+
+            {% if c.dias_mora and c.dias_mora > 0 %}
+            <div class="mt-4 bg-red-500/10 border border-red-400/30 rounded-xl p-3 flex items-center justify-between">
+                <div>
+                    <div class="text-sm font-semibold text-red-300">Crédito en mora</div>
+                    <div class="text-xs text-red-200">Días acumulados: {{ c.dias_mora }}</div>
+                </div>
+                <div class="text-xl">⚠️</div>
+            </div>
+            {% endif %}
+
+        </a>
+
         {% else %}
-        <div class="absolute right-0 top-0 bg-green-500 text-xs px-2 py-1 rotate-45 translate-x-6 -translate-y-2">
-        AL DÍA
+        <div class="bg-gradient-to-br from-[#123b63] to-[#0b2847] rounded-2xl p-6 text-center text-white shadow-lg border border-blue-900/30">
+            <div class="text-4xl mb-2">🎉</div>
+            <div class="font-bold text-lg">No hay créditos por cobrar</div>
+            <div class="text-sm text-blue-200 mt-1">
+                Todo lo del día ya fue gestionado.
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- LISTA PAGADOS HOY -->
+    <div id="contenedorPagados" class="space-y-4 hidden">
+        {% if pagados_hoy is defined and pagados_hoy %}
+            {% for c in pagados_hoy %}
+            <a href="{{ url_for('detalle_credito', credito_id=c.id) }}"
+                class="credito-item credito-pagado block bg-gradient-to-br from-[#14532d] to-[#0f3d25]
+                        rounded-2xl p-4 shadow-lg text-white
+                        transition hover:scale-[1.02] active:scale-[0.98] relative border border-green-900/30"
+                data-nombre="{{ c.cliente|lower }}"
+                data-cedula="{{ c.identificacion|default('')|lower }}"
+                data-tab="pagados">
+
+                <div class="absolute right-0 top-0 bg-green-500 text-[10px] font-bold px-3 py-1 rounded-bl-xl rounded-tr-2xl shadow">
+                    PAGADO HOY
+                </div>
+
+                <div class="flex justify-between items-start gap-3">
+
+                    <div class="flex gap-3 min-w-0">
+                        <div class="h-12 w-12 rounded-full bg-gradient-to-br from-green-300 to-green-600 flex items-center justify-center font-bold text-white shadow-md shrink-0">
+                            ✓
+                        </div>
+
+                        <div class="min-w-0">
+                            <div class="font-semibold text-sm truncate pr-10">
+                                {{ c.cliente }}
+                            </div>
+
+                            {% if c.identificacion %}
+                            <div class="text-xs text-green-200 mt-1">
+                                CC: {{ c.identificacion }}
+                            </div>
+                            {% endif %}
+
+                            <div class="text-xs text-green-200 mt-1">
+                                📱 {{ c.telefono or 'Sin teléfono' }}
+                            </div>
+
+                            {% if c.proxima_cuota %}
+                            <div class="text-xs text-green-200 mt-1">
+                                📆 Próx: {{ c.proxima_cuota }}
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="text-right shrink-0">
+                        <div class="text-[11px] text-green-200">
+                            Movido hoy
+                        </div>
+                        <div class="font-bold text-green-300 text-base">
+                            $ {{ c.valor_hoy }}
+                        </div>
+                    </div>
+
+                </div>
+
+                <div class="mt-4 grid grid-cols-2 gap-4 text-sm">
+                    <div class="bg-[#0d2e1d] rounded-xl p-3 text-center border border-green-900/30">
+                        <div class="text-xs opacity-70">
+                            Total pagado
+                        </div>
+                        <div class="font-bold text-green-300 mt-1">
+                            $ {{ c.total_pagado_cuotas }}
+                        </div>
+                    </div>
+
+                    <div class="bg-[#0d2e1d] rounded-xl p-3 text-center border border-green-900/30">
+                        <div class="text-xs opacity-70">
+                            Saldo pendiente
+                        </div>
+                        <div class="font-bold text-white mt-1">
+                            $ {{ c.saldo_pendiente }}
+                        </div>
+                    </div>
+                </div>
+
+            </a>
+            {% endfor %}
+        {% else %}
+        <div class="bg-gradient-to-br from-[#123b63] to-[#0b2847] rounded-2xl p-6 text-center text-white shadow-lg border border-blue-900/30">
+            <div class="text-4xl mb-2">💸</div>
+            <div class="font-bold text-lg">No hay pagos registrados hoy</div>
+            <div class="text-sm text-blue-200 mt-1">
+                Aquí aparecerán automáticamente los créditos pagados hoy.
+            </div>
         </div>
         {% endif %}
-
-        <div class="flex justify-between items-start">
-
-            <!-- IZQUIERDA -->
-            <div class="flex gap-3">
-
-                <!-- POSICIÓN -->
-                <div class="relative">
-                    <div class="h-12 w-12 rounded-full bg-gradient-to-br from-gray-300 to-blue-600 flex items-center justify-center font-bold text-white">
-                        {{ c.posicion }}
-                    </div>
-
-                    <button type="button"
-                            onclick="editarPosicion(event, '{{ c.id }}','{{ c.posicion }}')"
-                            class="absolute -bottom-1 -right-1 bg-blue-500 text-xs px-1 rounded">
-                        ✏
-                    </button>
-                </div>
-
-                <!-- INFO -->
-                <div>
-
-                    <div class="font-semibold text-sm">
-                        {{ c.cliente }}
-                    </div>
-
-                    <div class="text-xs text-blue-300">
-                        📱 {{ c.telefono }}
-                    </div>
-
-                    {% if c.proxima_cuota %}
-                    <div class="text-xs text-blue-300 mt-1">
-                        📆 Próx: {{ c.proxima_cuota }}
-                    </div>
-                    {% endif %}
-
-                </div>
-
-            </div>
-
-            
-
-        </div>
-
-        <!-- BLOQUE FINANCIERO -->
-        <div class="mt-4 grid grid-cols-2 gap-4 text-sm">
-
-            <div class="bg-[#0b2847] rounded-xl p-3 text-center">
-                <div class="text-xs opacity-60">
-                    Cuota Hoy
-                </div>
-                <div class="font-bold text-green-400">
-                    $ {{ c.valor_hoy }}
-                </div>
-            </div>
-
-            <div class="bg-[#0b2847] rounded-xl p-3 text-center">
-                <div class="text-xs opacity-60">
-                    Total Crédito
-                </div>
-                <div class="font-bold text-white">
-                    $ {{ c.valor_total }}
-                </div>
-            </div>
-
-        </div>
-
-    </a>
-
-
-    {% endfor %}
+    </div>
 
 </div>
 
+<!-- MODAL POSICIÓN -->
 <div id="modalPosicion"
      class="fixed inset-0 bg-black/70 backdrop-blur-sm hidden items-end sm:items-center justify-center z-50 transition">
 
     <div class="bg-gradient-to-br from-[#123b63] to-[#0b2847] 
                 w-full sm:w-[380px] rounded-t-3xl sm:rounded-3xl 
-                p-6 text-white shadow-2xl animate-fadeInUp">
+                p-6 text-white shadow-2xl animate-fadeInUp border border-blue-900/30">
 
-        <!-- Handle móvil -->
         <div class="w-10 h-1.5 bg-gray-400 rounded-full mx-auto mb-5 sm:hidden"></div>
 
         <h3 class="text-xl font-bold text-center mb-6">
@@ -128,15 +310,13 @@
 
             <input type="hidden" name="credito_id" id="modal_credito_id">
 
-            <!-- POSICIÓN ACTUAL -->
-            <div class="bg-[#0b2847] rounded-xl p-4 mb-4 text-center">
+            <div class="bg-[#0b2847] rounded-xl p-4 mb-4 text-center border border-blue-900/30">
                 <div class="text-xs opacity-60">Posición actual</div>
                 <div id="posicionActualTexto"
                      class="text-2xl font-bold text-green-400 mt-1">
                 </div>
             </div>
 
-            <!-- NUEVA POSICIÓN -->
             <div class="mb-6">
                 <label class="text-sm opacity-80">
                     Nueva posición
@@ -147,26 +327,20 @@
                        id="modal_posicion"
                        required
                        min="1"
-                       class="w-full mt-2 bg-[#0b2847] border border-gray-600
-                              rounded-xl p-3 text-center text-lg font-semibold
-                              focus:ring-2 focus:ring-blue-400">
+                       class="w-full mt-2 bg-[#0b2847] border border-gray-600 rounded-xl p-3 text-center text-lg font-semibold focus:ring-2 focus:ring-blue-400">
             </div>
 
             <div class="space-y-3">
-
                 <button type="submit"
-                        class="w-full bg-blue-600 hover:bg-blue-700
-                               py-3 rounded-xl font-semibold transition">
+                        class="w-full bg-blue-600 hover:bg-blue-700 py-3 rounded-xl font-semibold transition">
                     Guardar Cambios
                 </button>
 
                 <button type="button"
                         onclick="cerrarModal()"
-                        class="w-full bg-gray-600 hover:bg-gray-700
-                               py-3 rounded-xl transition">
+                        class="w-full bg-gray-600 hover:bg-gray-700 py-3 rounded-xl transition">
                     Cancelar
                 </button>
-
             </div>
 
         </form>
@@ -174,29 +348,66 @@
     </div>
 
 </div>
-<script>
-document.getElementById("buscador").addEventListener("input", function() {
 
-    const texto = this.value.toLowerCase();
+<script>
+let tabActual = "pendientes";
+
+function cambiarTab(tab) {
+    tabActual = tab;
+
+    const contPendientes = document.getElementById("contenedorPendientes");
+    const contPagados = document.getElementById("contenedorPagados");
+    const tabPendientes = document.getElementById("tabPendientes");
+    const tabPagados = document.getElementById("tabPagados");
+
+    const activeClasses = ["bg-[#1d4f7a]", "text-white", "shadow-md", "border", "border-blue-400/30"];
+    const inactiveClasses = ["text-white/80"];
+
+    if (tab === "pendientes") {
+        contPendientes.classList.remove("hidden");
+        contPagados.classList.add("hidden");
+
+        tabPendientes.classList.add(...activeClasses);
+        tabPendientes.classList.remove(...inactiveClasses);
+
+        tabPagados.classList.remove(...activeClasses);
+        tabPagados.classList.add(...inactiveClasses);
+    } else {
+        contPagados.classList.remove("hidden");
+        contPendientes.classList.add("hidden");
+
+        tabPagados.classList.add(...activeClasses);
+        tabPagados.classList.remove(...inactiveClasses);
+
+        tabPendientes.classList.remove(...activeClasses);
+        tabPendientes.classList.add(...inactiveClasses);
+    }
+
+    filtrarCreditos();
+}
+
+function filtrarCreditos() {
+    const texto = (document.getElementById("buscador").value || "").toLowerCase();
     const items = document.querySelectorAll(".credito-item");
 
     items.forEach(item => {
-
         const nombre = item.dataset.nombre || "";
         const cedula = item.dataset.cedula || "";
+        const tab = item.dataset.tab || "";
 
-        if (nombre.includes(texto) || cedula.includes(texto)) {
+        const coincideBusqueda = nombre.includes(texto) || cedula.includes(texto);
+        const coincideTab = tab === tabActual;
+
+        if (coincideBusqueda && coincideTab) {
             item.style.display = "block";
         } else {
             item.style.display = "none";
         }
-
     });
+}
 
-});
-</script>
+document.getElementById("buscador").addEventListener("input", filtrarCreditos);
 
-<script>
 function editarPosicion(e, id, posicion){
     e.preventDefault();
     e.stopPropagation();
@@ -211,6 +422,26 @@ function editarPosicion(e, id, posicion){
 
 function cerrarModal(){
     document.getElementById("modalPosicion").classList.add("hidden");
+    document.getElementById("modalPosicion").classList.remove("flex");
 }
+
+cambiarTab("pendientes");
 </script>
+
+<style>
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(18px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+.animate-fadeInUp {
+    animation: fadeInUp .25s ease-out;
+}
+</style>
+
 {% endblock %}
