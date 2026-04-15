@@ -107,10 +107,18 @@
                 {% endif %}
             </div>
 
+            {% if puede_renovar %}
             <a href="{{ url_for('renovar_credito', cliente_id=cliente.id, ruta_id=ruta_id) }}"
-               class="px-4 py-2 rounded-xl text-sm font-semibold {% if puede_renovar %}bg-green-500 hover:bg-green-600 text-white{% else %}bg-white/20 hover:bg-white/30 text-white{% endif %}">
+            class="px-4 py-2 rounded-xl text-sm font-semibold bg-green-500 hover:bg-green-600 text-white">
                 Renovar
             </a>
+            {% else %}
+            <button type="button"
+                    disabled
+                    class="px-4 py-2 rounded-xl text-sm font-semibold bg-white/20 text-white/60 cursor-not-allowed">
+                Renovar
+            </button>
+            {% endif %}
         </div>
     </div>
 

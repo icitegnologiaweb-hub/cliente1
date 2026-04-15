@@ -2356,6 +2356,8 @@ def asignar_cobrador_ruta():
 from datetime import date, datetime
 from datetime import date
 
+from datetime import date
+
 @app.route("/todas_las_ventas/<ruta_id>")
 def todas_las_ventas(ruta_id):
 
@@ -2393,7 +2395,12 @@ def todas_las_ventas(ruta_id):
 
     for c in creditos:
 
-        # 🔴 Verificar si hoy ya se registró pago para este crédito
+        cuotas = supabase.table("cuotas") \
+            .select("estado, valor, fecha_pago") \
+            .eq("credito_id", c["id"]) \
+            .order("fecha_pago") \
+            .execute().data or []
+
         pago_hoy_credito = supabase.table("pagos") \
             .select("id, fecha") \
             .eq("credito_id", c["id"]) \
@@ -2405,12 +2412,6 @@ def todas_las_ventas(ruta_id):
 
         ya_pago_hoy = True if pago_hoy_credito.data else False
 
-        cuotas = supabase.table("cuotas") \
-            .select("estado, valor, fecha_pago") \
-            .eq("credito_id", c["id"]) \
-            .order("fecha_pago") \
-            .execute().data or []
-
         pago_hoy = None
         valor_hoy = 0
         proxima_cuota = None
@@ -2420,8 +2421,6 @@ def todas_las_ventas(ruta_id):
         total_cuotas = len(cuotas)
         cuotas_pagadas = 0
         todas_pagadas = True if cuotas else False
-
-        # ✅ Para no sumar todas las cuotas atrasadas, sino tomar la más antigua vencida
         fecha_mora_mas_antigua = None
 
         for cuota in cuotas:
@@ -2433,21 +2432,21 @@ def todas_las_ventas(ruta_id):
             except Exception:
                 fecha_pago = None
 
-            # 🔹 Detectar cuota de hoy
+            # cuota con fecha de hoy
             if fecha_pago_raw == hoy:
                 valor_hoy = valor_cuota
                 pago_hoy = True if cuota["estado"] == "pagado" else False
 
-            # 🔹 Detectar próxima pendiente
+            # próxima pendiente
             if cuota["estado"] == "pendiente" and not proxima_cuota:
                 proxima_cuota = fecha_pago_raw
 
-            # 🔹 Calcular mora correctamente (tomar la cuota vencida más antigua)
+            # mora real
             if cuota["estado"] == "pendiente" and fecha_pago and fecha_pago < hoy_fecha:
                 if fecha_mora_mas_antigua is None or fecha_pago < fecha_mora_mas_antigua:
                     fecha_mora_mas_antigua = fecha_pago
 
-            # 🔹 Calcular saldo pendiente / pagado
+            # totales
             if cuota["estado"] == "pendiente":
                 saldo_pendiente += valor_cuota
                 todas_pagadas = False
@@ -2455,25 +2454,22 @@ def todas_las_ventas(ruta_id):
                 total_pagado_cuotas += valor_cuota
                 cuotas_pagadas += 1
 
-        # ✅ Mora final real
         if fecha_mora_mas_antigua:
             dias_mora = (hoy_fecha - fecha_mora_mas_antigua).days
         else:
             dias_mora = 0
 
-        # Si no hay cuota exacta hoy, se define según si terminó o no
         if pago_hoy is None:
             pago_hoy = True if todas_pagadas else False
 
-        # Si ya registró pago hoy, se considera pagado hoy visualmente
         if ya_pago_hoy:
             pago_hoy = True
 
-        # 🎨 Semáforo
-        if todas_pagadas or c.get("estado") in ["finalizado", "pagado"]:
-            color_estado = "azul"
-            estado_texto = "Finalizado"
-        elif dias_mora >= 30:
+        # 🔥 excluir completamente finalizados/terminados
+        credito_finalizado = todas_pagadas or c.get("estado") in ["finalizado", "pagado"]
+
+        # 🎨 semáforo
+        if dias_mora >= 30:
             color_estado = "rojo"
             estado_texto = "Mora alta"
         elif dias_mora >= 7:
@@ -2505,7 +2501,7 @@ def todas_las_ventas(ruta_id):
             "pago_hoy": pago_hoy,
             "dias_mora": dias_mora,
             "color_estado": color_estado,
-            "estado": "pagado" if todas_pagadas else c.get("estado", "activo"),
+            "estado": c.get("estado", "activo"),
             "estado_texto": estado_texto,
             "saldo_pendiente_num": float(saldo_pendiente or 0),
             "saldo_pendiente": "{:,.0f}".format(float(saldo_pendiente or 0)),
@@ -2518,16 +2514,17 @@ def todas_las_ventas(ruta_id):
             "porcentaje_pagado": porcentaje_pagado,
         }
 
-        # ✅ Lógica actual conservada:
-        # - Si ya pagó hoy => se va a "Pagados hoy"
-        # - Si está finalizado totalmente => también lo dejamos en "Pagados hoy"
-        # - Si no ha pagado hoy => queda en buzón principal
-        if ya_pago_hoy or todas_pagadas or c.get("estado") in ["finalizado", "pagado"]:
+        # ✅ REGLA FINAL
+        # 1. Si el crédito ya terminó, no aparece en esta vista
+        # 2. Si pagó hoy y sigue activo, va a Pagados hoy
+        # 3. Si no pagó hoy y sigue activo, va a Pendientes
+        if credito_finalizado:
+            continue
+        elif ya_pago_hoy:
             pagados_hoy.append(item)
         else:
             pendientes.append(item)
 
-    # Ordenar visualmente
     pendientes = sorted(
         pendientes,
         key=lambda x: (
@@ -2543,7 +2540,7 @@ def todas_las_ventas(ruta_id):
         )
     )
 
-    total_creditos = len(creditos)
+    total_creditos = len(pendientes) + len(pagados_hoy)
     total_pendientes = len(pendientes)
     total_pagados_hoy = len(pagados_hoy)
 
@@ -2561,7 +2558,6 @@ def todas_las_ventas(ruta_id):
         total_recaudo_hoy="{:,.0f}".format(total_recaudo_hoy),
         total_saldo_pendiente="{:,.0f}".format(total_saldo_pendiente),
     )
-    
 @app.route("/liquidacion")
 def liquidacion():
 
@@ -3704,18 +3700,19 @@ def cerrar_dia():
 
 
 # Traer todos los clientes de la eruta para el modulo CLIENTES
-
 @app.route("/clientes_ruta/<ruta_id>")
 def clientes_ruta(ruta_id):
 
-    if "user_id" not in session or session.get("rol") not in ["cobrador","supervisor", "administrador"]:
+    if "user_id" not in session or session.get("rol") not in ["cobrador", "supervisor", "administrador"]:
         return redirect(url_for("login_app"))
 
-    # Traer todos los créditos de la ruta (activos o no)
+    # Traer todos los créditos de la ruta
     creditos_resp = supabase.table("creditos") \
         .select("""
+            id,
             cliente_id,
             estado,
+            valor_total,
             clientes(
                 id,
                 nombre,
@@ -3725,6 +3722,7 @@ def clientes_ruta(ruta_id):
             )
         """) \
         .eq("ruta_id", ruta_id) \
+        .order("created_at", desc=True) \
         .execute()
 
     creditos = creditos_resp.data or []
@@ -3732,22 +3730,26 @@ def clientes_ruta(ruta_id):
     clientes_dict = {}
 
     for c in creditos:
-        cliente = c["clientes"]
+        cliente = c.get("clientes")
+        if not cliente:
+            continue
+
         cliente_id = cliente["id"]
+        estado_credito = (c.get("estado") or "").strip().lower()
 
         # Si no existe lo agregamos
         if cliente_id not in clientes_dict:
             clientes_dict[cliente_id] = {
                 "id": cliente_id,
-                "nombre": cliente["nombre"],
-                "identificacion": cliente["identificacion"],
-                "telefono": cliente["telefono_principal"],
-                "direccion": cliente["direccion"],
+                "nombre": cliente.get("nombre", ""),
+                "identificacion": cliente.get("identificacion", ""),
+                "telefono": cliente.get("telefono_principal", ""),
+                "direccion": cliente.get("direccion", ""),
                 "credito_activo": False
             }
 
-        # Si alguno está activo → marcar
-        if c["estado"] == "activo":
+        # Considerar activo todo crédito que NO esté finalizado/pagado
+        if estado_credito not in ["finalizado", "pagado"]:
             clientes_dict[cliente_id]["credito_activo"] = True
 
     clientes_lista = list(clientes_dict.values())
@@ -3756,7 +3758,6 @@ def clientes_ruta(ruta_id):
         "cobrador/clientes_ruta.html",
         clientes=clientes_lista,
         ruta_id=ruta_id
-
     )
 
 @app.route("/detalle_cliente/<cliente_id>/<ruta_id>")
@@ -3800,11 +3801,11 @@ def detalle_cliente(cliente_id, ruta_id):
     credito_ids = []
 
     for c in historial_creditos:
-
         credito_ids.append(c["id"])
-        total_prestado += float(c.get("valor_total") or 0)
 
-        # 👇 Mantiene tu comportamiento anterior
+        # 🔥 Mejor usar valor_venta para total prestado real
+        total_prestado += float(c.get("valor_venta") or 0)
+
         if not credito:
             credito = c
 
@@ -3859,12 +3860,15 @@ def detalle_cliente(cliente_id, ruta_id):
         )
 
     # =====================================================
+    # SALDO TOTAL CLIENTE
+    # =====================================================
+    saldo_total_cliente = round(total_prestado - total_pagado, 2)
+
+    # =====================================================
     # VALIDAR RENOVACIÓN
     # =====================================================
     cuotas = []
-
-    # ✅ Si no tiene crédito activo, sí puede crear uno nuevo
-    puede_renovar = credito_activo is None
+    puede_renovar = False
 
     if credito_activo:
 
@@ -3881,25 +3885,19 @@ def detalle_cliente(cliente_id, ruta_id):
             if str(p.get("credito_id")) == str(credito_activo["id"])
         )
 
-        # 🔹 Validar si todas las cuotas están pagadas
         todas_pagadas = len(cuotas) > 0 and all(
             c.get("estado") == "pagado"
             for c in cuotas
         )
 
-        # 🔹 Calcular saldo real SOLO del crédito activo
         saldo_credito_activo = round(
             float(credito_activo.get("valor_total") or 0) - total_pagado_credito_activo,
             2
         )
 
-        # 🔹 Puede renovar SOLO si:
-        #    - Todas las cuotas están pagadas
-        #    - El saldo es 0
         if todas_pagadas and saldo_credito_activo <= 0:
             puede_renovar = True
 
-            # 🔥 Cerrar automáticamente el crédito si ya quedó pago
             if credito_activo.get("estado") != "finalizado":
                 supabase.table("creditos") \
                     .update({"estado": "finalizado"}) \
@@ -3908,10 +3906,12 @@ def detalle_cliente(cliente_id, ruta_id):
         else:
             puede_renovar = False
 
-    saldo_total_cliente = round(total_prestado - total_pagado, 2)
+    else:
+        # 🔥 Si no hay crédito activo, igual validar que no quede saldo pendiente
+        puede_renovar = saldo_total_cliente <= 0
 
-    # ✅ Para que el HTML sepa si realmente debe mostrar “Crédito Activo”
-    tiene_credito_activo = credito_activo is not None and not puede_renovar
+    # ✅ Mostrar crédito activo solo si realmente existe uno abierto
+    tiene_credito_activo = credito_activo is not None
 
     return render_template(
         "cobrador/detalle_cliente.html",
@@ -3932,7 +3932,6 @@ def detalle_cliente(cliente_id, ruta_id):
         fotos=fotos,
         tiene_credito_activo=tiene_credito_activo
     )
-
 @app.route("/renovar_credito/<cliente_id>/<ruta_id>")
 def renovar_credito(cliente_id, ruta_id):
 
