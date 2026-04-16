@@ -274,6 +274,7 @@ def cerrar_cajas_automatico():
             print(f"✅ Cierre creado ruta {ruta_id} fecha {fecha_cierre}")
 
     return "Cierre automático ejecutado correctamente"
+# -----------------------
 # LOGIN
 # -----------------------
 @app.route("/login", methods=["GET", "POST"])
@@ -285,18 +286,19 @@ def login():
         password = request.form.get("password") or ""
         recordar = request.form.get("recordar")
 
-        # 🔎 Buscar solo administradores activos
+        # 🔎 Buscar usuario activo por email
         response = supabase.table("usuarios") \
             .select("*") \
             .eq("email", email) \
             .eq("estado", True) \
-            .eq("rol", "administrador") \
             .execute()
 
         if response.data:
 
             user = response.data[0]
             stored_password = user["password"]
+            rol_usuario = (user.get("rol") or "").strip().lower()
+
             login_ok = False
 
             # 🔐 Si ya está encriptada
@@ -317,6 +319,10 @@ def login():
 
             if login_ok:
 
+                # 🔒 Permitir solo admin o administrador
+                if rol_usuario not in ["admin", "administrador"]:
+                    return render_template("login.html", error="Solo los administradores pueden ingresar aquí")
+
                 session.clear()
 
                 # 👇 RECORDAR SESIÓN
@@ -327,15 +333,15 @@ def login():
                     session.permanent = False
 
                 session["pending_user_id"] = user["id"]
+                session["pending_user_rol"] = rol_usuario
 
                 response = redirect(url_for("verificar_token"))
                 response.headers["Cache-Control"] = "no-cache"
                 return response
 
-        return render_template("login.html", error="Solo los administradores pueden ingresar aquí")
+        return render_template("login.html", error="Credenciales incorrectas")
 
     return render_template("login.html")
-
 
 def generar_token_unico():
     while True:
@@ -6879,8 +6885,10 @@ def dashboard():
     if "user_id" not in session:
         return redirect(url_for("login"))
 
+    rol_sesion = (session.get("rol") or "").strip().lower()
+
     # 🔒 Proteger también el dashboard
-    if session.get("rol") != "administrador":
+    if rol_sesion not in ["admin", "administrador"]:
         session.clear()
         return redirect(url_for("login"))
 
@@ -6888,7 +6896,6 @@ def dashboard():
         return redirect(url_for("cambiar_oficina"))
 
     return render_template("dashboard.html")
-
 @app.route("/logout")
 def logout():
     session.clear()
