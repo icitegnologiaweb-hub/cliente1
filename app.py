@@ -86,6 +86,30 @@ def generar_codigo_ruta():
     numeros = ''.join(random.choices(string.digits, k=4))
     return f"R-{letras}{numeros}"
 
+
+@app.route("/bienvenida-ruta/<ruta_id>")
+def bienvenida_ruta(ruta_id):
+
+    if "user_id" not in session or session.get("rol") not in ["cobrador", "supervisor", "administrador"]:
+        return redirect(url_for("login_app"))
+
+    ruta = supabase.table("rutas") \
+        .select("id,nombre,codigo") \
+        .eq("id", ruta_id) \
+        .single() \
+        .execute().data
+
+    if not ruta:
+        flash("Ruta no encontrada", "error")
+        return redirect(url_for("mis_rutas"))
+
+    # Guardar ruta seleccionada en sesión
+    session["ruta_id"] = ruta["id"]
+    session["ruta_nombre"] = ruta.get("nombre")
+    session["ruta_codigo"] = ruta.get("codigo")
+
+    return render_template("cobrador/bienvenida_ruta.html", ruta=ruta)
+
 from datetime import datetime, timedelta
 
 @app.route("/cerrar_cajas_automatico")
@@ -252,21 +276,21 @@ def cerrar_cajas_automatico():
     return "Cierre automático ejecutado correctamente"
 # LOGIN
 # -----------------------
-
 @app.route("/login", methods=["GET", "POST"])
 def login():
 
     if request.method == "POST":
 
-        email = request.form.get("email")
-        password = request.form.get("password")
-        recordar = request.form.get("recordar")  # 👈 NUEVO
+        email = (request.form.get("email") or "").strip().lower()
+        password = request.form.get("password") or ""
+        recordar = request.form.get("recordar")
 
-        # 🔎 Buscar solo por email y estado
+        # 🔎 Buscar solo administradores activos
         response = supabase.table("usuarios") \
             .select("*") \
             .eq("email", email) \
             .eq("estado", True) \
+            .eq("rol", "administrador") \
             .execute()
 
         if response.data:
@@ -308,7 +332,7 @@ def login():
                 response.headers["Cache-Control"] = "no-cache"
                 return response
 
-        return render_template("login.html", error="Credenciales incorrectas")
+        return render_template("login.html", error="Solo los administradores pueden ingresar aquí")
 
     return render_template("login.html")
 
@@ -2653,279 +2677,301 @@ def liquidacion():
         fecha_inicio = hoy.isoformat()
         fecha_fin = hoy.isoformat()
 
-    # =============================
-    # RUTAS ACTIVAS DE LA OFICINA
-    # =============================
-    rutas_query = supabase.table("rutas") \
-        .select("id, nombre") \
-        .eq("oficina_id", oficina_id) \
-        .execute()
+    conn = None
+    cur = None
 
-    rutas_db = rutas_query.data or []
-
-    if ruta_id_filtro:
-        rutas_db = [r for r in rutas_db if str(r["id"]) == str(ruta_id_filtro)]
-
-    lista_rutas = []
-    total_estimado_intereses_general = 0
-    total_ganancia_alcanzada_general = 0
-    total_saldo_anterior = 0
-    total_transferencias_recibidas = 0
-    total_capital_entregado = 0
-    total_saldo_final = 0
-    total_cartera_final = 0
-    total_creditos_colocados = 0
-    total_saldo_por_recuperar = 0
-    total_gastos_general = 0
-
-    for r in rutas_db:
-
-        ruta_id = r["id"]
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
 
         # =============================
-        # 1. SALDO ANTERIOR AL INICIO
+        # RUTAS ACTIVAS DE LA OFICINA
         # =============================
-        cierre_anterior = supabase.table("caja_diaria") \
-            .select("saldo_cierre") \
-            .eq("ruta_id", ruta_id) \
-            .lt("fecha", fecha_inicio) \
-            .order("fecha", desc=True) \
-            .limit(1) \
-            .execute()
+        cur.execute("""
+            SELECT id, nombre
+            FROM rutas
+            WHERE oficina_id = %s
+        """, (oficina_id,))
+        rutas_activas = cur.fetchall() or []
 
-        saldo_anterior = 0
-        if cierre_anterior.data:
-            saldo_anterior = float(cierre_anterior.data[0]["saldo_cierre"] or 0)
+        rutas_db = rutas_activas[:]
 
-        # =============================
-        # 2. TRANSFERENCIAS RECIBIDAS
-        # =============================
-        transferencias_recibidas = supabase.table("transferencias") \
-            .select("valor, created_at") \
-            .eq("ruta_destino", ruta_id) \
-            .gte("created_at", inicio.isoformat()) \
-            .lte("created_at", fin.isoformat()) \
-            .execute().data or []
+        if ruta_id_filtro:
+            rutas_db = [r for r in rutas_db if str(r["id"]) == str(ruta_id_filtro)]
 
-        total_recibido_transferencias = sum(
-            float(t["valor"] or 0)
-            for t in transferencias_recibidas
-        )
-
-        # =============================
-        # 3. CAPITAL ENTREGADO
-        # =============================
-        capital_entregado_db = supabase.table("capital") \
-            .select("valor, created_at") \
-            .eq("ruta_id", ruta_id) \
-            .gte("created_at", inicio.isoformat()) \
-            .lte("created_at", fin.isoformat()) \
-            .execute().data or []
-
-        total_capital_entregado_rango = sum(
-            float(c["valor"] or 0)
-            for c in capital_entregado_db
-        )
-        # =============================
-        # 4. COBROS
-        # =============================
-        pagos_rango = supabase.table("pagos") \
-            .select("monto, fecha, creditos!inner(ruta_id)") \
-            .eq("creditos.ruta_id", ruta_id) \
-            .gte("fecha", inicio.isoformat()) \
-            .lte("fecha", fin.isoformat()) \
-            .execute()
-
-        pagos_rango = pagos_rango.data or []
-
-        total_cobros = sum(
-            float(p.get("monto") or 0)
-            for p in pagos_rango
-        )
-
-        # =============================
-        # 5. PRÉSTAMOS
-        # =============================
-        prestamos_rango = supabase.table("creditos") \
-            .select("valor_venta, created_at") \
-            .eq("ruta_id", ruta_id) \
-            .gte("created_at", inicio.isoformat()) \
-            .lte("created_at", fin.isoformat()) \
-            .execute().data or []
-
-        total_prestamos_rango = sum(
-            float(p["valor_venta"] or 0)
-            for p in prestamos_rango
-        )
-
-        # =============================
-        # 6. GASTOS
-        # =============================
-        gastos_rango = supabase.table("gastos") \
-            .select("valor, created_at") \
-            .eq("ruta_id", ruta_id) \
-            .gte("created_at", inicio.isoformat()) \
-            .lte("created_at", fin.isoformat()) \
-            .execute().data or []
-
-        total_gastos_rango = sum(
-            float(g["valor"] or 0)
-            for g in gastos_rango
-        )
-
-        # =============================
-        # 7. TRANSFERENCIAS ENVIADAS
-        # =============================
-        transferencias_enviadas = supabase.table("transferencias") \
-            .select("valor, created_at") \
-            .eq("ruta_origen", ruta_id) \
-            .gte("created_at", inicio.isoformat()) \
-            .lte("created_at", fin.isoformat()) \
-            .execute().data or []
-
-        total_enviado_transferencias = sum(
-            float(t["valor"] or 0)
-            for t in transferencias_enviadas
-        )
-
-        # =============================
-        # 8. SALDO FINAL CAJA
-        # =============================
-        saldo_final = (
-            saldo_anterior
-            + total_recibido_transferencias
-            + total_capital_entregado_rango
-            + total_cobros
-            - total_prestamos_rango
-            - total_gastos_rango
-            - total_enviado_transferencias
-        )
-
-        # =============================
-        # 9. CRÉDITOS / CARTERA
-        # =============================
-        creditos_ruta = supabase.table("creditos") \
-            .select("id, valor_venta, valor_total, estado") \
-            .eq("ruta_id", ruta_id) \
-            .execute().data or []
-
-        total_creditos_solo_capital = 0
-        saldo_por_recuperar_ruta = 0
-        total_cobrado_historico = 0
-        total_estimado_con_intereses = 0
-        total_ganancia_alcanzada = 0
+        lista_rutas = []
+        total_estimado_intereses_general = 0
+        total_ganancia_alcanzada_general = 0
+        total_saldo_anterior = 0
+        total_transferencias_recibidas = 0
+        total_capital_entregado = 0
+        total_saldo_final = 0
+        total_cartera_final = 0
+        total_creditos_colocados = 0
+        total_saldo_por_recuperar = 0
+        total_gastos_general = 0
         total_cobros_general = 0
 
-        for credito in creditos_ruta:
+        for r in rutas_db:
 
-            credito_id = credito["id"]
+            ruta_id = r["id"]
 
-            cuotas = supabase.table("cuotas") \
-                .select("valor, monto_pagado") \
-                .eq("credito_id", credito_id) \
-                .execute().data or []
+            # =============================
+            # 1. SALDO ANTERIOR AL INICIO
+            # =============================
+            cur.execute("""
+                SELECT saldo_cierre
+                FROM caja_diaria
+                WHERE ruta_id = %s
+                  AND fecha < %s
+                ORDER BY fecha DESC
+                LIMIT 1
+            """, (ruta_id, fecha_inicio))
+            cierre_anterior = cur.fetchone()
 
-            pagado_credito = sum(
-                float(c.get("monto_pagado") or 0)
-                for c in cuotas
+            saldo_anterior = 0
+            if cierre_anterior:
+                saldo_anterior = float(cierre_anterior["saldo_cierre"] or 0)
+
+            # =============================
+            # 2. TRANSFERENCIAS RECIBIDAS
+            # =============================
+            cur.execute("""
+                SELECT COALESCE(SUM(valor), 0) AS total
+                FROM transferencias
+                WHERE ruta_destino = %s
+                  AND created_at >= %s
+                  AND created_at <= %s
+            """, (ruta_id, inicio, fin))
+            row = cur.fetchone()
+            total_recibido_transferencias = float((row or {}).get("total") or 0)
+
+            # =============================
+            # 3. CAPITAL ENTREGADO
+            # =============================
+            cur.execute("""
+                SELECT COALESCE(SUM(valor), 0) AS total
+                FROM capital
+                WHERE ruta_id = %s
+                  AND created_at >= %s
+                  AND created_at <= %s
+            """, (ruta_id, inicio, fin))
+            row = cur.fetchone()
+            total_capital_entregado_rango = float((row or {}).get("total") or 0)
+
+            # =============================
+            # 4. COBROS
+            # =============================
+            cur.execute("""
+                SELECT COALESCE(SUM(p.monto), 0) AS total
+                FROM pagos p
+                INNER JOIN creditos c
+                    ON c.id = p.credito_id
+                WHERE c.ruta_id = %s
+                  AND p.fecha >= %s
+                  AND p.fecha <= %s
+            """, (ruta_id, inicio, fin))
+            row = cur.fetchone()
+            total_cobros = float((row or {}).get("total") or 0)
+
+            # =============================
+            # 5. PRÉSTAMOS
+            # =============================
+            cur.execute("""
+                SELECT COALESCE(SUM(valor_venta), 0) AS total
+                FROM creditos
+                WHERE ruta_id = %s
+                  AND created_at >= %s
+                  AND created_at <= %s
+            """, (ruta_id, inicio, fin))
+            row = cur.fetchone()
+            total_prestamos_rango = float((row or {}).get("total") or 0)
+
+            # =============================
+            # 6. GASTOS
+            # =============================
+            cur.execute("""
+                SELECT COALESCE(SUM(valor), 0) AS total
+                FROM gastos
+                WHERE ruta_id = %s
+                  AND created_at >= %s
+                  AND created_at <= %s
+            """, (ruta_id, inicio, fin))
+            row = cur.fetchone()
+            total_gastos_rango = float((row or {}).get("total") or 0)
+
+            # =============================
+            # 7. TRANSFERENCIAS ENVIADAS
+            # =============================
+            cur.execute("""
+                SELECT COALESCE(SUM(valor), 0) AS total
+                FROM transferencias
+                WHERE ruta_origen = %s
+                  AND created_at >= %s
+                  AND created_at <= %s
+            """, (ruta_id, inicio, fin))
+            row = cur.fetchone()
+            total_enviado_transferencias = float((row or {}).get("total") or 0)
+
+            # =============================
+            # 8. SALDO FINAL CAJA
+            # =============================
+            saldo_final = (
+                saldo_anterior
+                + total_recibido_transferencias
+                + total_capital_entregado_rango
+                + total_cobros
+                - total_prestamos_rango
+                - total_gastos_rango
+                - total_enviado_transferencias
             )
 
-            valor_venta = float(credito.get("valor_venta") or 0)
-            valor_total = float(credito.get("valor_total") or 0)
+            # =============================
+            # 9. CRÉDITOS / CARTERA
+            # =============================
+            cur.execute("""
+                SELECT id::text AS id, valor_venta, valor_total, estado
+                FROM creditos
+                WHERE ruta_id = %s
+            """, (ruta_id,))
+            creditos_ruta = cur.fetchall() or []
 
-            saldo_capital_credito = valor_venta - pagado_credito
-            saldo_total_credito = valor_total - pagado_credito
+            total_creditos_solo_capital = 0
+            saldo_por_recuperar_ruta = 0
+            total_cobrado_historico = 0
+            total_estimado_con_intereses = 0
+            total_ganancia_alcanzada = 0
 
-            if saldo_capital_credito > 0:
-                total_creditos_solo_capital += saldo_capital_credito
+            credito_ids = [c["id"] for c in creditos_ruta if c.get("id")]
+            cuotas_por_credito = {}
 
-            if saldo_total_credito > 0:
-                saldo_por_recuperar_ruta += saldo_total_credito
+            if credito_ids:
+                cur.execute("""
+                    SELECT
+                        credito_id::text AS credito_id,
+                        COALESCE(SUM(monto_pagado), 0) AS pagado_credito
+                    FROM cuotas
+                    WHERE credito_id::text = ANY(%s)
+                    GROUP BY credito_id::text
+                """, (credito_ids,))
+                cuotas_sumadas = cur.fetchall() or []
 
-            total_cobrado_historico += pagado_credito
+                cuotas_por_credito = {
+                    q["credito_id"]: float(q["pagado_credito"] or 0)
+                    for q in cuotas_sumadas
+                }
 
-            total_estimado_con_intereses += valor_total
+            for credito in creditos_ruta:
 
-            ganancia_esperada_credito = valor_total - valor_venta
+                credito_id = credito["id"]
+                pagado_credito = float(cuotas_por_credito.get(credito_id, 0) or 0)
 
-            porcentaje_recuperado = 0
-            if valor_total > 0:
-                porcentaje_recuperado = pagado_credito / valor_total
+                valor_venta = float(credito.get("valor_venta") or 0)
+                valor_total = float(credito.get("valor_total") or 0)
 
-            if porcentaje_recuperado > 1:
-                porcentaje_recuperado = 1
+                saldo_capital_credito = valor_venta - pagado_credito
+                saldo_total_credito = valor_total - pagado_credito
 
-            ganancia_alcanzada_credito = ganancia_esperada_credito * porcentaje_recuperado
-            total_ganancia_alcanzada += ganancia_alcanzada_credito
+                if saldo_capital_credito > 0:
+                    total_creditos_solo_capital += saldo_capital_credito
 
-        # =============================
-        # 10. CARTERA FINAL
-        # cuotas pagadas + gastos
-        # =============================
-        cartera_final = total_cobrado_historico + total_gastos_rango
+                if saldo_total_credito > 0:
+                    saldo_por_recuperar_ruta += saldo_total_credito
 
-        lista_rutas.append({
-            "ruta_id": ruta_id,
-            "ruta_nombre": r["nombre"],
-            "saldo_anterior": saldo_anterior,
-            "transferencias_recibidas": total_recibido_transferencias,
-            "gastos": total_gastos_rango,
-            "capital_entregado": total_capital_entregado_rango,
-            "saldo_final": saldo_final,
-            "cartera_final": cartera_final,
-            "creditos_colocados": total_creditos_solo_capital,
-            "saldo_por_recuperar": saldo_por_recuperar_ruta,
-            "total_estimado_con_intereses": total_estimado_con_intereses,
-            "ganancia_alcanzada": total_ganancia_alcanzada,
-            "total_cobros": total_cobros,
-            "total_prestamos": total_prestamos_rango,
-            "total_gastos": total_gastos_rango,
-            "transferencias_enviadas": total_enviado_transferencias
-        })
+                total_cobrado_historico += pagado_credito
 
-        total_saldo_anterior += saldo_anterior
-        total_transferencias_recibidas += total_recibido_transferencias
-        total_capital_entregado += total_capital_entregado_rango
-        total_saldo_final += saldo_final
-        total_cartera_final += cartera_final
-        total_creditos_colocados += total_creditos_solo_capital
-        total_saldo_por_recuperar += saldo_por_recuperar_ruta
-        total_estimado_intereses_general += total_estimado_con_intereses
-        total_ganancia_alcanzada_general += total_ganancia_alcanzada
-        total_gastos_general += total_gastos_rango
-        total_cobros_general += total_cobros
+                total_estimado_con_intereses += valor_total
 
-    cantidad_rutas = len(lista_rutas) if lista_rutas else 1
+                ganancia_esperada_credito = valor_total - valor_venta
 
-    promedio_saldo_rutas = total_saldo_final / cantidad_rutas
-    promedio_cartera_final = total_cartera_final / cantidad_rutas
-    promedio_creditos_colocados = total_creditos_colocados / cantidad_rutas
-    promedio_saldo_recuperar = total_saldo_por_recuperar / cantidad_rutas
+                porcentaje_recuperado = 0
+                if valor_total > 0:
+                    porcentaje_recuperado = pagado_credito / valor_total
 
-    return render_template(
-        "liquidacion.html",
-        rutas=lista_rutas,
-        rutas_activas=rutas_query.data or [],
-        fecha_inicio=fecha_inicio,
-        fecha_fin=fecha_fin,
-        ruta_id_filtro=ruta_id_filtro,
-        promedio_saldo_rutas=promedio_saldo_rutas,
-        promedio_cartera_final=promedio_cartera_final,
-        promedio_creditos_colocados=promedio_creditos_colocados,
-        promedio_saldo_recuperar=promedio_saldo_recuperar,
-        total_saldo_anterior=total_saldo_anterior,
-        total_transferencias_recibidas=total_transferencias_recibidas,
-        total_capital_entregado=total_capital_entregado,
-        total_saldo_final=total_saldo_final,
-        total_cartera_final=total_cartera_final,
-        total_creditos_colocados=total_creditos_colocados,
-        total_saldo_por_recuperar=total_saldo_por_recuperar,
-        total_estimado_intereses_general=total_estimado_intereses_general,
-        total_ganancia_alcanzada_general=total_ganancia_alcanzada_general,
-        total_gastos_general=total_gastos_general,
-        total_cobros=total_cobros_general
-    )
+                if porcentaje_recuperado > 1:
+                    porcentaje_recuperado = 1
 
+                ganancia_alcanzada_credito = ganancia_esperada_credito * porcentaje_recuperado
+                total_ganancia_alcanzada += ganancia_alcanzada_credito
+
+            # =============================
+            # 10. CARTERA FINAL
+            # cuotas pagadas + gastos
+            # =============================
+            cartera_final = total_cobrado_historico + total_gastos_rango
+
+            lista_rutas.append({
+                "ruta_id": ruta_id,
+                "ruta_nombre": r["nombre"],
+                "saldo_anterior": saldo_anterior,
+                "transferencias_recibidas": total_recibido_transferencias,
+                "gastos": total_gastos_rango,
+                "capital_entregado": total_capital_entregado_rango,
+                "saldo_final": saldo_final,
+                "cartera_final": cartera_final,
+                "creditos_colocados": total_creditos_solo_capital,
+                "saldo_por_recuperar": saldo_por_recuperar_ruta,
+                "total_estimado_con_intereses": total_estimado_con_intereses,
+                "ganancia_alcanzada": total_ganancia_alcanzada,
+                "total_cobros": total_cobros,
+                "total_prestamos": total_prestamos_rango,
+                "total_gastos": total_gastos_rango,
+                "transferencias_enviadas": total_enviado_transferencias
+            })
+
+            total_saldo_anterior += saldo_anterior
+            total_transferencias_recibidas += total_recibido_transferencias
+            total_capital_entregado += total_capital_entregado_rango
+            total_saldo_final += saldo_final
+            total_cartera_final += cartera_final
+            total_creditos_colocados += total_creditos_solo_capital
+            total_saldo_por_recuperar += saldo_por_recuperar_ruta
+            total_estimado_intereses_general += total_estimado_con_intereses
+            total_ganancia_alcanzada_general += total_ganancia_alcanzada
+            total_gastos_general += total_gastos_rango
+            total_cobros_general += total_cobros
+
+        cantidad_rutas = len(lista_rutas) if lista_rutas else 1
+
+        promedio_saldo_rutas = total_saldo_final / cantidad_rutas
+        promedio_cartera_final = total_cartera_final / cantidad_rutas
+        promedio_creditos_colocados = total_creditos_colocados / cantidad_rutas
+        promedio_saldo_recuperar = total_saldo_por_recuperar / cantidad_rutas
+
+        return render_template(
+            "liquidacion.html",
+            rutas=lista_rutas,
+            rutas_activas=rutas_activas,
+            fecha_inicio=fecha_inicio,
+            fecha_fin=fecha_fin,
+            ruta_id_filtro=ruta_id_filtro,
+            promedio_saldo_rutas=promedio_saldo_rutas,
+            promedio_cartera_final=promedio_cartera_final,
+            promedio_creditos_colocados=promedio_creditos_colocados,
+            promedio_saldo_recuperar=promedio_saldo_recuperar,
+            total_saldo_anterior=total_saldo_anterior,
+            total_transferencias_recibidas=total_transferencias_recibidas,
+            total_capital_entregado=total_capital_entregado,
+            total_saldo_final=total_saldo_final,
+            total_cartera_final=total_cartera_final,
+            total_creditos_colocados=total_creditos_colocados,
+            total_saldo_por_recuperar=total_saldo_por_recuperar,
+            total_estimado_intereses_general=total_estimado_intereses_general,
+            total_ganancia_alcanzada_general=total_ganancia_alcanzada_general,
+            total_gastos_general=total_gastos_general,
+            total_cobros=total_cobros_general
+        )
+
+    except Exception as e:
+        print("ERROR en liquidacion:", str(e))
+        flash(f"Error cargando liquidación: {str(e)}", "error")
+        return redirect(url_for("dashboard"))
+
+    finally:
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
 def obtener_rango_colombia(fecha_inicio=None, fecha_fin=None):
     """
     Devuelve:
@@ -6833,11 +6879,15 @@ def dashboard():
     if "user_id" not in session:
         return redirect(url_for("login"))
 
+    # 🔒 Proteger también el dashboard
+    if session.get("rol") != "administrador":
+        session.clear()
+        return redirect(url_for("login"))
+
     if "oficina_id" not in session:
         return redirect(url_for("cambiar_oficina"))
 
     return render_template("dashboard.html")
-
 
 @app.route("/logout")
 def logout():

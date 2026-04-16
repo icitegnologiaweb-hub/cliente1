@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0B3C5D">
+<title>Bienvenido</title>
+<link href="{{ url_for('static', filename='css/output.css') }}" rel="stylesheet">
+
+<style>
+body {
+    background:
+        radial-gradient(circle at top, #143b63 0%, #081e33 55%, #050f1c 100%);
+    min-height: 100vh;
+}
+
+.welcome-wrap {
+    position: relative;
+    overflow: hidden;
+    border-radius: 24px;
+    background:
+        linear-gradient(135deg, rgba(18,59,99,.96), rgba(11,40,71,.97));
+    border: 1px solid rgba(255,255,255,.08);
+    box-shadow:
+        0 18px 45px rgba(0,0,0,.38),
+        inset 0 1px 0 rgba(255,255,255,.05);
+}
+
+.welcome-track {
+    display: flex;
+    transition: transform .55s ease;
+}
+
+.welcome-slide {
+    min-width: 100%;
+    padding: 28px 22px 24px;
+    position: relative;
+}
+
+.welcome-title {
+    font-size: 30px;
+    line-height: 1.05;
+    font-weight: 800;
+    color: white;
+    margin-bottom: 12px;
+}
+
+.welcome-title .accent {
+    color: #7bc2ff;
+}
+
+.welcome-text {
+    font-size: 14px;
+    color: #d4e4f5;
+    line-height: 1.6;
+    max-width: 88%;
+}
+
+.welcome-badge {
+    display: inline-block;
+    margin-bottom: 16px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: #d6ecff;
+    background: rgba(255,255,255,.08);
+    border: 1px solid rgba(255,255,255,.08);
+    padding: 7px 12px;
+    border-radius: 999px;
+}
+
+.welcome-icon {
+    position: absolute;
+    top: 20px;
+    right: 18px;
+    width: 76px;
+    height: 76px;
+    border-radius: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 32px;
+    background: linear-gradient(135deg, rgba(255,255,255,.18), rgba(37,99,235,.22));
+    border: 1px solid rgba(255,255,255,.10);
+}
+
+.welcome-dots {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    padding: 0 0 16px;
+}
+
+.welcome-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    background: rgba(255,255,255,.22);
+    transition: all .25s ease;
+}
+
+.welcome-dot.active {
+    width: 24px;
+    background: #4ea1ff;
+}
+
+.action-card {
+    background: linear-gradient(135deg, #123b63, #0b2847);
+    border-radius: 20px;
+    border: 1px solid rgba(255,255,255,.06);
+    box-shadow: 0 12px 28px rgba(0,0,0,.28);
+}
+
+.fade-in-up {
+    animation: fadeInUp .6s ease both;
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(18px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+</style>
+</head>
+
+<body class="text-white">
+
+<div class="max-w-md mx-auto px-4 pt-5 pb-10">
+
+    <div class="flex items-center justify-between mb-5">
+        <a href="javascript:history.back()" class="text-white/80 text-lg">‹</a>
+        <div class="text-sm font-semibold tracking-wide text-white/90">Bienvenida</div>
+        <div></div>
+    </div>
+
+    <div class="welcome-wrap fade-in-up mb-5">
+        <div class="welcome-track" id="welcomeTrack">
+
+            <div class="welcome-slide">
+                <div class="welcome-badge">Ruta seleccionada</div>
+                <div class="welcome-title">
+                    Bienvenido a <span class="accent">ML</span>
+                </div>
+                <div class="welcome-text">
+                    Has ingresado correctamente a la ruta <strong>{{ ruta.codigo }}</strong>.
+                    Prepárate para iniciar tu jornada con una experiencia más rápida, clara y moderna.
+                </div>
+                <div class="welcome-icon">👋</div>
+            </div>
+
+            <div class="welcome-slide">
+                <div class="welcome-badge">Control diario</div>
+                <div class="welcome-title">
+                    Todo listo para <span class="accent">{{ ruta.nombre }}</span>
+                </div>
+                <div class="welcome-text">
+                    Desde aquí podrás continuar con tu gestión diaria, revisar metas,
+                    visualizar tu avance y empezar tus recorridos con mejor organización.
+                </div>
+                <div class="welcome-icon">🛵</div>
+            </div>
+
+            <div class="welcome-slide">
+                <div class="welcome-badge">Comienza ahora</div>
+                <div class="welcome-title">
+                    Inicia con <span class="accent">confianza</span>
+                </div>
+                <div class="welcome-text">
+                    Tu ruta ya está cargada. Continúa al panel principal para comenzar
+                    con tus actividades del día.
+                </div>
+                <div class="welcome-icon">📍</div>
+            </div>
+
+        </div>
+
+        <div class="welcome-dots">
+            <span class="welcome-dot active"></span>
+            <span class="welcome-dot"></span>
+            <span class="welcome-dot"></span>
+        </div>
+    </div>
+
+    <div class="action-card p-5 fade-in-up">
+        <div class="text-xs uppercase tracking-[0.25em] text-blue-200 mb-2">
+            Ruta activa
+        </div>
+
+        <div class="text-xl font-bold">
+            {{ ruta.codigo }}
+        </div>
+
+        <div class="text-sm text-blue-200 mt-1">
+            {{ ruta.nombre }}
+        </div>
+
+        <a href="{{ url_for('metas_dia') }}"
+           class="mt-5 w-full inline-flex items-center justify-center bg-blue-600 hover:bg-blue-700 transition py-3.5 rounded-2xl font-semibold shadow-lg">
+            Continuar al panel
+        </a>
+    </div>
+
+</div>
+
+<script>
+const welcomeTrack = document.getElementById("welcomeTrack");
+const welcomeDots = document.querySelectorAll(".welcome-dot");
+let currentSlide = 0;
+const totalSlides = 3;
+
+function updateWelcomeCarousel(index) {
+    welcomeTrack.style.transform = `translateX(-${index * 100}%)`;
+    welcomeDots.forEach((dot, i) => {
+        dot.classList.toggle("active", i === index);
+    });
+}
+
+function nextWelcomeSlide() {
+    currentSlide = (currentSlide + 1) % totalSlides;
+    updateWelcomeCarousel(currentSlide);
+}
+
+setInterval(nextWelcomeSlide, 3500);
+
+welcomeDots.forEach((dot, index) => {
+    dot.addEventListener("click", () => {
+        currentSlide = index;
+        updateWelcomeCarousel(currentSlide);
+    });
+});
+</script>
+
+</body>
+</html>
