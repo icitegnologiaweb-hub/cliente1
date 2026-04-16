@@ -17,7 +17,8 @@ from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.units import mm
 from io import BytesIO
 from flask import send_file
-
+import psycopg2
+from psycopg2.extras import RealDictCursor
 import pytz
 
 
@@ -30,6 +31,7 @@ load_dotenv()
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+DATABASE_URL = os.getenv("SUPABASE_DB_URL")
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
@@ -45,6 +47,13 @@ hoy_iso = hoy.isoformat()
 
 inicio_dia = hoy_iso + "T00:00:00"
 fin_dia = hoy_iso + "T23:59:59"
+
+
+def get_db_connection():
+    return psycopg2.connect(
+        DATABASE_URL,
+        cursor_factory=RealDictCursor
+    )
 
 @app.route("/")
 def index():
@@ -2358,6 +2367,8 @@ from datetime import date
 
 from datetime import date
 
+from datetime import date
+
 @app.route("/todas_las_ventas/<ruta_id>")
 def todas_las_ventas(ruta_id):
 
@@ -2367,197 +2378,258 @@ def todas_las_ventas(ruta_id):
     hoy = date.today().isoformat()
     hoy_fecha = date.today()
 
-    # Traer TODOS los créditos de la ruta con info cliente
-    response = supabase.table("creditos") \
-        .select("""
-            id,
-            cliente_id,
-            posicion,
-            valor_cuota,
-            valor_total,
-            tipo_prestamo,
-            estado,
-            created_at,
-            clientes(
-                nombre,
-                identificacion,
-                telefono_principal
+    def solo_fecha(valor):
+        if not valor:
+            return None
+        return str(valor)[:10]
+
+    conn = None
+    cur = None
+
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+
+        # 1) Traer TODOS los créditos de la ruta con info cliente
+        cur.execute("""
+            SELECT
+                c.id,
+                c.cliente_id,
+                c.posicion,
+                c.valor_cuota,
+                c.valor_total,
+                c.tipo_prestamo,
+                c.estado,
+                c.created_at,
+                cl.nombre AS cliente_nombre,
+                cl.identificacion AS cliente_identificacion,
+                cl.telefono_principal AS cliente_telefono
+            FROM creditos c
+            LEFT JOIN clientes cl
+                ON cl.id = c.cliente_id
+            WHERE c.ruta_id = %s
+            ORDER BY c.posicion
+        """, (ruta_id,))
+
+        creditos = cur.fetchall() or []
+
+        pendientes = []
+        pagados_hoy = []
+
+        if not creditos:
+            return render_template(
+                "cobrador/todas_las_ventas.html",
+                creditos=[],
+                pagados_hoy=[],
+                ruta_id=ruta_id,
+                total_creditos=0,
+                total_pendientes=0,
+                total_pagados_hoy=0,
+                total_recaudo_hoy="0",
+                total_saldo_pendiente="0",
             )
-        """) \
-        .eq("ruta_id", ruta_id) \
-        .order("posicion") \
-        .execute()
 
-    creditos = response.data if response.data else []
+        # 🔥 convertir ids a texto para evitar problema uuid=text
+        creditos_ids = [str(c["id"]) for c in creditos if c.get("id")]
 
-    pendientes = []
-    pagados_hoy = []
+        # 2) Traer TODAS las cuotas de esos créditos
+        cur.execute("""
+            SELECT
+                credito_id,
+                estado,
+                valor,
+                fecha_pago
+            FROM cuotas
+            WHERE credito_id::text = ANY(%s)
+            ORDER BY credito_id, fecha_pago
+        """, (creditos_ids,))
 
-    for c in creditos:
+        cuotas_rows = cur.fetchall() or []
 
-        cuotas = supabase.table("cuotas") \
-            .select("estado, valor, fecha_pago") \
-            .eq("credito_id", c["id"]) \
-            .order("fecha_pago") \
-            .execute().data or []
+        cuotas_por_credito = {}
+        for cuota in cuotas_rows:
+            credito_id_key = str(cuota["credito_id"])
+            cuotas_por_credito.setdefault(credito_id_key, []).append(cuota)
 
-        pago_hoy_credito = supabase.table("pagos") \
-            .select("id, fecha") \
-            .eq("credito_id", c["id"]) \
-            .gte("fecha", hoy + "T00:00:00") \
-            .lt("fecha", hoy + "T23:59:59") \
-            .order("fecha", desc=True) \
-            .limit(1) \
-            .execute()
+        # 3) Traer pagos de hoy de esos créditos
+        cur.execute("""
+            SELECT DISTINCT credito_id
+            FROM pagos
+            WHERE credito_id::text = ANY(%s)
+              AND fecha >= %s
+              AND fecha < %s
+        """, (
+            creditos_ids,
+            hoy + "T00:00:00",
+            hoy + "T23:59:59"
+        ))
 
-        ya_pago_hoy = True if pago_hoy_credito.data else False
+        pagos_hoy_rows = cur.fetchall() or []
+        pagos_hoy_ids = {str(p["credito_id"]) for p in pagos_hoy_rows if p.get("credito_id")}
 
-        pago_hoy = None
-        valor_hoy = 0
-        proxima_cuota = None
-        dias_mora = 0
-        saldo_pendiente = 0
-        total_pagado_cuotas = 0
-        total_cuotas = len(cuotas)
-        cuotas_pagadas = 0
-        todas_pagadas = True if cuotas else False
-        fecha_mora_mas_antigua = None
+        # 4) Mantener tu lógica actual
+        for c in creditos:
 
-        for cuota in cuotas:
-            fecha_pago_raw = cuota.get("fecha_pago")
-            valor_cuota = float(cuota.get("valor") or 0)
+            credito_id_key = str(c["id"])
+            cuotas = cuotas_por_credito.get(credito_id_key, [])
+            ya_pago_hoy = credito_id_key in pagos_hoy_ids
 
-            try:
-                fecha_pago = date.fromisoformat(fecha_pago_raw)
-            except Exception:
-                fecha_pago = None
-
-            # cuota con fecha de hoy
-            if fecha_pago_raw == hoy:
-                valor_hoy = valor_cuota
-                pago_hoy = True if cuota["estado"] == "pagado" else False
-
-            # próxima pendiente
-            if cuota["estado"] == "pendiente" and not proxima_cuota:
-                proxima_cuota = fecha_pago_raw
-
-            # mora real
-            if cuota["estado"] == "pendiente" and fecha_pago and fecha_pago < hoy_fecha:
-                if fecha_mora_mas_antigua is None or fecha_pago < fecha_mora_mas_antigua:
-                    fecha_mora_mas_antigua = fecha_pago
-
-            # totales
-            if cuota["estado"] == "pendiente":
-                saldo_pendiente += valor_cuota
-                todas_pagadas = False
-            elif cuota["estado"] == "pagado":
-                total_pagado_cuotas += valor_cuota
-                cuotas_pagadas += 1
-
-        if fecha_mora_mas_antigua:
-            dias_mora = (hoy_fecha - fecha_mora_mas_antigua).days
-        else:
+            pago_hoy = None
+            valor_hoy = 0
+            proxima_cuota = None
             dias_mora = 0
+            saldo_pendiente = 0
+            total_pagado_cuotas = 0
+            total_cuotas = len(cuotas)
+            cuotas_pagadas = 0
+            todas_pagadas = True if cuotas else False
+            fecha_mora_mas_antigua = None
 
-        if pago_hoy is None:
-            pago_hoy = True if todas_pagadas else False
+            for cuota in cuotas:
+                fecha_pago_raw = cuota.get("fecha_pago")
+                fecha_pago_txt = solo_fecha(fecha_pago_raw)
+                valor_cuota = float(cuota.get("valor") or 0)
 
-        if ya_pago_hoy:
-            pago_hoy = True
+                try:
+                    fecha_pago = date.fromisoformat(fecha_pago_txt) if fecha_pago_txt else None
+                except Exception:
+                    fecha_pago = None
 
-        # 🔥 excluir completamente finalizados/terminados
-        credito_finalizado = todas_pagadas or c.get("estado") in ["finalizado", "pagado"]
+                # cuota con fecha de hoy
+                if fecha_pago_txt == hoy:
+                    valor_hoy = valor_cuota
+                    pago_hoy = True if cuota["estado"] == "pagado" else False
 
-        # 🎨 semáforo
-        if dias_mora >= 30:
-            color_estado = "rojo"
-            estado_texto = "Mora alta"
-        elif dias_mora >= 7:
-            color_estado = "naranja"
-            estado_texto = "Mora media"
-        elif dias_mora > 0:
-            color_estado = "amarillo"
-            estado_texto = "Con atraso"
-        else:
-            color_estado = "verde"
-            estado_texto = "Al día"
+                # próxima pendiente
+                if cuota["estado"] == "pendiente" and not proxima_cuota:
+                    proxima_cuota = fecha_pago_txt
 
-        porcentaje_pagado = 0
-        if total_cuotas > 0:
-            porcentaje_pagado = int((cuotas_pagadas / total_cuotas) * 100)
+                # mora real
+                if cuota["estado"] == "pendiente" and fecha_pago and fecha_pago < hoy_fecha:
+                    if fecha_mora_mas_antigua is None or fecha_pago < fecha_mora_mas_antigua:
+                        fecha_mora_mas_antigua = fecha_pago
 
-        item = {
-            "id": c["id"],
-            "cliente_id": c["cliente_id"],
-            "posicion": c.get("posicion") or 0,
-            "cliente": c["clientes"]["nombre"] if c.get("clientes") else "",
-            "identificacion": c["clientes"]["identificacion"] if c.get("clientes") else "",
-            "telefono": c["clientes"]["telefono_principal"] if c.get("clientes") else "",
-            "valor_total_num": float(c.get("valor_total") or 0),
-            "valor_total": "{:,.0f}".format(float(c.get("valor_total") or 0)),
-            "valor_hoy_num": float(valor_hoy or 0),
-            "valor_hoy": "{:,.0f}".format(float(valor_hoy or 0)),
-            "proxima_cuota": proxima_cuota,
-            "pago_hoy": pago_hoy,
-            "dias_mora": dias_mora,
-            "color_estado": color_estado,
-            "estado": c.get("estado", "activo"),
-            "estado_texto": estado_texto,
-            "saldo_pendiente_num": float(saldo_pendiente or 0),
-            "saldo_pendiente": "{:,.0f}".format(float(saldo_pendiente or 0)),
-            "total_pagado_cuotas_num": float(total_pagado_cuotas or 0),
-            "total_pagado_cuotas": "{:,.0f}".format(float(total_pagado_cuotas or 0)),
-            "ya_pago_hoy": ya_pago_hoy,
-            "tipo_prestamo": c.get("tipo_prestamo"),
-            "cuotas_pagadas": cuotas_pagadas,
-            "total_cuotas": total_cuotas,
-            "porcentaje_pagado": porcentaje_pagado,
-        }
+                # totales
+                if cuota["estado"] == "pendiente":
+                    saldo_pendiente += valor_cuota
+                    todas_pagadas = False
+                elif cuota["estado"] == "pagado":
+                    total_pagado_cuotas += valor_cuota
+                    cuotas_pagadas += 1
 
-        # ✅ REGLA FINAL
-        # 1. Si el crédito ya terminó, no aparece en esta vista
-        # 2. Si pagó hoy y sigue activo, va a Pagados hoy
-        # 3. Si no pagó hoy y sigue activo, va a Pendientes
-        if credito_finalizado:
-            continue
-        elif ya_pago_hoy:
-            pagados_hoy.append(item)
-        else:
-            pendientes.append(item)
+            if fecha_mora_mas_antigua:
+                dias_mora = (hoy_fecha - fecha_mora_mas_antigua).days
+            else:
+                dias_mora = 0
 
-    pendientes = sorted(
-        pendientes,
-        key=lambda x: (
-            x["posicion"] if x["posicion"] is not None else 999999,
-            -x["dias_mora"]
+            if pago_hoy is None:
+                pago_hoy = True if todas_pagadas else False
+
+            if ya_pago_hoy:
+                pago_hoy = True
+
+            # excluir completamente finalizados/terminados
+            credito_finalizado = todas_pagadas or c.get("estado") in ["finalizado", "pagado"]
+
+            # semáforo
+            if dias_mora >= 30:
+                color_estado = "rojo"
+                estado_texto = "Mora alta"
+            elif dias_mora >= 7:
+                color_estado = "naranja"
+                estado_texto = "Mora media"
+            elif dias_mora > 0:
+                color_estado = "amarillo"
+                estado_texto = "Con atraso"
+            else:
+                color_estado = "verde"
+                estado_texto = "Al día"
+
+            porcentaje_pagado = 0
+            if total_cuotas > 0:
+                porcentaje_pagado = int((cuotas_pagadas / total_cuotas) * 100)
+
+            item = {
+                "id": credito_id_key,
+                "cliente_id": str(c["cliente_id"]) if c.get("cliente_id") else None,
+                "posicion": c.get("posicion") or 0,
+                "cliente": c.get("cliente_nombre") or "",
+                "identificacion": c.get("cliente_identificacion") or "",
+                "telefono": c.get("cliente_telefono") or "",
+                "valor_total_num": float(c.get("valor_total") or 0),
+                "valor_total": "{:,.0f}".format(float(c.get("valor_total") or 0)),
+                "valor_hoy_num": float(valor_hoy or 0),
+                "valor_hoy": "{:,.0f}".format(float(valor_hoy or 0)),
+                "proxima_cuota": proxima_cuota,
+                "pago_hoy": pago_hoy,
+                "dias_mora": dias_mora,
+                "color_estado": color_estado,
+                "estado": c.get("estado", "activo"),
+                "estado_texto": estado_texto,
+                "saldo_pendiente_num": float(saldo_pendiente or 0),
+                "saldo_pendiente": "{:,.0f}".format(float(saldo_pendiente or 0)),
+                "total_pagado_cuotas_num": float(total_pagado_cuotas or 0),
+                "total_pagado_cuotas": "{:,.0f}".format(float(total_pagado_cuotas or 0)),
+                "ya_pago_hoy": ya_pago_hoy,
+                "tipo_prestamo": c.get("tipo_prestamo"),
+                "cuotas_pagadas": cuotas_pagadas,
+                "total_cuotas": total_cuotas,
+                "porcentaje_pagado": porcentaje_pagado,
+            }
+
+            # REGLA FINAL
+            if credito_finalizado:
+                continue
+            elif ya_pago_hoy:
+                pagados_hoy.append(item)
+            else:
+                pendientes.append(item)
+
+        pendientes = sorted(
+            pendientes,
+            key=lambda x: (
+                x["posicion"] if x["posicion"] is not None else 999999,
+                -x["dias_mora"]
+            )
         )
-    )
 
-    pagados_hoy = sorted(
-        pagados_hoy,
-        key=lambda x: (
-            x["posicion"] if x["posicion"] is not None else 999999
+        pagados_hoy = sorted(
+            pagados_hoy,
+            key=lambda x: (
+                x["posicion"] if x["posicion"] is not None else 999999
+            )
         )
-    )
 
-    total_creditos = len(pendientes) + len(pagados_hoy)
-    total_pendientes = len(pendientes)
-    total_pagados_hoy = len(pagados_hoy)
+        total_creditos = len(pendientes) + len(pagados_hoy)
+        total_pendientes = len(pendientes)
+        total_pagados_hoy = len(pagados_hoy)
 
-    total_recaudo_hoy = sum(x["valor_hoy_num"] for x in pagados_hoy)
-    total_saldo_pendiente = sum(x["saldo_pendiente_num"] for x in pendientes)
+        total_recaudo_hoy = sum(x["valor_hoy_num"] for x in pagados_hoy)
+        total_saldo_pendiente = sum(x["saldo_pendiente_num"] for x in pendientes)
 
-    return render_template(
-        "cobrador/todas_las_ventas.html",
-        creditos=pendientes,
-        pagados_hoy=pagados_hoy,
-        ruta_id=ruta_id,
-        total_creditos=total_creditos,
-        total_pendientes=total_pendientes,
-        total_pagados_hoy=total_pagados_hoy,
-        total_recaudo_hoy="{:,.0f}".format(total_recaudo_hoy),
-        total_saldo_pendiente="{:,.0f}".format(total_saldo_pendiente),
-    )
+        return render_template(
+            "cobrador/todas_las_ventas.html",
+            creditos=pendientes,
+            pagados_hoy=pagados_hoy,
+            ruta_id=ruta_id,
+            total_creditos=total_creditos,
+            total_pendientes=total_pendientes,
+            total_pagados_hoy=total_pagados_hoy,
+            total_recaudo_hoy="{:,.0f}".format(total_recaudo_hoy),
+            total_saldo_pendiente="{:,.0f}".format(total_saldo_pendiente),
+        )
+
+    except Exception as e:
+        print("ERROR en todas_las_ventas:", str(e))
+        flash(f"Error cargando ventas: {str(e)}", "error")
+        return redirect(url_for("dashboard_cobrador"))
+
+    finally:
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
+            
 @app.route("/liquidacion")
 def liquidacion():
 
@@ -3947,6 +4019,7 @@ def detalle_cliente(cliente_id, ruta_id):
         fotos=fotos,
         tiene_credito_activo=tiene_credito_activo
     )
+    
 @app.route("/renovar_credito/<cliente_id>/<ruta_id>")
 def renovar_credito(cliente_id, ruta_id):
 
@@ -4857,6 +4930,10 @@ def toggle_ruta(id):
 # -----------------------
 from datetime import date
 
+from datetime import date
+
+from datetime import date
+
 @app.route("/ventas")
 def listar_ventas():
 
@@ -4875,124 +4952,167 @@ def listar_ventas():
     fecha_inicio = request.args.get("fecha_inicio")
     fecha_fin = request.args.get("fecha_fin")
 
-    # 🔥 SOLO rutas de la oficina activa
-    rutas = supabase.table("rutas") \
-        .select("*") \
-        .eq("oficina_id", oficina_id) \
-        .order("posicion") \
-        .execute().data or []
+    conn = None
+    cur = None
 
-    ventas = []
-    saldo_total = 0
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
 
-    if ruta_id:
+        # 🔥 SOLO rutas de la oficina activa
+        cur.execute("""
+            SELECT *
+            FROM rutas
+            WHERE oficina_id = %s
+            ORDER BY posicion
+        """, (oficina_id,))
+        rutas = cur.fetchall() or []
 
-        # 🔒 VALIDAR QUE LA RUTA PERTENEZCA A LA OFICINA
-        ruta_validacion = supabase.table("rutas") \
-            .select("id, oficina_id") \
-            .eq("id", ruta_id) \
-            .single() \
-            .execute().data
+        ventas = []
+        saldo_total = 0
 
-        if not ruta_validacion or ruta_validacion["oficina_id"] != oficina_id:
-            flash("No tiene acceso a esta ruta", "error")
-            return redirect(url_for("listar_ventas"))
+        if ruta_id:
 
-        # 🔥 Traer créditos de la ruta validada
-        response = supabase.table("creditos") \
-            .select("""
-                id,
-                cliente_id,
-                posicion,
-                valor_venta,
-                valor_total,
-                created_at,
-                clientes(nombre, identificacion),
-                latitud,
-                longitud
-            """) \
-            .eq("ruta_id", ruta_id) \
-            .order("posicion") \
-            .execute()
+            # 🔒 VALIDAR QUE LA RUTA PERTENEZCA A LA OFICINA
+            cur.execute("""
+                SELECT id, oficina_id
+                FROM rutas
+                WHERE id = %s
+                LIMIT 1
+            """, (ruta_id,))
+            ruta_validacion = cur.fetchone()
 
-        creditos = response.data or []
+            if not ruta_validacion or ruta_validacion["oficina_id"] != oficina_id:
+                flash("No tiene acceso a esta ruta", "error")
+                return redirect(url_for("listar_ventas"))
 
-        for c in creditos:
+            # 🔥 Traer créditos de la ruta validada
+            cur.execute("""
+                SELECT
+                    c.id,
+                    c.cliente_id,
+                    c.posicion,
+                    c.valor_venta,
+                    c.valor_total,
+                    c.created_at,
+                    c.latitud,
+                    c.longitud,
+                    cl.nombre AS cliente_nombre,
+                    cl.identificacion AS cliente_identificacion
+                FROM creditos c
+                LEFT JOIN clientes cl
+                    ON cl.id = c.cliente_id
+                WHERE c.ruta_id = %s
+                ORDER BY c.posicion
+            """, (ruta_id,))
+            creditos = cur.fetchall() or []
 
-            cliente_nombre = c["clientes"]["nombre"]
-            identificacion = c["clientes"]["identificacion"]
+            if creditos:
+                credito_ids = [str(c["id"]) for c in creditos if c.get("id")]
 
-            # 🔎 BUSCADOR
-            if buscar:
-                if buscar not in cliente_nombre.lower() and buscar not in identificacion.lower():
+                cuotas_por_credito = {}
+
+                if credito_ids:
+                    cur.execute("""
+                        SELECT
+                            credito_id,
+                            valor,
+                            estado,
+                            fecha_pago
+                        FROM cuotas
+                        WHERE credito_id::text = ANY(%s)
+                    """, (credito_ids,))
+                    cuotas = cur.fetchall() or []
+
+                    for cuota in cuotas:
+                        credito_id = str(cuota.get("credito_id")) if cuota.get("credito_id") else None
+                        if not credito_id:
+                            continue
+                        cuotas_por_credito.setdefault(credito_id, []).append(cuota)
+
+            for c in creditos:
+
+                cliente_nombre = (c.get("cliente_nombre") or "")
+                identificacion = str(c.get("cliente_identificacion") or "")
+
+                # 🔎 BUSCADOR
+                if buscar:
+                    if buscar not in cliente_nombre.lower() and buscar not in identificacion.lower():
+                        continue
+
+                cuotas = cuotas_por_credito.get(str(c["id"]), []) if creditos else []
+
+                total_pagado = 0
+                dias_mora = 0
+
+                for cuota in cuotas:
+
+                    if cuota["estado"] == "pagado":
+                        total_pagado += float(cuota["valor"])
+
+                    if cuota["estado"] == "pendiente":
+                        try:
+                            fecha_pago = date.fromisoformat(str(cuota["fecha_pago"])[:10])
+                            if fecha_pago < date.today():
+                                dias_mora += (date.today() - fecha_pago).days
+                        except Exception:
+                            pass
+
+                # 🔥 FILTRO POR MORA
+                if filtro_mora == "21" and dias_mora < 21:
+                    continue
+                if filtro_mora == "11" and (dias_mora < 11 or dias_mora >= 21):
+                    continue
+                if filtro_mora == "0" and dias_mora > 0:
                     continue
 
-            cuotas = supabase.table("cuotas") \
-                .select("valor, estado, fecha_pago") \
-                .eq("credito_id", c["id"]) \
-                .execute().data or []
+                fecha_registro = str(c["created_at"])[:10]
 
-            total_pagado = 0
-            dias_mora = 0
+                # 🔥 FILTRO POR FECHAS (CORRECTAMENTE UBICADO)
+                if fecha_inicio and fecha_registro < fecha_inicio:
+                    continue
 
-            for cuota in cuotas:
+                if fecha_fin and fecha_registro > fecha_fin:
+                    continue
 
-                if cuota["estado"] == "pagado":
-                    total_pagado += float(cuota["valor"])
+                saldo = float(c["valor_total"]) - total_pagado
 
-                if cuota["estado"] == "pendiente":
-                    fecha_pago = date.fromisoformat(cuota["fecha_pago"])
-                    if fecha_pago < date.today():
-                        dias_mora += (date.today() - fecha_pago).days
+                ventas.append({
+                    "credito_id": str(c["id"]),
+                    "cliente_id": str(c["cliente_id"]) if c.get("cliente_id") else None,
+                    "posicion": c["posicion"],
+                    "codigo": str(c["id"])[:8],
+                    "valor_venta": "{:,.0f}".format(float(c["valor_venta"])),
+                    "valor_total": "{:,.0f}".format(float(c["valor_total"])),
+                    "saldo": "{:,.0f}".format(saldo),
+                    "cliente": cliente_nombre,
+                    "identificacion": identificacion,
+                    "fecha_registro": fecha_registro,
+                    "dias_mora": dias_mora,
+                    "latitud": c["latitud"],
+                    "longitud": c["longitud"],
+                })
 
-            # 🔥 FILTRO POR MORA
-            if filtro_mora == "21" and dias_mora < 21:
-                continue
-            if filtro_mora == "11" and (dias_mora < 11 or dias_mora >= 21):
-                continue
-            if filtro_mora == "0" and dias_mora > 0:
-                continue
+                saldo_total += float(c["valor_venta"])
 
-            fecha_registro = c["created_at"][:10]
+        return render_template(
+            "ventas.html",
+            rutas=rutas,
+            ventas=ventas,
+            ruta_id=int(ruta_id) if ruta_id else None,
+            saldo_total=saldo_total
+        )
 
-            # 🔥 FILTRO POR FECHAS (CORRECTAMENTE UBICADO)
-            if fecha_inicio and fecha_registro < fecha_inicio:
-                continue
+    except Exception as e:
+        print("ERROR en listar_ventas:", str(e))
+        flash(f"Error cargando ventas: {str(e)}", "error")
+        return redirect(url_for("dashboard"))
 
-            if fecha_fin and fecha_registro > fecha_fin:
-                continue
-
-            saldo = float(c["valor_total"]) - total_pagado
-
-            ventas.append({
-                "credito_id": c["id"],
-                "cliente_id": c["cliente_id"],
-                "posicion": c["posicion"],
-                "codigo": c["id"][:8],
-                "valor_venta": "{:,.0f}".format(c["valor_venta"]),
-                "valor_total": "{:,.0f}".format(c["valor_total"]),
-                "saldo": "{:,.0f}".format(saldo),
-                "cliente": cliente_nombre,
-                "identificacion": identificacion,
-                "fecha_registro": fecha_registro,
-                "dias_mora": dias_mora,
-                "latitud": c["latitud"],
-                "longitud": c["longitud"],
-            })
-
-            saldo_total += float(c["valor_venta"])
-
-    return render_template(
-        "ventas.html",
-        rutas=rutas,
-        ventas=ventas,
-        ruta_id=int(ruta_id) if ruta_id else None,
-        saldo_total=saldo_total
-    )
-
-
-
-
+    finally:
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
 # =============================
 # NUEVA VENTA (CONTROL FLUJO)
 # =============================
@@ -5623,6 +5743,8 @@ def eliminar_credito_cliente(credito_id):
         flash(f"Error al eliminar el crédito: {str(e)}", "danger")
         return redirect(url_for("historial_creditos", cliente_id=credito["cliente_id"]))
 
+from datetime import date
+
 @app.route("/clientes")
 def clientes():
 
@@ -5635,16 +5757,17 @@ def clientes():
         flash("Debe seleccionar una oficina", "warning")
         return redirect(url_for("cambiar_oficina"))
 
-    # 1️⃣ Obtener rutas de la oficina
+    hoy = date.today()
+
+    # 1) Obtener rutas de la oficina
     rutas = supabase.table("rutas") \
-        .select("*") \
+        .select("id,nombre,codigo,posicion,oficina_id") \
         .eq("oficina_id", oficina_id) \
         .order("id") \
         .execute().data or []
 
     ruta_ids_oficina = [r["id"] for r in rutas]
 
-    # Si no hay rutas, devolver vacío
     if not ruta_ids_oficina:
         return render_template(
             "clientes.html",
@@ -5653,34 +5776,31 @@ def clientes():
             ruta_seleccionada=None
         )
 
-    # 2️⃣ Capturar ruta seleccionada desde el filtro GET
+    # 2) Capturar ruta seleccionada
     ruta_id_seleccionada = request.args.get("ruta_id")
 
-    # Normalizar tipo del id seleccionado para que coincida con los ids de BD
     if ruta_id_seleccionada:
         primer_id = ruta_ids_oficina[0]
-
         if isinstance(primer_id, int):
             try:
                 ruta_id_seleccionada = int(ruta_id_seleccionada)
             except ValueError:
                 ruta_id_seleccionada = None
 
-    # Validar que la ruta pertenezca a la oficina actual
     if ruta_id_seleccionada and ruta_id_seleccionada not in ruta_ids_oficina:
         flash("La ruta seleccionada no pertenece a la oficina actual", "warning")
         ruta_id_seleccionada = None
 
-    # 3️⃣ Definir rutas a consultar
+    # 3) Definir rutas a consultar
     rutas_filtrar = [ruta_id_seleccionada] if ruta_id_seleccionada else ruta_ids_oficina
 
-    # 4️⃣ Obtener créditos de las rutas filtradas
-    creditos = supabase.table("creditos") \
-        .select("cliente_id, ruta_id") \
+    # 4) Obtener créditos SOLO de las rutas filtradas
+    creditos_ruta = supabase.table("creditos") \
+        .select("id,cliente_id,ruta_id") \
         .in_("ruta_id", rutas_filtrar) \
         .execute().data or []
 
-    cliente_ids = list({c["cliente_id"] for c in creditos if c.get("cliente_id")})
+    cliente_ids = list({c["cliente_id"] for c in creditos_ruta if c.get("cliente_id")})
 
     if not cliente_ids:
         return render_template(
@@ -5690,41 +5810,89 @@ def clientes():
             ruta_seleccionada=ruta_id_seleccionada
         )
 
-    # 5️⃣ Obtener clientes finales
+    # 5) Obtener clientes finales
+    # Si luego quieres, aquí podemos quitar el * y dejar solo las columnas reales del template
     clientes = supabase.table("clientes") \
         .select("*") \
         .in_("id", cliente_ids) \
         .order("posicion") \
         .execute().data or []
 
-    # 🔥 Mantengo tu cálculo de mora EXACTAMENTE igual
+    if not clientes:
+        return render_template(
+            "clientes.html",
+            clientes=[],
+            rutas=rutas,
+            ruta_seleccionada=ruta_id_seleccionada
+        )
+
+    # ============================================================
+    # CALCULO DE MORA OPTIMIZADO
+    # Mantiene la misma idea de tu lógica:
+    # Para cada cliente, revisar TODOS sus créditos y sus cuotas pendientes
+    # y calcular la mayor mora.
+    # ============================================================
+
+    # 6) Traer TODOS los créditos de esos clientes en UNA sola consulta
+    todos_los_creditos_clientes = supabase.table("creditos") \
+        .select("id,cliente_id") \
+        .in_("cliente_id", cliente_ids) \
+        .execute().data or []
+
+    if not todos_los_creditos_clientes:
+        for cliente in clientes:
+            cliente["dias_mora"] = 0
+
+        return render_template(
+            "clientes.html",
+            clientes=clientes,
+            rutas=rutas,
+            ruta_seleccionada=ruta_id_seleccionada
+        )
+
+    credito_a_cliente = {}
+    todos_credito_ids = []
+
+    for credito in todos_los_creditos_clientes:
+        cid = credito.get("id")
+        cliente_id = credito.get("cliente_id")
+        if cid and cliente_id:
+            credito_a_cliente[cid] = cliente_id
+            todos_credito_ids.append(cid)
+
+    # 7) Traer TODAS las cuotas pendientes vencidas en UNA sola consulta
+    cuotas_pendientes = supabase.table("cuotas") \
+        .select("credito_id,fecha_pago") \
+        .in_("credito_id", todos_credito_ids) \
+        .eq("estado", "pendiente") \
+        .lt("fecha_pago", hoy.isoformat()) \
+        .execute().data or []
+
+    # 8) Calcular mayor mora por cliente en memoria
+    mora_por_cliente = {cliente_id: 0 for cliente_id in cliente_ids}
+
+    for cuota in cuotas_pendientes:
+        credito_id = cuota.get("credito_id")
+        fecha_pago = cuota.get("fecha_pago")
+
+        if not credito_id or not fecha_pago:
+            continue
+
+        cliente_id = credito_a_cliente.get(credito_id)
+        if not cliente_id:
+            continue
+
+        try:
+            fecha = date.fromisoformat(fecha_pago)
+            dias = (hoy - fecha).days
+            if dias > mora_por_cliente.get(cliente_id, 0):
+                mora_por_cliente[cliente_id] = dias
+        except Exception:
+            continue
+
+    # 9) Asignar dias_mora a cada cliente
     for cliente in clientes:
-
-        mayor_mora = 0
-
-        creditos_cliente = supabase.table("creditos") \
-            .select("id") \
-            .eq("cliente_id", cliente["id"]) \
-            .execute().data or []
-
-        for credito in creditos_cliente:
-
-            cuotas = supabase.table("cuotas") \
-                .select("fecha_pago, estado") \
-                .eq("credito_id", credito["id"]) \
-                .eq("estado", "pendiente") \
-                .execute().data or []
-
-            for cuota in cuotas:
-                if cuota.get("fecha_pago"):
-                    fecha = date.fromisoformat(cuota["fecha_pago"])
-
-                    if fecha < date.today():
-                        dias = (date.today() - fecha).days
-                        if dias > mayor_mora:
-                            mayor_mora = dias
-
-        cliente["dias_mora"] = mayor_mora
+        cliente["dias_mora"] = mora_por_cliente.get(cliente["id"], 0)
 
     return render_template(
         "clientes.html",
