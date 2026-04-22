@@ -2294,73 +2294,108 @@ def guardar_venta_cobrador():
 
     flash("Venta registrada correctamente", "success")
     return redirect(url_for("ver_ruta", ruta_id=ruta_id))
-    
+
 @app.route("/cambiar_posicion", methods=["POST"])
 def cambiar_posicion():
 
-    credito_id = request.form.get("credito_id")
-    nueva_posicion = int(request.form.get("nueva_posicion"))
+    credito_id = (request.form.get("credito_id") or "").strip()
+    nueva_posicion_raw = (request.form.get("nueva_posicion") or "").strip()
 
-    credito = supabase.table("creditos") \
-        .select("ruta_id, posicion") \
+    if not credito_id or not nueva_posicion_raw:
+        flash("Datos incompletos para cambiar la posición", "danger")
+        return redirect(request.referrer or url_for("listar_ventas"))
+
+    try:
+        nueva_posicion = int(nueva_posicion_raw)
+    except:
+        flash("La nueva posición no es válida", "danger")
+        return redirect(request.referrer or url_for("listar_ventas"))
+
+    if nueva_posicion <= 0:
+        flash("La posición debe ser mayor a 0", "danger")
+        return redirect(request.referrer or url_for("listar_ventas"))
+
+    # 1) Traer crédito actual
+    credito_resp = supabase.table("creditos") \
+        .select("id, ruta_id, posicion, estado") \
         .eq("id", credito_id) \
-        .single() \
-        .execute().data
+        .limit(1) \
+        .execute()
 
-    ruta_id = credito["ruta_id"]
-    vieja_posicion = credito["posicion"]
+    credito_actual = credito_resp.data[0] if credito_resp.data else None
+
+    if not credito_actual:
+        flash("Crédito no encontrado", "danger")
+        return redirect(request.referrer or url_for("listar_ventas"))
+
+    ruta_id = credito_actual["ruta_id"]
+    vieja_posicion = int(credito_actual.get("posicion") or 0)
+
+    if vieja_posicion <= 0:
+        flash("El crédito actual no tiene una posición válida", "danger")
+        return redirect(url_for("todas_las_ventas", ruta_id=ruta_id))
 
     if nueva_posicion == vieja_posicion:
-        return redirect(url_for("todas_las_ventas"))
+        flash("La posición no cambió", "info")
+        return redirect(url_for("todas_las_ventas", ruta_id=ruta_id))
 
-    # 1️⃣ sacar temporalmente el crédito
+    # 2) Traer TODOS los activos de la ruta para validar el rango
+    creditos_ruta = supabase.table("creditos") \
+        .select("id, posicion") \
+        .eq("ruta_id", ruta_id) \
+        .eq("estado", "activo") \
+        .order("posicion") \
+        .order("id") \
+        .execute().data or []
+
+    if not creditos_ruta:
+        flash("No hay créditos activos en esta ruta", "warning")
+        return redirect(url_for("todas_las_ventas", ruta_id=ruta_id))
+
+    max_posicion = max(
+        [int(c["posicion"]) for c in creditos_ruta if c.get("posicion") is not None],
+        default=0
+    )
+
+    if nueva_posicion > max_posicion:
+        flash(f"La posición máxima disponible es {max_posicion}", "warning")
+        return redirect(url_for("todas_las_ventas", ruta_id=ruta_id))
+
+    # 3) Buscar el crédito que actualmente ocupa la posición destino
+    credito_destino_resp = supabase.table("creditos") \
+        .select("id, posicion") \
+        .eq("ruta_id", ruta_id) \
+        .eq("estado", "activo") \
+        .eq("posicion", nueva_posicion) \
+        .limit(1) \
+        .execute()
+
+    credito_destino = credito_destino_resp.data[0] if credito_destino_resp.data else None
+
+    # 4) Posición temporal para evitar choque con unique_ruta_posicion
+    posicion_temporal = -9999
+
+    # Sacar temporalmente el crédito actual
     supabase.table("creditos") \
-        .update({"posicion": -9999}) \
+        .update({"posicion": posicion_temporal}) \
         .eq("id", credito_id) \
         .execute()
 
-    if nueva_posicion < vieja_posicion:
-        # mover hacia arriba
-        creditos = supabase.table("creditos") \
-            .select("id, posicion") \
-            .eq("ruta_id", ruta_id) \
-            .eq("estado", "activo") \
-            .gte("posicion", nueva_posicion) \
-            .lt("posicion", vieja_posicion) \
-            .order("posicion", desc=True) \
-            .execute().data
+    # Si hay otro crédito en la posición destino, pasarlo a la vieja posición
+    if credito_destino:
+        supabase.table("creditos") \
+            .update({"posicion": vieja_posicion}) \
+            .eq("id", credito_destino["id"]) \
+            .execute()
 
-        for c in creditos:
-            supabase.table("creditos") \
-                .update({"posicion": c["posicion"] + 1}) \
-                .eq("id", c["id"]) \
-                .execute()
-
-    else:
-        # mover hacia abajo
-        creditos = supabase.table("creditos") \
-            .select("id, posicion") \
-            .eq("ruta_id", ruta_id) \
-            .eq("estado", "activo") \
-            .gt("posicion", vieja_posicion) \
-            .lte("posicion", nueva_posicion) \
-            .order("posicion") \
-            .execute().data
-
-        for c in creditos:
-            supabase.table("creditos") \
-                .update({"posicion": c["posicion"] - 1}) \
-                .eq("id", c["id"]) \
-                .execute()
-
-    # 3️⃣ colocar el crédito en su posición final
+    # Colocar el crédito actual en la nueva posición
     supabase.table("creditos") \
         .update({"posicion": nueva_posicion}) \
         .eq("id", credito_id) \
         .execute()
 
+    flash("Posición actualizada correctamente", "success")
     return redirect(url_for("todas_las_ventas", ruta_id=ruta_id))
-
 @app.route("/rutas/asignar-cobrador", methods=["POST"])
 def asignar_cobrador_ruta():
 
@@ -3509,16 +3544,21 @@ def categorias_gastos():
 @app.route("/guardar_categoria_gasto", methods=["POST"])
 def guardar_categoria_gasto():
 
-    nombre = request.form.get("nombre")
-    descripcion = request.form.get("descripcion")
+    nombre = (request.form.get("nombre") or "").strip()
+    descripcion = (request.form.get("descripcion") or "").strip()
+
+    if not nombre:
+        flash("El nombre es obligatorio", "warning")
+        return redirect(url_for("categorias_gastos"))
 
     supabase.table("categorias_gastos").insert({
         "nombre": nombre,
-        "descripcion": descripcion
+        "descripcion": descripcion,
+        "estado": True
     }).execute()
 
+    flash("Categoría registrada correctamente. Puedes agregar otra.", "success")
     return redirect(url_for("categorias_gastos"))
-
 
     # =============================
     # CAJA COBRADOR
@@ -6487,6 +6527,11 @@ def gastos():
     fecha_fin = request.args.get("fecha_fin")
     ruta_id_filtro = request.args.get("ruta_id")
 
+    # 🔹 CONTROL MODAL
+    abrir_modal = request.args.get("abrir_modal") == "1"
+    modal_ruta_id = request.args.get("modal_ruta_id", "")
+    modal_categoria_id = request.args.get("modal_categoria_id", "")
+
     # 🔥 RUTAS DE LA OFICINA
     rutas = supabase.table("rutas") \
         .select("*") \
@@ -6523,11 +6568,8 @@ def gastos():
     total_gastos = 0
 
     for g in gastos:
-
-        # SUMATORIA
         total_gastos += float(g.get("valor", 0))
 
-        # FECHA
         if g.get("created_at"):
             created = g["created_at"].replace("Z", "+00:00")
 
@@ -6539,7 +6581,6 @@ def gastos():
             fecha_colombia = fecha_utc - timedelta(hours=5)
             g["fecha_formateada"] = fecha_colombia.strftime("%Y-%m-%d %H:%M:%S")
 
-        # NOMBRE USUARIO
         if g.get("usuarios"):
             nombres = g["usuarios"].get("nombres", "")
             apellidos = g["usuarios"].get("apellidos", "")
@@ -6562,9 +6603,11 @@ def gastos():
         total_gastos=total_gastos,
         fecha_inicio=fecha_inicio,
         fecha_fin=fecha_fin,
-        ruta_id_filtro=ruta_id_filtro
+        ruta_id_filtro=ruta_id_filtro,
+        abrir_modal=abrir_modal,
+        modal_ruta_id=modal_ruta_id,
+        modal_categoria_id=modal_categoria_id
     )
-    
 @app.route("/guardar_gasto", methods=["POST"])
 def guardar_gasto():
 
@@ -6578,9 +6621,31 @@ def guardar_gasto():
         return redirect(url_for("cambiar_oficina"))
 
     categoria_id = request.form.get("categoria_id")
-    descripcion = request.form.get("descripcion")
-    valor = float(request.form.get("valor"))
+    descripcion = (request.form.get("descripcion") or "").strip()
+    valor_raw = (request.form.get("valor") or "").strip()
     ruta_id = request.form.get("ruta_id")
+
+    if not ruta_id or not categoria_id or not valor_raw:
+        flash("Debe completar ruta, categoría y valor", "warning")
+        return redirect(url_for(
+            "gastos",
+            abrir_modal=1,
+            modal_ruta_id=ruta_id or "",
+            modal_categoria_id=categoria_id or ""
+        ))
+
+    try:
+        valor = float(valor_raw.replace(",", "."))
+        if valor <= 0:
+            raise ValueError
+    except:
+        flash("El valor ingresado no es válido", "error")
+        return redirect(url_for(
+            "gastos",
+            abrir_modal=1,
+            modal_ruta_id=ruta_id or "",
+            modal_categoria_id=categoria_id or ""
+        ))
 
     # 🔒 Validar que la ruta pertenezca a la oficina
     ruta_validacion = supabase.table("rutas") \
@@ -6589,7 +6654,7 @@ def guardar_gasto():
         .single() \
         .execute().data
 
-    if not ruta_validacion or ruta_validacion["oficina_id"] != oficina_id:
+    if not ruta_validacion or str(ruta_validacion["oficina_id"]) != str(oficina_id):
         flash("No tiene acceso a esta ruta", "error")
         return redirect(url_for("gastos"))
 
@@ -6604,9 +6669,14 @@ def guardar_gasto():
         "valor": valor
     }).execute()
 
-    flash("Gasto registrado correctamente", "success")
-    return redirect(url_for("gastos"))
+    flash("Gasto registrado correctamente. Puede registrar otro.", "success")
 
+    return redirect(url_for(
+        "gastos",
+        abrir_modal=1,
+        modal_ruta_id=ruta_id,
+        modal_categoria_id=categoria_id
+    ))
 @app.route("/eliminar_gasto/<gasto_id>")
 def eliminar_gasto(gasto_id):
 

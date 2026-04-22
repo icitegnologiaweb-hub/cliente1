@@ -284,7 +284,6 @@
     </div>
 
 </div>
-
 <!-- MODAL POSICIÓN -->
 <div id="modalPosicion"
      class="fixed inset-0 bg-black/70 backdrop-blur-sm hidden items-end sm:items-center justify-center z-50 transition">
@@ -339,9 +338,7 @@
         </form>
 
     </div>
-
 </div>
-
 
 <!-- BOTÓN FLOTANTE -->
 <a href="{{ url_for('nueva_venta_cobrador') }}"
@@ -450,6 +447,40 @@ cambiarTab("pendientes");
 .animate-fadeInUp {
     animation: fadeInUp .25s ease-out;
 }
-</style>
+</style><script>
+function abrirModalPosicion(creditoId, posicionActual, rutaId) {
+    document.getElementById("modal_credito_id").value = creditoId;
+    document.getElementById("modal_ruta_id").value = rutaId;
+    document.getElementById("modal_posicion").value = posicionActual;
+    document.getElementById("posicionActualTexto").innerText = posicionActual;
 
+    const modal = document.getElementById("modalPosicion");
+    modal.classList.remove("hidden");
+    modal.classList.add("flex");
+}
+
+function cerrarModal() {
+    const modal = document.getElementById("modalPosicion");
+    modal.classList.add("hidden");
+    modal.classList.remove("flex");
+}
+</script>
+<script>
+function editarPosicion(e, id, posicion){
+    e.preventDefault();
+    e.stopPropagation();
+
+    document.getElementById("modal_credito_id").value = id;
+    document.getElementById("modal_posicion").value = posicion;
+    document.getElementById("posicionActualTexto").innerText = posicion;
+
+    document.getElementById("modalPosicion").classList.remove("hidden");
+    document.getElementById("modalPosicion").classList.add("flex");
+}
+
+function cerrarModal(){
+    document.getElementById("modalPosicion").classList.add("hidden");
+    document.getElementById("modalPosicion").classList.remove("flex");
+}
+</script>
 {% endblock %}

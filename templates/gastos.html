@@ -14,28 +14,30 @@
             + Nuevo Gasto
         </button>
     </div>
+
     <div class="bg-white rounded-2xl shadow p-6 mb-6 flex justify-between items-center">
 
-    <div>
-        <h2 class="text-lg font-semibold text-gray-700">
-            Total de Gastos
-        </h2>
-        <p class="text-2xl font-bold text-red-600">
-            $ {{ "{:,.2f}".format(total_gastos) }}
-        </p>
+        <div>
+            <h2 class="text-lg font-semibold text-gray-700">
+                Total de Gastos
+            </h2>
+            <p class="text-2xl font-bold text-red-600">
+                $ {{ "{:,.2f}".format(total_gastos) }}
+            </p>
+        </div>
+
+        {% if fecha_inicio or fecha_fin %}
+        <span class="text-sm text-gray-500">
+            Filtrado por fechas
+        </span>
+        {% else %}
+        <span class="text-sm text-gray-500">
+            Todos los registros
+        </span>
+        {% endif %}
+
     </div>
 
-    {% if fecha_inicio or fecha_fin %}
-    <span class="text-sm text-gray-500">
-        Filtrado por fechas
-    </span>
-    {% else %}
-    <span class="text-sm text-gray-500">
-        Todos los registros
-    </span>
-    {% endif %}
-
-</div>
     <!-- FILTROS -->
     <form method="GET" action="{{ url_for('gastos') }}"
           class="bg-white rounded-2xl shadow p-6 mb-8">
@@ -83,7 +85,6 @@
             </div>
         </div>
     </form>
-
 
     <!-- TABLA -->
     <div class="bg-white rounded-2xl shadow overflow-hidden">
@@ -133,7 +134,7 @@
                     </td>
 
                     <td class="px-4 py-3">
-                    {{ gasto.usuarios.nombres if gasto.usuarios }}                   
+                        {{ gasto.usuarios.nombres if gasto.usuarios }}
                     </td>
 
                     <td class="px-4 py-3 text-right text-red-600 font-bold">
@@ -155,6 +156,7 @@
         </table>
     </div>
 </div>
+
 <!-- MODAL -->
 <div id="modalGasto"
      class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50">
@@ -181,7 +183,10 @@
                         required>
                     <option value="">Seleccionar Ruta</option>
                     {% for r in rutas %}
-                    <option value="{{ r.id }}">{{ r.nombre }}</option>
+                    <option value="{{ r.id }}"
+                        {% if modal_ruta_id == r.id|string %}selected{% endif %}>
+                        {{ r.nombre }}
+                    </option>
                     {% endfor %}
                 </select>
 
@@ -190,7 +195,8 @@
                         required>
                     <option value="">Seleccionar Categoría</option>
                     {% for c in categorias %}
-                        <option value="{{ c.id }}">
+                        <option value="{{ c.id }}"
+                            {% if modal_categoria_id == c.id|string %}selected{% endif %}>
                             {{ c.nombre }}
                         </option>
                     {% endfor %}
@@ -237,5 +243,17 @@ document.getElementById("modalGasto").addEventListener("click", function(e){
         cerrarModal();
     }
 });
+
+document.addEventListener("DOMContentLoaded", function () {
+    {% if abrir_modal %}
+        abrirModal();
+
+        const descripcionInput = document.querySelector('#modalGasto input[name="descripcion"]');
+        if (descripcionInput) {
+            descripcionInput.focus();
+        }
+    {% endif %}
+});
 </script>
+
 {% endblock %}
