@@ -405,12 +405,14 @@
               </div>
 
               <!-- PAGOS -->
+                            <!-- PAGOS -->
               <div id="pagos-{{ credito.id }}" class="p-4 hidden overflow-x-auto">
                 {% if credito.pagos and credito.pagos|length > 0 %}
-                <table class="w-full text-sm min-w-[620px]">
+                <table class="w-full text-sm min-w-[780px]">
                   <thead class="bg-gray-100 text-xs uppercase text-gray-600">
                     <tr>
                       <th class="px-3 py-3 rounded-l-xl">Fecha pago</th>
+                      <th class="px-3 py-3">Registrado por</th>
                       <th class="px-3 py-3">Valor</th>
                       <th class="px-3 py-3 text-center rounded-r-xl">Acción</th>
                     </tr>
@@ -420,8 +422,32 @@
                     {% for pago in credito.pagos %}
                     <tr class="hover:bg-gray-50">
                       <td class="px-3 py-3">
-                        {{ pago.fecha[8:10] }}/{{ pago.fecha[5:7] }}/{{ pago.fecha[:4] }}
-                        {{ pago.fecha[11:16] }}
+                        <div class="font-semibold text-slate-700">
+                          {{ pago.fecha[8:10] }}/{{ pago.fecha[5:7] }}/{{ pago.fecha[:4] }}
+                        </div>
+                        <div class="text-xs text-gray-500 mt-1">
+                          {{ pago.fecha[11:16] }}
+                        </div>
+                      </td>
+
+                      <td class="px-3 py-3">
+                        <div class="inline-flex items-center gap-2">
+                          <div class="w-8 h-8 rounded-full bg-slate-100 text-slate-700 flex items-center justify-center text-xs font-extrabold">
+                            {{ pago.cobrador_nombre[:1]|upper if pago.cobrador_nombre else "?" }}
+                          </div>
+
+                          <div>
+                            <div class="font-bold text-slate-700">
+                              {{ pago.cobrador_nombre }}
+                            </div>
+
+                            {% if pago.cobrador_id %}
+                            <div class="text-xs text-gray-500">
+                              ID cobrador: {{ pago.cobrador_id }}
+                            </div>
+                            {% endif %}
+                          </div>
+                        </div>
                       </td>
 
                       <td class="px-3 py-3 text-green-600 font-bold">

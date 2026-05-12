@@ -2295,6 +2295,7 @@ def guardar_venta_cobrador():
     flash("Venta registrada correctamente", "success")
     return redirect(url_for("ver_ruta", ruta_id=ruta_id))
 
+
 @app.route("/cambiar_posicion", methods=["POST"])
 def cambiar_posicion():
 
@@ -5603,7 +5604,6 @@ def eliminar_pago(pago_id):
     flash("Pago eliminado correctamente", "success")
 
     return redirect(request.referrer)
-    
 # HISTORIAL DE CUOTAS
 @app.route("/historial_creditos/<cliente_id>")
 def historial_creditos(cliente_id):
@@ -5673,11 +5673,52 @@ def historial_creditos(cliente_id):
                 monto,
                 fecha,
                 cuota_id,
+                credito_id,
+                cobrador_id,
                 cuotas(numero)
             """) \
             .eq("credito_id", credito["id"]) \
             .order("fecha", desc=True) \
             .execute().data or []
+
+        # ==========================
+        # TRAER COBRADORES DE ESOS PAGOS
+        # ==========================
+        cobrador_ids = list({
+            p.get("cobrador_id")
+            for p in pagos_db
+            if p.get("cobrador_id") is not None
+        })
+
+        usuarios_por_id = {}
+
+        if cobrador_ids:
+            usuarios_db = supabase.table("usuarios") \
+                .select("*") \
+                .in_("id", cobrador_ids) \
+                .execute().data or []
+
+            for usuario in usuarios_db:
+                usuario_id = usuario.get("id")
+
+                nombre_cobrador = (
+                    usuario.get("nombre_completo")
+                    or usuario.get("nombre")
+                    or usuario.get("nombres")
+                    or usuario.get("correo")
+                    or usuario.get("email")
+                    or f"Cobrador #{usuario_id}"
+                )
+
+                apellido_cobrador = (
+                    usuario.get("apellido")
+                    or usuario.get("apellidos")
+                    or ""
+                )
+
+                nombre_final = f"{nombre_cobrador} {apellido_cobrador}".strip()
+
+                usuarios_por_id[str(usuario_id)] = nombre_final
 
         pagos = []
         total_pagado = 0
@@ -5687,12 +5728,16 @@ def historial_creditos(cliente_id):
             monto = float(p.get("monto", 0))
             total_pagado += monto
 
+            cobrador_id = p.get("cobrador_id")
+
             pagos.append({
                 "id": p["id"],
                 "cuota_id": p.get("cuota_id"),
                 "numero": p["cuotas"]["numero"] if p.get("cuotas") else None,
                 "fecha": p["fecha"],
-                "monto": monto
+                "monto": monto,
+                "cobrador_id": cobrador_id,
+                "cobrador_nombre": usuarios_por_id.get(str(cobrador_id), "Sin cobrador")
             })
 
         # -------- ASIGNAR DATOS AL CRÉDITO --------
