@@ -403,11 +403,7 @@ function filtrarCreditos() {
         const coincideBusqueda = nombre.includes(texto) || cedula.includes(texto);
         const coincideTab = tab === tabActual;
 
-        if (coincideBusqueda && coincideTab) {
-            item.style.display = "block";
-        } else {
-            item.style.display = "none";
-        }
+        item.style.display = coincideBusqueda && coincideTab ? "block" : "none";
     });
 }
 
@@ -421,66 +417,17 @@ function editarPosicion(e, id, posicion){
     document.getElementById("modal_posicion").value = posicion;
     document.getElementById("posicionActualTexto").innerText = posicion;
 
-    document.getElementById("modalPosicion").classList.remove("hidden");
-    document.getElementById("modalPosicion").classList.add("flex");
-}
-
-function cerrarModal(){
-    document.getElementById("modalPosicion").classList.add("hidden");
-    document.getElementById("modalPosicion").classList.remove("flex");
-}
-
-cambiarTab("pendientes");
-</script>
-
-<style>
-@keyframes fadeInUp {
-    from {
-        opacity: 0;
-        transform: translateY(18px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-.animate-fadeInUp {
-    animation: fadeInUp .25s ease-out;
-}
-</style><script>
-function abrirModalPosicion(creditoId, posicionActual, rutaId) {
-    document.getElementById("modal_credito_id").value = creditoId;
-    document.getElementById("modal_ruta_id").value = rutaId;
-    document.getElementById("modal_posicion").value = posicionActual;
-    document.getElementById("posicionActualTexto").innerText = posicionActual;
-
     const modal = document.getElementById("modalPosicion");
     modal.classList.remove("hidden");
     modal.classList.add("flex");
 }
 
-function cerrarModal() {
+function cerrarModal(){
     const modal = document.getElementById("modalPosicion");
     modal.classList.add("hidden");
     modal.classList.remove("flex");
 }
-</script>
-<script>
-function editarPosicion(e, id, posicion){
-    e.preventDefault();
-    e.stopPropagation();
 
-    document.getElementById("modal_credito_id").value = id;
-    document.getElementById("modal_posicion").value = posicion;
-    document.getElementById("posicionActualTexto").innerText = posicion;
-
-    document.getElementById("modalPosicion").classList.remove("hidden");
-    document.getElementById("modalPosicion").classList.add("flex");
-}
-
-function cerrarModal(){
-    document.getElementById("modalPosicion").classList.add("hidden");
-    document.getElementById("modalPosicion").classList.remove("flex");
-}
+cambiarTab("pendientes");
 </script>
 {% endblock %}
