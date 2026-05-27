@@ -112,9 +112,11 @@
                     <div class="text-sm font-extrabold text-slate-800">
                       Crédito #{{ loop.index }}
                     </div>
+
                     <div class="text-xs text-gray-500 mt-1">
-                      {{ credito.created_at[8:10] }}/{{ credito.created_at[5:7] }}/{{ credito.created_at[:4] }}
-                      {{ credito.created_at[11:16] }}
+                      <span class="fecha-credito-colombia" data-fecha="{{ credito.created_at or '' }}">
+                        Cargando fecha...
+                      </span>
                     </div>
                   </div>
 
@@ -209,7 +211,9 @@
                 <div class="text-[11px] uppercase tracking-wide text-gray-500">Último crédito</div>
                 <div class="text-sm font-bold text-slate-800 mt-2">
                   {% if creditos %}
-                    {{ creditos[0].created_at[8:10] }}/{{ creditos[0].created_at[5:7] }}/{{ creditos[0].created_at[:4] }}
+                    <span class="fecha-credito-colombia-solo-fecha" data-fecha="{{ creditos[0].created_at or '' }}">
+                      Cargando...
+                    </span>
                   {% else %}
                     --
                   {% endif %}
@@ -249,8 +253,9 @@
 
                   <p class="text-sm text-gray-500 mt-2">
                     Fecha de registro:
-                    {{ credito.created_at[8:10] }}/{{ credito.created_at[5:7] }}/{{ credito.created_at[:4] }}
-                    {{ credito.created_at[11:16] }}
+                    <span class="fecha-credito-colombia" data-fecha="{{ credito.created_at or '' }}">
+                      Cargando fecha...
+                    </span>
                   </p>
                 </div>
 
@@ -405,7 +410,6 @@
               </div>
 
               <!-- PAGOS -->
-                            <!-- PAGOS -->
               <div id="pagos-{{ credito.id }}" class="p-4 hidden overflow-x-auto">
                 {% if credito.pagos and credito.pagos|length > 0 %}
                 <table class="w-full text-sm min-w-[780px]">
@@ -423,10 +427,14 @@
                     <tr class="hover:bg-gray-50">
                       <td class="px-3 py-3">
                         <div class="font-semibold text-slate-700">
-                          {{ pago.fecha[8:10] }}/{{ pago.fecha[5:7] }}/{{ pago.fecha[:4] }}
+                          <span class="fecha-pago-local-fecha" data-fecha="{{ pago.fecha or '' }}">
+                            Cargando...
+                          </span>
                         </div>
                         <div class="text-xs text-gray-500 mt-1">
-                          {{ pago.fecha[11:16] }}
+                          <span class="fecha-pago-local-hora" data-fecha="{{ pago.fecha or '' }}">
+                            Cargando...
+                          </span>
                         </div>
                       </td>
 
@@ -560,6 +568,142 @@
 </div>
 
 <script>
+function normalizarTimestampParaJS(valor){
+  if(!valor){
+    return "";
+  }
+
+  let texto = String(valor).trim();
+
+  texto = texto.replace(" ", "T");
+
+  // JavaScript maneja mejor milisegundos de 3 dígitos.
+  // Supabase puede traer microsegundos de 6 dígitos.
+  texto = texto.replace(/\.(\d{3})\d+/, ".$1");
+
+  return texto;
+}
+
+/*
+  Para created_at de créditos:
+  Supabase normalmente lo guarda en UTC.
+  Por eso, si viene sin Z o sin zona horaria, se le agrega Z y se convierte a America/Bogota.
+*/
+function formatearCreditoColombia(valor, tipo = "completa"){
+  if(!valor){
+    return "--";
+  }
+
+  let texto = normalizarTimestampParaJS(valor);
+
+  const tieneZona = texto.endsWith("Z") || /[+-]\d{2}:\d{2}$/.test(texto);
+
+  if(!tieneZona){
+    texto = texto + "Z";
+  }
+
+  const fecha = new Date(texto);
+
+  if(isNaN(fecha.getTime())){
+    return valor;
+  }
+
+  const fechaTexto = new Intl.DateTimeFormat("es-CO", {
+    timeZone: "America/Bogota",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric"
+  }).format(fecha);
+
+  const horaTexto = new Intl.DateTimeFormat("es-CO", {
+    timeZone: "America/Bogota",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true
+  }).format(fecha).toLowerCase();
+
+  if(tipo === "fecha"){
+    return fechaTexto;
+  }
+
+  if(tipo === "hora"){
+    return horaTexto;
+  }
+
+  return fechaTexto + " " + horaTexto;
+}
+
+/*
+  Para pagos.fecha:
+  La columna es timestamp without time zone.
+  Eso significa que NO se debe restar 5 horas.
+  Solo se formatea la fecha tal cual está guardada en BD.
+*/
+function formatearPagoLocal(valor, tipo = "completa"){
+  if(!valor){
+    return "--";
+  }
+
+  let texto = String(valor).trim();
+
+  texto = texto.replace("T", " ");
+
+  if(texto.includes(".")){
+    texto = texto.split(".")[0];
+  }
+
+  const match = texto.match(/^(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2})(?::(\d{2}))?/);
+
+  if(!match){
+    return valor;
+  }
+
+  const anio = match[1];
+  const mes = match[2];
+  const dia = match[3];
+  const hora24 = parseInt(match[4], 10);
+  const minutos = match[5];
+
+  const fechaTexto = dia + "/" + mes + "/" + anio;
+
+  const periodo = hora24 >= 12 ? "p. m." : "a. m.";
+  let hora12 = hora24 % 12;
+
+  if(hora12 === 0){
+    hora12 = 12;
+  }
+
+  const horaTexto = hora12 + ":" + minutos + " " + periodo;
+
+  if(tipo === "fecha"){
+    return fechaTexto;
+  }
+
+  if(tipo === "hora"){
+    return horaTexto;
+  }
+
+  return fechaTexto + " " + horaTexto;
+}
+
+document.addEventListener("DOMContentLoaded", function(){
+  document.querySelectorAll(".fecha-credito-colombia").forEach(function(item){
+    item.textContent = formatearCreditoColombia(item.dataset.fecha, "completa");
+  });
+
+  document.querySelectorAll(".fecha-credito-colombia-solo-fecha").forEach(function(item){
+    item.textContent = formatearCreditoColombia(item.dataset.fecha, "fecha");
+  });
+
+  document.querySelectorAll(".fecha-pago-local-fecha").forEach(function(item){
+    item.textContent = formatearPagoLocal(item.dataset.fecha, "fecha");
+  });
+
+  document.querySelectorAll(".fecha-pago-local-hora").forEach(function(item){
+    item.textContent = formatearPagoLocal(item.dataset.fecha, "hora");
+  });
+});
+
 function verImagen(src){
   const modal = document.getElementById("modalImagen");
   const imagen = document.getElementById("imagenGrande");

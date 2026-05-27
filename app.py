@@ -5647,7 +5647,50 @@ def eliminar_pago(pago_id):
     flash("Pago eliminado correctamente", "success")
 
     return redirect(request.referrer)
-# HISTORIAL DE CUOTAS
+
+TZ_COLOMBIA = ZoneInfo("America/Bogota")
+
+
+def fecha_colombia(valor, formato="%d/%m/%Y %I:%M %p"):
+    if not valor:
+        return "--"
+
+    try:
+        texto = str(valor).strip()
+
+        # Supabase puede traer:
+        # 2026-05-26T22:26:30.672863
+        # 2026-05-26T22:26:30.672863Z
+        # 2026-05-26T22:26:30.672863+00:00
+        texto = texto.replace("Z", "+00:00")
+
+        dt = datetime.fromisoformat(texto)
+
+        # Si viene sin zona horaria, se asume que viene en UTC
+        # Esto es lo normal cuando Supabase guarda created_at
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+
+        # Convertir a hora Colombia
+        dt_colombia = dt.astimezone(TZ_COLOMBIA)
+
+        resultado = dt_colombia.strftime(formato)
+
+        # Cambiar AM/PM a formato español
+        resultado = resultado.replace("AM", "a. m.")
+        resultado = resultado.replace("PM", "p. m.")
+
+        # Quitar cero inicial de la hora:
+        # 05:26 p. m. -> 5:26 p. m.
+        resultado = re.sub(r'(^|\s)0(?=\d:)', r'\1', resultado)
+
+        return resultado
+
+    except Exception as e:
+        print("ERROR FORMATEANDO FECHA:", valor, e)
+        return "--"
+
+
 @app.route("/historial_creditos/<cliente_id>")
 def historial_creditos(cliente_id):
 
@@ -5682,6 +5725,21 @@ def historial_creditos(cliente_id):
     # ==========================
     for credito in creditos:
 
+        # -------- FECHA COLOMBIA DEL CRÉDITO --------
+        credito["created_at_colombia"] = fecha_colombia(
+            credito.get("created_at")
+        )
+
+        credito["created_at_colombia_fecha"] = fecha_colombia(
+            credito.get("created_at"),
+            "%d/%m/%Y"
+        )
+
+        credito["created_at_colombia_hora"] = fecha_colombia(
+            credito.get("created_at"),
+            "%I:%M %p"
+        )
+
         # -------- CUOTAS --------
         cuotas_db = supabase.table("cuotas") \
             .select("*") \
@@ -5697,6 +5755,7 @@ def historial_creditos(cliente_id):
 
             if c["estado"] == "pendiente":
                 fecha = date.fromisoformat(c["fecha_pago"])
+
                 if fecha < date.today():
                     dias_mora = (date.today() - fecha).days
 
@@ -5777,10 +5836,31 @@ def historial_creditos(cliente_id):
                 "id": p["id"],
                 "cuota_id": p.get("cuota_id"),
                 "numero": p["cuotas"]["numero"] if p.get("cuotas") else None,
-                "fecha": p["fecha"],
+
+                # Fecha original por si la necesitas internamente
+                "fecha": p.get("fecha"),
+
+                # Fechas convertidas a hora Colombia
+                "fecha_colombia": fecha_colombia(
+                    p.get("fecha")
+                ),
+
+                "fecha_colombia_fecha": fecha_colombia(
+                    p.get("fecha"),
+                    "%d/%m/%Y"
+                ),
+
+                "fecha_colombia_hora": fecha_colombia(
+                    p.get("fecha"),
+                    "%I:%M %p"
+                ),
+
                 "monto": monto,
                 "cobrador_id": cobrador_id,
-                "cobrador_nombre": usuarios_por_id.get(str(cobrador_id), "Sin cobrador")
+                "cobrador_nombre": usuarios_por_id.get(
+                    str(cobrador_id),
+                    "Sin cobrador"
+                )
             })
 
         # -------- ASIGNAR DATOS AL CRÉDITO --------
