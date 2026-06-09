@@ -6005,9 +6005,46 @@ def eliminar_credito_cliente(credito_id):
 
 from datetime import date
 
+def dividir_en_lotes(valores, tamano=100):
+    """
+    Divide una lista grande en grupos pequeños para evitar URLs
+    demasiado largas en los filtros .in_() de PostgREST.
+    """
+    valores = list(dict.fromkeys(valores))
+
+    for inicio in range(0, len(valores), tamano):
+        yield valores[inicio:inicio + tamano]
+
+
+def obtener_todas_las_paginas(crear_consulta, tamano_pagina=1000):
+    """
+    Ejecuta una consulta paginada de Supabase hasta obtener
+    todos los registros.
+    """
+    resultados = []
+    desde = 0
+
+    while True:
+        hasta = desde + tamano_pagina - 1
+
+        respuesta = (
+            crear_consulta()
+            .range(desde, hasta)
+            .execute()
+        )
+
+        lote = respuesta.data or []
+        resultados.extend(lote)
+
+        if len(lote) < tamano_pagina:
+            break
+
+        desde += tamano_pagina
+
+    return resultados
+
 @app.route("/clientes")
 def clientes():
-
     if "user_id" not in session:
         return redirect(url_for("login"))
 
@@ -6018,90 +6055,279 @@ def clientes():
         return redirect(url_for("cambiar_oficina"))
 
     hoy = date.today()
-
-    # 1) Obtener rutas de la oficina
-    rutas = supabase.table("rutas") \
-        .select("id,nombre,codigo,posicion,oficina_id") \
-        .eq("oficina_id", oficina_id) \
-        .order("id") \
-        .execute().data or []
-
-    ruta_ids_oficina = [r["id"] for r in rutas]
-
-    if not ruta_ids_oficina:
-        return render_template(
-            "clientes.html",
-            clientes=[],
-            rutas=[],
-            ruta_seleccionada=None
-        )
-
-    # 2) Capturar ruta seleccionada
     ruta_id_seleccionada = request.args.get("ruta_id")
 
-    if ruta_id_seleccionada:
-        primer_id = ruta_ids_oficina[0]
-        if isinstance(primer_id, int):
+    try:
+        # ============================================================
+        # 1. OBTENER RUTAS DE LA OFICINA
+        # ============================================================
+
+        rutas = obtener_todas_las_paginas(
+            lambda: (
+                supabase
+                .table("rutas")
+                .select("id,nombre,codigo,posicion,oficina_id")
+                .eq("oficina_id", oficina_id)
+                .order("id")
+            )
+        )
+
+        ruta_ids_oficina = [
+            ruta["id"]
+            for ruta in rutas
+            if ruta.get("id") is not None
+        ]
+
+        if not ruta_ids_oficina:
+            return render_template(
+                "clientes.html",
+                clientes=[],
+                rutas=[],
+                ruta_seleccionada=None
+            )
+
+        # ============================================================
+        # 2. VALIDAR RUTA SELECCIONADA
+        # ============================================================
+
+        if ruta_id_seleccionada:
+            primer_id = ruta_ids_oficina[0]
+
+            if isinstance(primer_id, int):
+                try:
+                    ruta_id_seleccionada = int(ruta_id_seleccionada)
+                except (TypeError, ValueError):
+                    ruta_id_seleccionada = None
+
+        if (
+            ruta_id_seleccionada
+            and ruta_id_seleccionada not in ruta_ids_oficina
+        ):
+            flash(
+                "La ruta seleccionada no pertenece a la oficina actual",
+                "warning"
+            )
+            ruta_id_seleccionada = None
+
+        rutas_filtrar = (
+            [ruta_id_seleccionada]
+            if ruta_id_seleccionada
+            else ruta_ids_oficina
+        )
+
+        # ============================================================
+        # 3. OBTENER CRÉDITOS DE LAS RUTAS EN LOTES
+        # ============================================================
+
+        creditos_ruta = []
+
+        for lote_rutas in dividir_en_lotes(rutas_filtrar, 100):
+            registros = obtener_todas_las_paginas(
+                lambda lote_rutas=lote_rutas: (
+                    supabase
+                    .table("creditos")
+                    .select("id,cliente_id,ruta_id")
+                    .in_("ruta_id", lote_rutas)
+                    .order("id")
+                )
+            )
+
+            creditos_ruta.extend(registros)
+
+        # Eliminar posibles duplicados.
+        creditos_ruta = list({
+            credito["id"]: credito
+            for credito in creditos_ruta
+            if credito.get("id") is not None
+        }.values())
+
+        cliente_ids = list({
+            credito["cliente_id"]
+            for credito in creditos_ruta
+            if credito.get("cliente_id") is not None
+        })
+
+        if not cliente_ids:
+            return render_template(
+                "clientes.html",
+                clientes=[],
+                rutas=rutas,
+                ruta_seleccionada=ruta_id_seleccionada
+            )
+
+        # ============================================================
+        # 4. OBTENER CLIENTES EN LOTES
+        # ============================================================
+
+        clientes = []
+
+        for lote_clientes in dividir_en_lotes(cliente_ids, 100):
+            registros = obtener_todas_las_paginas(
+                lambda lote_clientes=lote_clientes: (
+                    supabase
+                    .table("clientes")
+                    .select("*")
+                    .in_("id", lote_clientes)
+                    .order("id")
+                )
+            )
+
+            clientes.extend(registros)
+
+        clientes = list({
+            cliente["id"]: cliente
+            for cliente in clientes
+            if cliente.get("id") is not None
+        }.values())
+
+        # Como fueron consultados por lotes, ordenamos nuevamente en Python.
+        clientes.sort(
+            key=lambda cliente: (
+                cliente.get("posicion") is None,
+                cliente.get("posicion") or 0,
+                cliente.get("id") or 0
+            )
+        )
+
+        if not clientes:
+            return render_template(
+                "clientes.html",
+                clientes=[],
+                rutas=rutas,
+                ruta_seleccionada=ruta_id_seleccionada
+            )
+
+        # ============================================================
+        # 5. OBTENER TODOS LOS CRÉDITOS DE LOS CLIENTES EN LOTES
+        # ============================================================
+
+        todos_los_creditos_clientes = []
+
+        for lote_clientes in dividir_en_lotes(cliente_ids, 100):
+            registros = obtener_todas_las_paginas(
+                lambda lote_clientes=lote_clientes: (
+                    supabase
+                    .table("creditos")
+                    .select("id,cliente_id")
+                    .in_("cliente_id", lote_clientes)
+                    .order("id")
+                )
+            )
+
+            todos_los_credititos_lote = registros
+            todos_los_creditos_clientes.extend(todos_los_credititos_lote)
+
+        todos_los_creditos_clientes = list({
+            credito["id"]: credito
+            for credito in todos_los_creditos_clientes
+            if credito.get("id") is not None
+        }.values())
+
+        if not todos_los_creditos_clientes:
+            for cliente in clientes:
+                cliente["dias_mora"] = 0
+
+            return render_template(
+                "clientes.html",
+                clientes=clientes,
+                rutas=rutas,
+                ruta_seleccionada=ruta_id_seleccionada
+            )
+
+        credito_a_cliente = {}
+        todos_credito_ids = []
+
+        for credito in todos_los_creditos_clientes:
+            credito_id = credito.get("id")
+            cliente_id = credito.get("cliente_id")
+
+            if credito_id is None or cliente_id is None:
+                continue
+
+            credito_a_cliente[credito_id] = cliente_id
+            todos_credito_ids.append(credito_id)
+
+        # Evita ejecutar .in_() con una lista vacía.
+        if not todos_credito_ids:
+            for cliente in clientes:
+                cliente["dias_mora"] = 0
+
+            return render_template(
+                "clientes.html",
+                clientes=clientes,
+                rutas=rutas,
+                ruta_seleccionada=ruta_id_seleccionada
+            )
+
+        # ============================================================
+        # 6. OBTENER CUOTAS PENDIENTES EN LOTES
+        # ============================================================
+
+        cuotas_pendientes = []
+
+        for lote_creditos in dividir_en_lotes(todos_credito_ids, 100):
+            registros = obtener_todas_las_paginas(
+                lambda lote_creditos=lote_creditos: (
+                    supabase
+                    .table("cuotas")
+                    .select("id,credito_id,fecha_pago")
+                    .in_("credito_id", lote_creditos)
+                    .eq("estado", "pendiente")
+                    .lt("fecha_pago", hoy.isoformat())
+                    .order("id")
+                )
+            )
+
+            cuotas_pendientes.extend(registros)
+
+        cuotas_pendientes = list({
+            cuota["id"]: cuota
+            for cuota in cuotas_pendientes
+            if cuota.get("id") is not None
+        }.values())
+
+        # ============================================================
+        # 7. CALCULAR MAYOR MORA POR CLIENTE
+        # ============================================================
+
+        mora_por_cliente = {
+            cliente_id: 0
+            for cliente_id in cliente_ids
+        }
+
+        for cuota in cuotas_pendientes:
+            credito_id = cuota.get("credito_id")
+            fecha_pago = cuota.get("fecha_pago")
+
+            if credito_id is None or not fecha_pago:
+                continue
+
+            cliente_id = credito_a_cliente.get(credito_id)
+
+            if cliente_id is None:
+                continue
+
             try:
-                ruta_id_seleccionada = int(ruta_id_seleccionada)
-            except ValueError:
-                ruta_id_seleccionada = None
+                # También funciona si fecha_pago llega con hora.
+                fecha_cuota = date.fromisoformat(
+                    str(fecha_pago)[:10]
+                )
 
-    if ruta_id_seleccionada and ruta_id_seleccionada not in ruta_ids_oficina:
-        flash("La ruta seleccionada no pertenece a la oficina actual", "warning")
-        ruta_id_seleccionada = None
+                dias_mora = (hoy - fecha_cuota).days
 
-    # 3) Definir rutas a consultar
-    rutas_filtrar = [ruta_id_seleccionada] if ruta_id_seleccionada else ruta_ids_oficina
+                if dias_mora > mora_por_cliente.get(cliente_id, 0):
+                    mora_por_cliente[cliente_id] = dias_mora
 
-    # 4) Obtener créditos SOLO de las rutas filtradas
-    creditos_ruta = supabase.table("creditos") \
-        .select("id,cliente_id,ruta_id") \
-        .in_("ruta_id", rutas_filtrar) \
-        .execute().data or []
+            except (TypeError, ValueError):
+                continue
 
-    cliente_ids = list({c["cliente_id"] for c in creditos_ruta if c.get("cliente_id")})
+        # ============================================================
+        # 8. ASIGNAR MORA AL CLIENTE
+        # ============================================================
 
-    if not cliente_ids:
-        return render_template(
-            "clientes.html",
-            clientes=[],
-            rutas=rutas,
-            ruta_seleccionada=ruta_id_seleccionada
-        )
-
-    # 5) Obtener clientes finales
-    # Si luego quieres, aquí podemos quitar el * y dejar solo las columnas reales del template
-    clientes = supabase.table("clientes") \
-        .select("*") \
-        .in_("id", cliente_ids) \
-        .order("posicion") \
-        .execute().data or []
-
-    if not clientes:
-        return render_template(
-            "clientes.html",
-            clientes=[],
-            rutas=rutas,
-            ruta_seleccionada=ruta_id_seleccionada
-        )
-
-    # ============================================================
-    # CALCULO DE MORA OPTIMIZADO
-    # Mantiene la misma idea de tu lógica:
-    # Para cada cliente, revisar TODOS sus créditos y sus cuotas pendientes
-    # y calcular la mayor mora.
-    # ============================================================
-
-    # 6) Traer TODOS los créditos de esos clientes en UNA sola consulta
-    todos_los_creditos_clientes = supabase.table("creditos") \
-        .select("id,cliente_id") \
-        .in_("cliente_id", cliente_ids) \
-        .execute().data or []
-
-    if not todos_los_creditos_clientes:
         for cliente in clientes:
-            cliente["dias_mora"] = 0
+            cliente_id = cliente.get("id")
+            cliente["dias_mora"] = mora_por_cliente.get(cliente_id, 0)
 
         return render_template(
             "clientes.html",
@@ -6110,57 +6336,13 @@ def clientes():
             ruta_seleccionada=ruta_id_seleccionada
         )
 
-    credito_a_cliente = {}
-    todos_credito_ids = []
-
-    for credito in todos_los_creditos_clientes:
-        cid = credito.get("id")
-        cliente_id = credito.get("cliente_id")
-        if cid and cliente_id:
-            credito_a_cliente[cid] = cliente_id
-            todos_credito_ids.append(cid)
-
-    # 7) Traer TODAS las cuotas pendientes vencidas en UNA sola consulta
-    cuotas_pendientes = supabase.table("cuotas") \
-        .select("credito_id,fecha_pago") \
-        .in_("credito_id", todos_credito_ids) \
-        .eq("estado", "pendiente") \
-        .lt("fecha_pago", hoy.isoformat()) \
-        .execute().data or []
-
-    # 8) Calcular mayor mora por cliente en memoria
-    mora_por_cliente = {cliente_id: 0 for cliente_id in cliente_ids}
-
-    for cuota in cuotas_pendientes:
-        credito_id = cuota.get("credito_id")
-        fecha_pago = cuota.get("fecha_pago")
-
-        if not credito_id or not fecha_pago:
-            continue
-
-        cliente_id = credito_a_cliente.get(credito_id)
-        if not cliente_id:
-            continue
-
-        try:
-            fecha = date.fromisoformat(fecha_pago)
-            dias = (hoy - fecha).days
-            if dias > mora_por_cliente.get(cliente_id, 0):
-                mora_por_cliente[cliente_id] = dias
-        except Exception:
-            continue
-
-    # 9) Asignar dias_mora a cada cliente
-    for cliente in clientes:
-        cliente["dias_mora"] = mora_por_cliente.get(cliente["id"], 0)
-
-    return render_template(
-        "clientes.html",
-        clientes=clientes,
-        rutas=rutas,
-        ruta_seleccionada=ruta_id_seleccionada
-    )
-
+    except Exception:
+        current_app.logger.exception(
+            "ERROR EN /clientes | oficina_id=%s | ruta_id=%s",
+            oficina_id,
+            ruta_id_seleccionada
+        )
+        raise
 @app.route("/editar_cliente/<cliente_id>")
 def editar_cliente(cliente_id):
 
