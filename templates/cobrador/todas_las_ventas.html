@@ -7,14 +7,13 @@
 
     <!-- HEADER SUPERIOR -->
     <div class="sticky top-0 z-30 bg-[#0b2847] rounded-2xl shadow-lg mb-4 overflow-hidden border border-blue-900/40">
-        
+
         <!-- RESUMEN -->
         <div class="p-4 bg-gradient-to-br from-[#123b63] to-[#0b2847]">
             <div class="flex items-center justify-between mb-3">
                 <div>
-                   
                     <div class="text-white font-bold text-lg">
-                        Gestión de creditos
+                        Gestión de créditos
                     </div>
                     <div class="text-xs text-blue-200">
                         Control diario de créditos y recaudo
@@ -25,16 +24,14 @@
                     💼
                 </div>
             </div>
-
-        
         </div>
 
         <!-- BUSCADOR -->
         <div class="p-3 border-t border-white/5">
             <input type="text"
-                id="buscador"
-                placeholder="Buscar por nombre o cédula..."
-                class="w-full bg-[#123b63] border border-gray-600 rounded-xl p-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                   id="buscador"
+                   placeholder="Buscar por nombre o cédula..."
+                   class="w-full bg-[#123b63] border border-gray-600 rounded-xl p-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500">
         </div>
 
         <!-- TABS -->
@@ -63,12 +60,13 @@
         {% for c in creditos %}
 
         <a href="{{ url_for('detalle_credito', credito_id=c.id) }}"
-            class="credito-item credito-pendiente block bg-gradient-to-br from-[#123b63] to-[#0b2847]
-                    rounded-2xl p-4 shadow-lg text-white
-                    transition hover:scale-[1.02] active:scale-[0.98] relative border border-blue-900/30"
-            data-nombre="{{ c.cliente|lower }}"
-            data-cedula="{{ c.identificacion|default('')|lower }}"
-            data-tab="pendientes">
+           class="credito-item credito-pendiente block bg-gradient-to-br from-[#123b63] to-[#0b2847]
+                  rounded-2xl p-4 shadow-lg text-white
+                  transition hover:scale-[1.02] active:scale-[0.98] relative border border-blue-900/30"
+           data-nombre="{{ c.cliente|lower }}"
+           data-cedula="{{ c.identificacion|default('')|lower }}"
+           data-tab="pendientes"
+           data-posicion="{{ c.posicion }}">
 
             {% if c.color_estado == "rojo" %}
             <div class="absolute right-0 top-0 bg-red-500 text-[10px] font-bold px-3 py-1 rounded-bl-xl rounded-tr-2xl shadow">
@@ -100,7 +98,7 @@
                         </div>
 
                         <button type="button"
-                                onclick="editarPosicion(event, '{{ c.id }}','{{ c.posicion }}')"
+                                onclick="editarPosicion(event, '{{ c.id }}', '{{ c.posicion }}')"
                                 class="absolute -bottom-1 -right-1 bg-blue-500 hover:bg-blue-600 text-xs px-1.5 py-0.5 rounded-full shadow">
                             ✏
                         </button>
@@ -158,8 +156,6 @@
 
             <!-- BLOQUE FINANCIERO -->
             <div class="mt-4 grid grid-cols-2 gap-4 text-sm">
-                
-
                 <div class="bg-[#0b2847] rounded-xl p-3 text-center border border-blue-900/30">
                     <div class="text-xs opacity-70">
                         Total Crédito
@@ -198,12 +194,12 @@
         {% if pagados_hoy is defined and pagados_hoy %}
             {% for c in pagados_hoy %}
             <a href="{{ url_for('detalle_credito', credito_id=c.id) }}"
-                class="credito-item credito-pagado block bg-gradient-to-br from-[#14532d] to-[#0f3d25]
-                        rounded-2xl p-4 shadow-lg text-white
-                        transition hover:scale-[1.02] active:scale-[0.98] relative border border-green-900/30"
-                data-nombre="{{ c.cliente|lower }}"
-                data-cedula="{{ c.identificacion|default('')|lower }}"
-                data-tab="pagados">
+               class="credito-item credito-pagado block bg-gradient-to-br from-[#14532d] to-[#0f3d25]
+                      rounded-2xl p-4 shadow-lg text-white
+                      transition hover:scale-[1.02] active:scale-[0.98] relative border border-green-900/30"
+               data-nombre="{{ c.cliente|lower }}"
+               data-cedula="{{ c.identificacion|default('')|lower }}"
+               data-tab="pagados">
 
                 <div class="absolute right-0 top-0 bg-green-500 text-[10px] font-bold px-3 py-1 rounded-bl-xl rounded-tr-2xl shadow">
                     PAGADO HOY
@@ -284,59 +280,118 @@
     </div>
 
 </div>
-<!-- MODAL POSICIÓN -->
+
+<!-- MODAL POSICIÓN RESPONSIVE -->
 <div id="modalPosicion"
-     class="fixed inset-0 bg-black/70 backdrop-blur-sm hidden items-end sm:items-center justify-center z-50 transition">
+     class="fixed inset-0 bg-black/70 backdrop-blur-sm hidden items-center justify-center z-50 px-4">
 
-    <div class="bg-gradient-to-br from-[#123b63] to-[#0b2847] 
-                w-full sm:w-[380px] rounded-t-3xl sm:rounded-3xl 
-                p-6 text-white shadow-2xl animate-fadeInUp border border-blue-900/30">
+    <div class="bg-gradient-to-br from-[#123b63] to-[#0b2847] text-white shadow-2xl border border-blue-900/40"
+         style="width:100%; max-width:390px; max-height:88vh; overflow-y:auto; border-radius:24px;">
 
-        <div class="w-10 h-1.5 bg-gray-400 rounded-full mx-auto mb-5 sm:hidden"></div>
+        <div class="p-5">
 
-        <h3 class="text-xl font-bold text-center mb-6">
-            Cambiar Posición
-        </h3>
-
-        <form method="POST" action="{{ url_for('cambiar_posicion') }}">
-
-            <input type="hidden" name="credito_id" id="modal_credito_id">
-
-            <div class="bg-[#0b2847] rounded-xl p-4 mb-4 text-center border border-blue-900/30">
-                <div class="text-xs opacity-60">Posición actual</div>
-                <div id="posicionActualTexto"
-                     class="text-2xl font-bold text-green-400 mt-1">
+            <div class="flex items-start justify-between gap-3 mb-4">
+                <div>
+                    <h3 class="text-lg font-bold leading-tight">
+                        Cambiar posición
+                    </h3>
+                    <p class="text-xs text-blue-200 mt-1">
+                        Si la posición está ocupada, se intercambian.
+                    </p>
                 </div>
-            </div>
-
-            <div class="mb-6">
-                <label class="text-sm opacity-80">
-                    Nueva posición
-                </label>
-
-                <input type="number"
-                       name="nueva_posicion"
-                       id="modal_posicion"
-                       required
-                       min="1"
-                       class="w-full mt-2 bg-[#0b2847] border border-gray-600 rounded-xl p-3 text-center text-lg font-semibold focus:ring-2 focus:ring-blue-400">
-            </div>
-
-            <div class="space-y-3">
-                <button type="submit"
-                        class="w-full bg-blue-600 hover:bg-blue-700 py-3 rounded-xl font-semibold transition">
-                    Guardar Cambios
-                </button>
 
                 <button type="button"
                         onclick="cerrarModal()"
-                        class="w-full bg-gray-600 hover:bg-gray-700 py-3 rounded-xl transition">
-                    Cancelar
+                        class="h-9 w-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-xl leading-none">
+                    ×
                 </button>
             </div>
 
-        </form>
+            <form method="POST" action="{{ url_for('cambiar_posicion') }}" id="formCambiarPosicion">
 
+                <input type="hidden" name="credito_id" id="modal_credito_id">
+
+                <div class="grid grid-cols-2 gap-3 mb-4">
+                    <div class="bg-[#0b2847] rounded-2xl p-4 text-center border border-blue-900/40">
+                        <div class="text-xs text-blue-200">Actual</div>
+                        <div id="posicionActualTexto" class="text-3xl font-bold text-green-400 mt-1">-</div>
+                    </div>
+
+                    <div class="bg-[#0b2847] rounded-2xl p-4 text-center border border-blue-900/40">
+                        <div class="text-xs text-blue-200">Nueva</div>
+                        <div id="posicionNuevaTexto" class="text-3xl font-bold text-blue-300 mt-1">-</div>
+                    </div>
+                </div>
+
+                <div class="mb-4">
+                    <label class="text-sm text-blue-100">
+                        Nueva posición
+                    </label>
+
+                    <div class="mt-2 flex items-center gap-2">
+                        <button type="button"
+                                onclick="cambiarPosicionPaso(-1)"
+                                class="h-12 w-12 shrink-0 rounded-xl bg-[#0b2847] border border-blue-900/50 hover:bg-blue-700 font-bold text-xl">
+                            −
+                        </button>
+
+                        <input type="number"
+                               name="nueva_posicion"
+                               id="modal_posicion"
+                               required
+                               min="1"
+                               class="w-full min-w-0 bg-[#0b2847] border border-gray-600 rounded-xl p-3 text-center text-lg font-semibold focus:ring-2 focus:ring-blue-400 focus:outline-none">
+
+                        <button type="button"
+                                onclick="cambiarPosicionPaso(1)"
+                                class="h-12 w-12 shrink-0 rounded-xl bg-[#0b2847] border border-blue-900/50 hover:bg-blue-700 font-bold text-xl">
+                            +
+                        </button>
+                    </div>
+                </div>
+
+                <div class="mb-4">
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="text-xs text-blue-200">Accesos rápidos</span>
+
+                        <button type="button"
+                                onclick="seleccionarPosicionRapida(1)"
+                                class="text-xs bg-green-500/20 border border-green-400/30 text-green-200 px-3 py-1 rounded-full">
+                            Enviar a 1
+                        </button>
+                    </div>
+
+                    <div id="botonesPosicionRapida"
+                         class="flex gap-2 overflow-x-auto pb-1"
+                         style="scrollbar-width: thin;">
+                    </div>
+                </div>
+
+                <div id="resumenMovimientoPosicion"
+                     class="mb-4 bg-blue-500/10 border border-blue-400/20 rounded-xl p-3 text-xs text-blue-100 text-center">
+                    Selecciona una nueva posición.
+                </div>
+
+                <div class="bg-yellow-500/10 border border-yellow-400/20 rounded-xl p-3 text-xs text-yellow-100 mb-5">
+                    Si la posición está libre, solo se asigna. Si está ocupada, el otro crédito toma la posición anterior de este.
+                </div>
+
+                <div class="space-y-3">
+                    <button type="submit"
+                            id="btnGuardarPosicion"
+                            class="w-full bg-blue-600 hover:bg-blue-700 py-3 rounded-xl font-semibold transition active:scale-[0.98]">
+                        Guardar cambios
+                    </button>
+
+                    <button type="button"
+                            onclick="cerrarModal()"
+                            class="w-full bg-gray-600 hover:bg-gray-700 py-3 rounded-xl transition active:scale-[0.98]">
+                        Cancelar
+                    </button>
+                </div>
+
+            </form>
+        </div>
     </div>
 </div>
 
@@ -350,12 +405,16 @@
           flex items-center justify-center
           shadow-2xl
           transition active:scale-95">
-
     +
 </a>
 
 <script>
 let tabActual = "pendientes";
+let posicionActualModal = null;
+
+/* ===============================
+   TABS Y BÚSQUEDA
+================================ */
 
 function cambiarTab(tab) {
     tabActual = tab;
@@ -392,7 +451,8 @@ function cambiarTab(tab) {
 }
 
 function filtrarCreditos() {
-    const texto = (document.getElementById("buscador").value || "").toLowerCase();
+    const buscador = document.getElementById("buscador");
+    const texto = (buscador ? buscador.value : "").toLowerCase();
     const items = document.querySelectorAll(".credito-item");
 
     items.forEach(item => {
@@ -407,27 +467,235 @@ function filtrarCreditos() {
     });
 }
 
-document.getElementById("buscador").addEventListener("input", filtrarCreditos);
+const buscador = document.getElementById("buscador");
 
-function editarPosicion(e, id, posicion){
+if (buscador) {
+    buscador.addEventListener("input", filtrarCreditos);
+}
+
+/* ===============================
+   MODAL POSICIONES
+================================ */
+
+function obtenerPosicionesExistentes() {
+    const items = document.querySelectorAll(".credito-pendiente[data-posicion]");
+    const posiciones = [];
+
+    items.forEach(item => {
+        const pos = parseInt(item.dataset.posicion || "0", 10);
+
+        if (pos > 0 && !posiciones.includes(pos)) {
+            posiciones.push(pos);
+        }
+    });
+
+    posiciones.sort((a, b) => a - b);
+    return posiciones;
+}
+
+function editarPosicion(e, id, posicion) {
     e.preventDefault();
     e.stopPropagation();
 
+    posicionActualModal = parseInt(posicion || "0", 10);
+
     document.getElementById("modal_credito_id").value = id;
-    document.getElementById("modal_posicion").value = posicion;
-    document.getElementById("posicionActualTexto").innerText = posicion;
+    document.getElementById("modal_posicion").value = posicionActualModal;
+    document.getElementById("posicionActualTexto").innerText = posicionActualModal;
+    document.getElementById("posicionNuevaTexto").innerText = posicionActualModal;
+
+    construirBotonesPosicionRapida(posicionActualModal);
+    actualizarResumenMovimiento();
 
     const modal = document.getElementById("modalPosicion");
     modal.classList.remove("hidden");
     modal.classList.add("flex");
+
+    setTimeout(() => {
+        const input = document.getElementById("modal_posicion");
+        input.focus();
+        input.select();
+    }, 100);
 }
 
-function cerrarModal(){
+function construirBotonesPosicionRapida(posicionActual) {
+    const contenedor = document.getElementById("botonesPosicionRapida");
+
+    if (!contenedor) {
+        return;
+    }
+
+    contenedor.innerHTML = "";
+
+    const posicionesExistentes = obtenerPosicionesExistentes();
+    const posiciones = new Set();
+
+    posiciones.add(1);
+
+    posicionesExistentes.forEach(pos => {
+        if (pos > 0) {
+            posiciones.add(pos);
+        }
+    });
+
+    for (let i = posicionActual - 3; i <= posicionActual + 3; i++) {
+        if (i > 0) {
+            posiciones.add(i);
+        }
+    }
+
+    const posicionesOrdenadas = Array.from(posiciones)
+        .filter(pos => pos > 0)
+        .sort((a, b) => a - b);
+
+    posicionesOrdenadas.forEach(pos => {
+        const btn = document.createElement("button");
+
+        btn.type = "button";
+        btn.innerText = pos;
+
+        const esActual = pos === posicionActual;
+
+        btn.className = esActual
+            ? "shrink-0 min-w-[44px] px-4 py-2 rounded-xl bg-green-500 text-white font-bold text-sm shadow border border-green-300"
+            : "shrink-0 min-w-[44px] px-4 py-2 rounded-xl bg-[#0b2847] hover:bg-blue-700 text-white font-bold text-sm border border-blue-900/50 transition";
+
+        btn.onclick = function () {
+            seleccionarPosicionRapida(pos);
+        };
+
+        contenedor.appendChild(btn);
+    });
+}
+
+function seleccionarPosicionRapida(posicion) {
+    const input = document.getElementById("modal_posicion");
+    input.value = posicion;
+    actualizarResumenMovimiento();
+}
+
+function cambiarPosicionPaso(delta) {
+    const input = document.getElementById("modal_posicion");
+
+    let actual = parseInt(input.value || "0", 10);
+
+    if (!actual || actual < 1) {
+        actual = posicionActualModal || 1;
+    }
+
+    let nueva = actual + delta;
+
+    if (nueva < 1) {
+        nueva = 1;
+    }
+
+    input.value = nueva;
+    actualizarResumenMovimiento();
+}
+
+function actualizarResumenMovimiento() {
+    const input = document.getElementById("modal_posicion");
+    const resumen = document.getElementById("resumenMovimientoPosicion");
+    const nuevaTexto = document.getElementById("posicionNuevaTexto");
+    const btnGuardar = document.getElementById("btnGuardarPosicion");
+
+    if (!input || !resumen) {
+        return;
+    }
+
+    const nueva = parseInt(input.value || "0", 10);
+    const actual = parseInt(posicionActualModal || "0", 10);
+
+    if (nuevaTexto) {
+        nuevaTexto.innerText = nueva > 0 ? nueva : "-";
+    }
+
+    if (!nueva || nueva < 1) {
+        resumen.innerText = "La posición debe ser mayor a 0.";
+        resumen.className = "mb-4 bg-red-500/10 border border-red-400/20 rounded-xl p-3 text-xs text-red-100 text-center";
+
+        if (btnGuardar) {
+            btnGuardar.disabled = true;
+            btnGuardar.classList.add("opacity-50", "cursor-not-allowed");
+        }
+
+        return;
+    }
+
+    if (btnGuardar) {
+        btnGuardar.disabled = false;
+        btnGuardar.classList.remove("opacity-50", "cursor-not-allowed");
+    }
+
+    resumen.className = "mb-4 bg-blue-500/10 border border-blue-400/20 rounded-xl p-3 text-xs text-blue-100 text-center";
+
+    if (nueva === actual) {
+        resumen.innerText = "La posición quedará igual.";
+        return;
+    }
+
+    if (nueva < actual) {
+        resumen.innerText =
+            "Este crédito pasará de la posición " + actual + " a la " + nueva +
+            ". Los créditos entre " + nueva + " y " + (actual - 1) +
+            " bajarán una posición. Los demás no se tocan.";
+        return;
+    }
+
+    resumen.innerText =
+        "Este crédito pasará de la posición " + actual + " a la " + nueva +
+        ". Los créditos entre " + (actual + 1) + " y " + nueva +
+        " subirán una posición. Los demás no se tocan.";
+}
+
+function cerrarModal() {
     const modal = document.getElementById("modalPosicion");
     modal.classList.add("hidden");
     modal.classList.remove("flex");
 }
 
+/* ===============================
+   EVENTOS MODAL
+================================ */
+
+document.addEventListener("input", function (e) {
+    if (e.target && e.target.id === "modal_posicion") {
+        actualizarResumenMovimiento();
+    }
+});
+
+const modalPosicion = document.getElementById("modalPosicion");
+
+if (modalPosicion) {
+    modalPosicion.addEventListener("click", function (e) {
+        if (e.target.id === "modalPosicion") {
+            cerrarModal();
+        }
+    });
+}
+
+document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape") {
+        cerrarModal();
+    }
+});
+
+const formCambiarPosicion = document.getElementById("formCambiarPosicion");
+
+if (formCambiarPosicion) {
+    formCambiarPosicion.addEventListener("submit", function (e) {
+        const input = document.getElementById("modal_posicion");
+        const nueva = parseInt(input.value || "0", 10);
+
+        if (!nueva || nueva < 1) {
+            e.preventDefault();
+            actualizarResumenMovimiento();
+            input.focus();
+        }
+    });
+}
+
 cambiarTab("pendientes");
 </script>
+
 {% endblock %}
