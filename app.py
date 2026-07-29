@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 import os
 import random
 import string
-from datetime import datetime, timedelta, date, time
+from datetime import datetime, timedelta, date, time, timezone
 from utils.email_service import send_email
 from itsdangerous import URLSafeTimedSerializer
 import uuid
@@ -20,7 +20,7 @@ from flask import send_file
 import psycopg2
 from psycopg2.extras import RealDictCursor
 import pytz
-
+import unicodedata
 
 
 app = Flask(__name__)
@@ -7275,6 +7275,674 @@ def reportes():
         hoy=date.today()
     )
 
+# ============================================================
+# FILTRO DE PAGOS
+# ============================================================
+
+TZ_COLOMBIA = ZoneInfo("America/Bogota")
+
+
+def _fp_normalizar_texto(valor):
+    """
+    Convierte un texto a minúsculas y elimina tildes.
+    Permite buscar 'Jose' y encontrar 'José'.
+    """
+    texto = str(valor or "").strip().lower()
+    texto = unicodedata.normalize("NFKD", texto)
+
+    return "".join(
+        caracter
+        for caracter in texto
+        if not unicodedata.combining(caracter)
+    )
+
+
+def _fp_decimal(valor):
+    """
+    Convierte valores de Supabase a Decimal de forma segura.
+    """
+    try:
+        return Decimal(str(valor or 0))
+    except (InvalidOperation, ValueError, TypeError):
+        return Decimal("0")
+
+
+def _fp_formatear_dinero(valor):
+    """
+    Formato:
+    1234.50 -> 1.234,50
+    """
+    numero = _fp_decimal(valor)
+
+    return (
+        f"{numero:,.2f}"
+        .replace(",", "_")
+        .replace(".", ",")
+        .replace("_", ".")
+    )
+
+
+def _fp_fecha_colombia(valor):
+    """
+    Convierte la fecha almacenada por Supabase a hora Colombia.
+    Supabase normalmente guarda timestamps en UTC.
+    """
+    if not valor:
+        return None
+
+    try:
+        texto = str(valor).strip()
+
+        # Fecha sin hora
+        if len(texto) == 10:
+            fecha = datetime.fromisoformat(texto)
+            return fecha.replace(tzinfo=TZ_COLOMBIA)
+
+        fecha = datetime.fromisoformat(
+            texto.replace("Z", "+00:00")
+        )
+
+        # Si viene sin zona horaria, asumimos UTC
+        if fecha.tzinfo is None:
+            fecha = fecha.replace(tzinfo=timezone.utc)
+
+        return fecha.astimezone(TZ_COLOMBIA)
+
+    except (ValueError, TypeError):
+        return None
+
+
+def _fp_nombre_usuario(usuario):
+    """
+    Obtiene el nombre del cobrador aunque la tabla usuarios
+    utilice nombre, nombres, nombre_completo, apellido, etc.
+    """
+    if not usuario:
+        return "Sin cobrador"
+
+    nombre_completo = (
+        usuario.get("nombre_completo")
+        or usuario.get("nombreCompleto")
+    )
+
+    if nombre_completo:
+        return str(nombre_completo).strip()
+
+    nombre = (
+        usuario.get("nombres")
+        or usuario.get("nombre")
+        or ""
+    )
+
+    apellido = (
+        usuario.get("apellidos")
+        or usuario.get("apellido")
+        or ""
+    )
+
+    nombre_generado = f"{nombre} {apellido}".strip()
+
+    if nombre_generado:
+        return nombre_generado
+
+    return (
+        usuario.get("correo")
+        or usuario.get("email")
+        or "Sin nombre"
+    )
+
+
+def _fp_consultar_por_ids(tabla, campos, ids, tamano_bloque=150):
+    """
+    Consulta registros por grupos para evitar enviar demasiados UUID
+    dentro de una sola consulta IN.
+    """
+    ids_limpios = list({
+        str(registro_id)
+        for registro_id in ids
+        if registro_id
+    })
+
+    if not ids_limpios:
+        return []
+
+    resultados = []
+
+    for posicion in range(0, len(ids_limpios), tamano_bloque):
+        bloque = ids_limpios[posicion:posicion + tamano_bloque]
+
+        respuesta = (
+            supabase
+            .table(tabla)
+            .select(campos)
+            .in_("id", bloque)
+            .execute()
+        )
+
+        resultados.extend(respuesta.data or [])
+
+    return resultados
+
+
+def _fp_consultar_pagos_periodo(fecha_inicio_utc, fecha_fin_utc):
+    """
+    Consulta todos los pagos del periodo mediante paginación.
+    Así no queda limitado a los primeros 1.000 registros.
+    """
+    resultados = []
+    posicion = 0
+    limite = 1000
+
+    while True:
+        respuesta = (
+            supabase
+            .table("pagos")
+            .select(
+                "id,"
+                "monto,"
+                "fecha,"
+                "credito_id,"
+                "cuota_id,"
+                "cobrador_id"
+            )
+            .gte("fecha", fecha_inicio_utc.isoformat())
+            .lt("fecha", fecha_fin_utc.isoformat())
+            .order("fecha", desc=False)
+            .range(posicion, posicion + limite - 1)
+            .execute()
+        )
+
+        bloque = respuesta.data or []
+        resultados.extend(bloque)
+
+        if len(bloque) < limite:
+            break
+
+        posicion += limite
+
+    return resultados
+
+
+@app.route("/filtro-pagos")
+def filtro_pagos():
+    """
+    Reporte general de pagos.
+
+    Filtros:
+    - Fecha desde
+    - Fecha hasta
+    - Ruta
+    - Cobrador
+    - Nombre o identificación del cliente
+    """
+
+    hoy_colombia = datetime.now(TZ_COLOMBIA).date()
+
+    fecha_desde_texto = (
+        request.args.get("fecha_desde")
+        or hoy_colombia.isoformat()
+    ).strip()
+
+    fecha_hasta_texto = (
+        request.args.get("fecha_hasta")
+        or hoy_colombia.isoformat()
+    ).strip()
+
+    ruta_id_filtro = (
+        request.args.get("ruta_id")
+        or ""
+    ).strip()
+
+    cobrador_id_filtro = (
+        request.args.get("cobrador_id")
+        or ""
+    ).strip()
+
+    busqueda_original = (
+        request.args.get("q")
+        or ""
+    ).strip()
+
+    busqueda_normalizada = _fp_normalizar_texto(
+        busqueda_original
+    )
+
+    # --------------------------------------------------------
+    # Validar fechas
+    # --------------------------------------------------------
+
+    try:
+        fecha_desde = date.fromisoformat(fecha_desde_texto)
+        fecha_hasta = date.fromisoformat(fecha_hasta_texto)
+
+    except ValueError:
+        flash("Las fechas seleccionadas no son válidas.", "danger")
+        return redirect(url_for("filtro_pagos"))
+
+    if fecha_hasta < fecha_desde:
+        flash(
+            "La fecha hasta no puede ser menor que la fecha desde.",
+            "danger"
+        )
+        return redirect(url_for("filtro_pagos"))
+
+    # Inicio del primer día en Colombia
+    inicio_colombia = datetime.combine(
+        fecha_desde,
+        time.min
+    ).replace(tzinfo=TZ_COLOMBIA)
+
+    # Inicio del día siguiente a fecha_hasta
+    fin_colombia = datetime.combine(
+        fecha_hasta + timedelta(days=1),
+        time.min
+    ).replace(tzinfo=TZ_COLOMBIA)
+
+    # Convertir límites a UTC para consultar Supabase
+    inicio_utc = inicio_colombia.astimezone(timezone.utc)
+    fin_utc = fin_colombia.astimezone(timezone.utc)
+
+    try:
+        # ----------------------------------------------------
+        # 1. Consultar pagos del periodo
+        # ----------------------------------------------------
+
+        pagos_bd = _fp_consultar_pagos_periodo(
+            inicio_utc,
+            fin_utc
+        )
+
+        # ----------------------------------------------------
+        # 2. Consultar créditos relacionados
+        # ----------------------------------------------------
+
+        credito_ids = {
+            pago.get("credito_id")
+            for pago in pagos_bd
+            if pago.get("credito_id")
+        }
+
+        creditos_bd = _fp_consultar_por_ids(
+            "creditos",
+            "id,cliente_id,ruta_id",
+            credito_ids
+        )
+
+        creditos_map = {
+            str(credito.get("id")): credito
+            for credito in creditos_bd
+        }
+
+        # ----------------------------------------------------
+        # 3. Consultar clientes relacionados
+        # ----------------------------------------------------
+
+        cliente_ids = {
+            credito.get("cliente_id")
+            for credito in creditos_bd
+            if credito.get("cliente_id")
+        }
+
+        clientes_bd = _fp_consultar_por_ids(
+            "clientes",
+            "id,nombre,identificacion",
+            cliente_ids
+        )
+
+        clientes_map = {
+            str(cliente.get("id")): cliente
+            for cliente in clientes_bd
+        }
+
+        # ----------------------------------------------------
+        # 4. Consultar rutas relacionadas
+        # ----------------------------------------------------
+
+        ruta_ids = {
+            credito.get("ruta_id")
+            for credito in creditos_bd
+            if credito.get("ruta_id")
+        }
+
+        rutas_relacionadas = _fp_consultar_por_ids(
+            "rutas",
+            "id,nombre,codigo",
+            ruta_ids
+        )
+
+        rutas_map = {
+            str(ruta.get("id")): ruta
+            for ruta in rutas_relacionadas
+        }
+
+        # ----------------------------------------------------
+        # 5. Consultar cobradores relacionados
+        # ----------------------------------------------------
+
+        cobrador_ids = {
+            pago.get("cobrador_id")
+            for pago in pagos_bd
+            if pago.get("cobrador_id")
+        }
+
+        usuarios_relacionados = _fp_consultar_por_ids(
+            "usuarios",
+            "*",
+            cobrador_ids
+        )
+
+        usuarios_map = {
+            str(usuario.get("id")): usuario
+            for usuario in usuarios_relacionados
+        }
+
+        # ----------------------------------------------------
+        # 6. Opciones generales para los filtros
+        # ----------------------------------------------------
+
+        rutas_lista = (
+            supabase
+            .table("rutas")
+            .select("id,nombre,codigo")
+            .order("nombre")
+            .execute()
+            .data
+            or []
+        )
+
+        usuarios_lista_bd = (
+            supabase
+            .table("usuarios")
+            .select("*")
+            .execute()
+            .data
+            or []
+        )
+
+        cobradores_lista = []
+
+        for usuario in usuarios_lista_bd:
+            cobradores_lista.append({
+                "id": str(usuario.get("id") or ""),
+                "nombre": _fp_nombre_usuario(usuario)
+            })
+
+        cobradores_lista.sort(
+            key=lambda usuario: _fp_normalizar_texto(
+                usuario.get("nombre")
+            )
+        )
+
+        # ----------------------------------------------------
+        # 7. Construir detalle y aplicar filtros
+        # ----------------------------------------------------
+
+        pagos_resultado = []
+
+        for pago in pagos_bd:
+            credito_id = str(
+                pago.get("credito_id") or ""
+            )
+
+            credito = creditos_map.get(
+                credito_id,
+                {}
+            )
+
+            cliente_id = str(
+                credito.get("cliente_id") or ""
+            )
+
+            ruta_id = str(
+                credito.get("ruta_id") or ""
+            )
+
+            cobrador_id = str(
+                pago.get("cobrador_id") or ""
+            )
+
+            cliente = clientes_map.get(
+                cliente_id,
+                {}
+            )
+
+            ruta = rutas_map.get(
+                ruta_id,
+                {}
+            )
+
+            cobrador = usuarios_map.get(
+                cobrador_id,
+                {}
+            )
+
+            nombre_cliente = (
+                cliente.get("nombre")
+                or "Cliente no encontrado"
+            )
+
+            identificacion_cliente = (
+                cliente.get("identificacion")
+                or "Sin identificación"
+            )
+
+            nombre_ruta = (
+                ruta.get("nombre")
+                or "Sin ruta"
+            )
+
+            codigo_ruta = (
+                ruta.get("codigo")
+                or ""
+            )
+
+            nombre_cobrador = _fp_nombre_usuario(
+                cobrador
+            )
+
+            # Filtro por ruta
+            if ruta_id_filtro and ruta_id != ruta_id_filtro:
+                continue
+
+            # Filtro por cobrador
+            if (
+                cobrador_id_filtro
+                and cobrador_id != cobrador_id_filtro
+            ):
+                continue
+
+            # Filtro por nombre o identificación
+            texto_cliente = _fp_normalizar_texto(
+                f"{nombre_cliente} {identificacion_cliente}"
+            )
+
+            if (
+                busqueda_normalizada
+                and busqueda_normalizada not in texto_cliente
+            ):
+                continue
+
+            fecha_pago = _fp_fecha_colombia(
+                pago.get("fecha")
+            )
+
+            monto = _fp_decimal(
+                pago.get("monto")
+            )
+
+            pagos_resultado.append({
+                "id": str(pago.get("id") or ""),
+                "credito_id": credito_id,
+                "cliente_id": cliente_id,
+                "ruta_id": ruta_id,
+                "cobrador_id": cobrador_id,
+                "fecha_dt": fecha_pago,
+                "fecha": (
+                    fecha_pago.strftime("%d/%m/%Y")
+                    if fecha_pago
+                    else "Sin fecha"
+                ),
+                "hora": (
+                    fecha_pago.strftime("%H:%M:%S")
+                    if fecha_pago
+                    else ""
+                ),
+                "cliente": nombre_cliente,
+                "identificacion": identificacion_cliente,
+                "ruta": nombre_ruta,
+                "codigo_ruta": codigo_ruta,
+                "cobrador": nombre_cobrador,
+                "monto_decimal": monto,
+                "monto": _fp_formatear_dinero(monto)
+            })
+
+        pagos_resultado.sort(
+            key=lambda pago: (
+                pago.get("fecha_dt")
+                or datetime.min.replace(tzinfo=timezone.utc)
+            )
+        )
+
+        # ----------------------------------------------------
+        # 8. Indicadores generales
+        # ----------------------------------------------------
+
+        monto_total = sum(
+            (
+                pago["monto_decimal"]
+                for pago in pagos_resultado
+            ),
+            Decimal("0")
+        )
+
+        clientes_unicos = {
+            pago.get("cliente_id")
+            or _fp_normalizar_texto(pago.get("cliente"))
+            for pago in pagos_resultado
+        }
+
+        cobradores_unicos = {
+            pago.get("cobrador_id")
+            or _fp_normalizar_texto(pago.get("cobrador"))
+            for pago in pagos_resultado
+        }
+
+        resumen_general = {
+            "total_pagos": len(pagos_resultado),
+            "monto_total": _fp_formatear_dinero(
+                monto_total
+            ),
+            "total_clientes": len(clientes_unicos),
+            "total_cobradores": len(cobradores_unicos)
+        }
+
+        # ----------------------------------------------------
+        # 9. Resumen agrupado por cobrador
+        # ----------------------------------------------------
+
+        resumen_cobradores_map = {}
+
+        for pago in pagos_resultado:
+            clave = (
+                pago.get("cobrador_id")
+                or f"sin-{pago.get('cobrador')}"
+            )
+
+            if clave not in resumen_cobradores_map:
+                resumen_cobradores_map[clave] = {
+                    "cobrador": pago.get("cobrador"),
+                    "pagos": 0,
+                    "clientes_ids": set(),
+                    "total_decimal": Decimal("0")
+                }
+
+            grupo = resumen_cobradores_map[clave]
+
+            grupo["pagos"] += 1
+            grupo["total_decimal"] += pago["monto_decimal"]
+
+            grupo["clientes_ids"].add(
+                pago.get("cliente_id")
+                or _fp_normalizar_texto(
+                    pago.get("cliente")
+                )
+            )
+
+        resumen_cobradores = []
+
+        for grupo in resumen_cobradores_map.values():
+            porcentaje = Decimal("0")
+
+            if monto_total > 0:
+                porcentaje = (
+                    grupo["total_decimal"]
+                    / monto_total
+                ) * Decimal("100")
+
+            resumen_cobradores.append({
+                "cobrador": grupo["cobrador"],
+                "pagos": grupo["pagos"],
+                "clientes": len(grupo["clientes_ids"]),
+                "total": _fp_formatear_dinero(
+                    grupo["total_decimal"]
+                ),
+                "total_decimal": grupo["total_decimal"],
+                "participacion": (
+                    f"{porcentaje:.1f}"
+                    .replace(".", ",")
+                    + "%"
+                )
+            })
+
+        resumen_cobradores.sort(
+            key=lambda registro: registro["total_decimal"],
+            reverse=True
+        )
+
+        return render_template(
+            "filtro_pagos.html",
+            pagos=pagos_resultado,
+            resumen=resumen_general,
+            resumen_cobradores=resumen_cobradores,
+            rutas=rutas_lista,
+            cobradores=cobradores_lista,
+            filtros={
+                "fecha_desde": fecha_desde_texto,
+                "fecha_hasta": fecha_hasta_texto,
+                "ruta_id": ruta_id_filtro,
+                "cobrador_id": cobrador_id_filtro,
+                "q": busqueda_original
+            }
+        )
+
+    except Exception as error:
+        print("ERROR EN FILTRO DE PAGOS:", error)
+
+        flash(
+            f"No fue posible cargar el reporte de pagos: {error}",
+            "danger"
+        )
+
+        return render_template(
+            "filtro_pagos.html",
+            pagos=[],
+            resumen={
+                "total_pagos": 0,
+                "monto_total": "0,00",
+                "total_clientes": 0,
+                "total_cobradores": 0
+            },
+            resumen_cobradores=[],
+            rutas=[],
+            cobradores=[],
+            filtros={
+                "fecha_desde": fecha_desde_texto,
+                "fecha_hasta": fecha_hasta_texto,
+                "ruta_id": ruta_id_filtro,
+                "cobrador_id": cobrador_id_filtro,
+                "q": busqueda_original
+            }
+        )
 # -----------------------
 # DASHBOARD PRINCIPAL
 # -----------------------

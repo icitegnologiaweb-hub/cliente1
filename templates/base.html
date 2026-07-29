@@ -240,7 +240,11 @@ header {
             <span class="sidebar-text">Clientes</span>
         </a>
 
-        
+        <a href="{{ url_for('filtro_pagos') }}" class="menu-item {{ is_active('clientes') }}">
+                <i class="bi bi-people"></i>
+            <span class="sidebar-text">Filtro pagos</span>
+        </a>
+
         <a href="{{ url_for('ver_solicitudes_cupo') }}" class="menu-item {{ is_active('ver_solicitudes_cupo') }}" >
             <i class="bi bi-people"></i>
             <span class="sidebar-text">Solicitudes AC</span>

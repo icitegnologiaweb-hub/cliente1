@@ -1,0 +1,528 @@
+{% extends "base.html" %}
+
+{% block titulo %}Filtro pagos{% endblock %}
+
+{% block content %}
+
+<div class="max-w-7xl mx-auto px-4 py-6 space-y-6">
+
+    <!-- ENCABEZADO -->
+    <div class="bg-[#0b2847] rounded-2xl shadow-lg overflow-hidden">
+
+        <div class="p-5 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+
+            <div>
+                <h1 class="text-2xl font-bold text-white">
+                    Filtro pagos
+                </h1>
+
+                <p class="text-sm text-blue-200 mt-1">
+                    Consulta y controla todos los pagos registrados
+                </p>
+            </div>
+
+            <button
+                type="button"
+                onclick="window.print()"
+                class="no-print inline-flex items-center justify-center gap-2
+                       bg-white/10 hover:bg-white/20 border border-white/20
+                       text-white rounded-xl px-4 py-2 text-sm font-semibold
+                       transition"
+            >
+                Imprimir / PDF
+            </button>
+
+        </div>
+
+        <!-- FILTROS -->
+        <form
+            method="GET"
+            action="{{ url_for('filtro_pagos') }}"
+            class="no-print p-5 border-t border-white/10
+                   grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4"
+        >
+
+            <!-- FECHA DESDE -->
+            <div>
+                <label class="block text-xs font-semibold text-blue-100 mb-1">
+                    Fecha desde
+                </label>
+
+                <input
+                    type="date"
+                    name="fecha_desde"
+                    value="{{ filtros.fecha_desde }}"
+                    class="w-full rounded-xl bg-[#123b63]
+                           border border-blue-700/60
+                           px-3 py-2.5 text-white
+                           focus:outline-none focus:ring-2
+                           focus:ring-blue-400"
+                >
+            </div>
+
+            <!-- FECHA HASTA -->
+            <div>
+                <label class="block text-xs font-semibold text-blue-100 mb-1">
+                    Fecha hasta
+                </label>
+
+                <input
+                    type="date"
+                    name="fecha_hasta"
+                    value="{{ filtros.fecha_hasta }}"
+                    class="w-full rounded-xl bg-[#123b63]
+                           border border-blue-700/60
+                           px-3 py-2.5 text-white
+                           focus:outline-none focus:ring-2
+                           focus:ring-blue-400"
+                >
+            </div>
+
+            <!-- RUTA -->
+            <div>
+                <label class="block text-xs font-semibold text-blue-100 mb-1">
+                    Ruta
+                </label>
+
+                <select
+                    name="ruta_id"
+                    class="w-full rounded-xl bg-[#123b63]
+                           border border-blue-700/60
+                           px-3 py-2.5 text-white
+                           focus:outline-none focus:ring-2
+                           focus:ring-blue-400"
+                >
+                    <option value="">Todas las rutas</option>
+
+                    {% for ruta in rutas %}
+                        <option
+                            value="{{ ruta.id }}"
+                            {% if filtros.ruta_id == ruta.id %}
+                                selected
+                            {% endif %}
+                        >
+                            {% if ruta.codigo %}
+                                {{ ruta.codigo }} -
+                            {% endif %}
+
+                            {{ ruta.nombre }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- COBRADOR -->
+            <div>
+                <label class="block text-xs font-semibold text-blue-100 mb-1">
+                    Cobrador
+                </label>
+
+                <select
+                    name="cobrador_id"
+                    class="w-full rounded-xl bg-[#123b63]
+                           border border-blue-700/60
+                           px-3 py-2.5 text-white
+                           focus:outline-none focus:ring-2
+                           focus:ring-blue-400"
+                >
+                    <option value="">Todos los cobradores</option>
+
+                    {% for cobrador in cobradores %}
+                        <option
+                            value="{{ cobrador.id }}"
+                            {% if filtros.cobrador_id == cobrador.id %}
+                                selected
+                            {% endif %}
+                        >
+                            {{ cobrador.nombre }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- CLIENTE -->
+            <div>
+                <label class="block text-xs font-semibold text-blue-100 mb-1">
+                    Cliente o cédula
+                </label>
+
+                <input
+                    type="text"
+                    name="q"
+                    value="{{ filtros.q }}"
+                    placeholder="Nombre o identificación..."
+                    class="w-full rounded-xl bg-[#123b63]
+                           border border-blue-700/60
+                           px-3 py-2.5 text-white
+                           placeholder:text-blue-300
+                           focus:outline-none focus:ring-2
+                           focus:ring-blue-400"
+                >
+            </div>
+
+            <!-- BOTONES -->
+            <div class="xl:col-span-5 flex flex-wrap justify-end gap-2 pt-1">
+
+                <a
+                    href="{{ url_for('filtro_pagos') }}"
+                    class="px-4 py-2.5 rounded-xl
+                           border border-white/20
+                           text-white text-sm font-semibold
+                           hover:bg-white/10 transition"
+                >
+                    Ver hoy
+                </a>
+
+                <button
+                    type="submit"
+                    class="px-5 py-2.5 rounded-xl
+                           bg-blue-500 hover:bg-blue-400
+                           text-white text-sm font-bold
+                           shadow transition"
+                >
+                    Aplicar filtros
+                </button>
+
+            </div>
+
+        </form>
+
+    </div>
+
+
+    <!-- INDICADORES -->
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+
+        <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
+            <p class="text-xs font-semibold uppercase text-gray-500">
+                Pagos registrados
+            </p>
+
+            <p class="text-3xl font-bold text-[#0b2847] mt-2">
+                {{ resumen.total_pagos }}
+            </p>
+        </div>
+
+        <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
+            <p class="text-xs font-semibold uppercase text-gray-500">
+                Monto registrado
+            </p>
+
+            <p class="text-3xl font-bold text-[#0b2847] mt-2">
+                ${{ resumen.monto_total }}
+            </p>
+        </div>
+
+        <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
+            <p class="text-xs font-semibold uppercase text-gray-500">
+                Clientes diferentes
+            </p>
+
+            <p class="text-3xl font-bold text-[#0b2847] mt-2">
+                {{ resumen.total_clientes }}
+            </p>
+        </div>
+
+        <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
+            <p class="text-xs font-semibold uppercase text-gray-500">
+                Cobradores
+            </p>
+
+            <p class="text-3xl font-bold text-[#0b2847] mt-2">
+                {{ resumen.total_cobradores }}
+            </p>
+        </div>
+
+    </div>
+
+
+    <!-- RESUMEN POR COBRADOR -->
+    <div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+
+        <div class="px-5 py-4 border-b border-gray-200">
+            <h2 class="text-lg font-bold text-[#0b2847]">
+                Resumen por cobrador
+            </h2>
+        </div>
+
+        <div class="overflow-x-auto">
+
+            <table class="w-full text-sm">
+
+                <thead class="bg-[#153f68] text-white">
+                    <tr>
+                        <th class="px-4 py-3 text-left">
+                            Cobrador
+                        </th>
+
+                        <th class="px-4 py-3 text-center">
+                            Pagos
+                        </th>
+
+                        <th class="px-4 py-3 text-center">
+                            Clientes
+                        </th>
+
+                        <th class="px-4 py-3 text-right">
+                            Total registrado
+                        </th>
+
+                        <th class="px-4 py-3 text-right">
+                            Participación
+                        </th>
+                    </tr>
+                </thead>
+
+                <tbody class="divide-y divide-gray-200">
+
+                    {% for item in resumen_cobradores %}
+                        <tr class="hover:bg-gray-50">
+
+                            <td class="px-4 py-3 font-medium text-gray-800">
+                                {{ item.cobrador }}
+                            </td>
+
+                            <td class="px-4 py-3 text-center text-gray-700">
+                                {{ item.pagos }}
+                            </td>
+
+                            <td class="px-4 py-3 text-center text-gray-700">
+                                {{ item.clientes }}
+                            </td>
+
+                            <td class="px-4 py-3 text-right font-semibold text-gray-800">
+                                ${{ item.total }}
+                            </td>
+
+                            <td class="px-4 py-3 text-right text-gray-700">
+                                {{ item.participacion }}
+                            </td>
+
+                        </tr>
+
+                    {% else %}
+
+                        <tr>
+                            <td
+                                colspan="5"
+                                class="px-4 py-10 text-center text-gray-500"
+                            >
+                                No se encontraron pagos para los filtros seleccionados.
+                            </td>
+                        </tr>
+
+                    {% endfor %}
+
+                </tbody>
+
+                {% if resumen_cobradores %}
+                    <tfoot class="bg-blue-50 font-bold text-[#0b2847]">
+                        <tr>
+                            <td class="px-4 py-3">
+                                TOTAL GENERAL
+                            </td>
+
+                            <td class="px-4 py-3 text-center">
+                                {{ resumen.total_pagos }}
+                            </td>
+
+                            <td class="px-4 py-3 text-center">
+                                {{ resumen.total_clientes }}
+                            </td>
+
+                            <td class="px-4 py-3 text-right">
+                                ${{ resumen.monto_total }}
+                            </td>
+
+                            <td class="px-4 py-3 text-right">
+                                100,0%
+                            </td>
+                        </tr>
+                    </tfoot>
+                {% endif %}
+
+            </table>
+
+        </div>
+
+    </div>
+
+
+    <!-- DETALLE CRONOLÓGICO -->
+    <div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+
+        <div class="px-5 py-4 border-b border-gray-200">
+            <h2 class="text-lg font-bold text-[#0b2847]">
+                Detalle cronológico de pagos
+            </h2>
+
+            <p class="text-sm text-gray-500 mt-1">
+                Relación completa de pagos según los filtros seleccionados.
+            </p>
+        </div>
+
+        <div class="overflow-x-auto">
+
+            <table class="w-full min-w-[1100px] text-sm">
+
+                <thead class="bg-[#153f68] text-white">
+
+                    <tr>
+                        <th class="px-3 py-3 text-center">
+                            N.º
+                        </th>
+
+                        <th class="px-3 py-3 text-center">
+                            Fecha
+                        </th>
+
+                        <th class="px-3 py-3 text-center">
+                            Hora
+                        </th>
+
+                        <th class="px-3 py-3 text-left">
+                            Cliente
+                        </th>
+
+                        <th class="px-3 py-3 text-left">
+                            Cédula
+                        </th>
+
+                        <th class="px-3 py-3 text-left">
+                            Ruta
+                        </th>
+
+                        <th class="px-3 py-3 text-left">
+                            Cobrador
+                        </th>
+
+                        <th class="px-3 py-3 text-right">
+                            Monto
+                        </th>
+                    </tr>
+
+                </thead>
+
+                <tbody class="divide-y divide-gray-200">
+
+                    {% for pago in pagos %}
+
+                        <tr class="hover:bg-blue-50/50">
+
+                            <td class="px-3 py-3 text-center text-gray-500">
+                                {{ loop.index }}
+                            </td>
+
+                            <td class="px-3 py-3 text-center whitespace-nowrap">
+                                {{ pago.fecha }}
+                            </td>
+
+                            <td class="px-3 py-3 text-center whitespace-nowrap">
+                                {{ pago.hora }}
+                            </td>
+
+                            <td class="px-3 py-3 font-medium text-gray-800">
+                                {{ pago.cliente }}
+                            </td>
+
+                            <td class="px-3 py-3 text-gray-600 whitespace-nowrap">
+                                {{ pago.identificacion }}
+                            </td>
+
+                            <td class="px-3 py-3 text-gray-700">
+                                {% if pago.codigo_ruta %}
+                                    <span class="font-semibold">
+                                        {{ pago.codigo_ruta }}
+                                    </span>
+                                    -
+                                {% endif %}
+
+                                {{ pago.ruta }}
+                            </td>
+
+                            <td class="px-3 py-3 text-gray-700">
+                                {{ pago.cobrador }}
+                            </td>
+
+                            <td class="px-3 py-3 text-right font-bold text-[#0b2847]">
+                                ${{ pago.monto }}
+                            </td>
+
+                        </tr>
+
+                    {% else %}
+
+                        <tr>
+                            <td
+                                colspan="8"
+                                class="px-4 py-16 text-center"
+                            >
+                                <div class="text-gray-400 text-lg font-semibold">
+                                    No se encontraron pagos
+                                </div>
+
+                                <div class="text-gray-400 text-sm mt-1">
+                                    Cambia las fechas o elimina algunos filtros.
+                                </div>
+                            </td>
+                        </tr>
+
+                    {% endfor %}
+
+                </tbody>
+
+                {% if pagos %}
+                    <tfoot class="bg-blue-50 font-bold text-[#0b2847]">
+
+                        <tr>
+                            <td
+                                colspan="7"
+                                class="px-4 py-3 text-right"
+                            >
+                                TOTAL GENERAL
+                            </td>
+
+                            <td class="px-3 py-3 text-right">
+                                ${{ resumen.monto_total }}
+                            </td>
+                        </tr>
+
+                    </tfoot>
+                {% endif %}
+
+            </table>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<style>
+    @media print {
+        .no-print {
+            display: none !important;
+        }
+
+        aside,
+        nav {
+            display: none !important;
+        }
+
+        body {
+            background: white !important;
+        }
+
+        table {
+            font-size: 10px !important;
+        }
+
+        .shadow-sm,
+        .shadow-lg {
+            box-shadow: none !important;
+        }
+    }
+</style>
+
+{% endblock %}
