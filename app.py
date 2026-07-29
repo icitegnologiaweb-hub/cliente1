@@ -7324,8 +7324,11 @@ def _fp_formatear_dinero(valor):
 
 def _fp_fecha_colombia(valor):
     """
-    Convierte la fecha almacenada por Supabase a hora Colombia.
-    Supabase normalmente guarda timestamps en UTC.
+    Convierte la fecha de Supabase a hora Colombia.
+
+    - Si viene sin zona horaria, se entiende que ya está
+      guardada en hora local de Colombia.
+    - Si viene con UTC o con otra zona, se convierte a Colombia.
     """
     if not valor:
         return None
@@ -7342,13 +7345,16 @@ def _fp_fecha_colombia(valor):
             texto.replace("Z", "+00:00")
         )
 
-        # Si viene sin zona horaria, asumimos UTC
+        # Si Supabase devuelve una fecha sin zona horaria,
+        # significa que ya está almacenada con hora Colombia.
         if fecha.tzinfo is None:
-            fecha = fecha.replace(tzinfo=timezone.utc)
+            return fecha.replace(tzinfo=TZ_COLOMBIA)
 
+        # Solo convertir cuando realmente viene con zona horaria
         return fecha.astimezone(TZ_COLOMBIA)
 
-    except (ValueError, TypeError):
+    except (ValueError, TypeError) as error:
+        print("Error convirtiendo fecha de pago:", valor, error)
         return None
 
 
@@ -7539,8 +7545,18 @@ def filtro_pagos():
     ).replace(tzinfo=TZ_COLOMBIA)
 
     # Convertir límites a UTC para consultar Supabase
-    inicio_utc = inicio_colombia.astimezone(timezone.utc)
-    fin_utc = fin_colombia.astimezone(timezone.utc)
+    # La columna fecha almacena hora local de Colombia,
+    # por eso consultamos desde las 00:00 hasta las 00:00
+    # del día siguiente sin convertir a UTC.
+    inicio_consulta = datetime.combine(
+        fecha_desde,
+        time.min
+    )
+
+    fin_consulta = datetime.combine(
+        fecha_hasta + timedelta(days=1),
+        time.min
+    )
 
     try:
         # ----------------------------------------------------
@@ -7548,10 +7564,9 @@ def filtro_pagos():
         # ----------------------------------------------------
 
         pagos_bd = _fp_consultar_pagos_periodo(
-            inicio_utc,
-            fin_utc
+            inicio_consulta,
+            fin_consulta
         )
-
         # ----------------------------------------------------
         # 2. Consultar créditos relacionados
         # ----------------------------------------------------
@@ -7783,7 +7798,7 @@ def filtro_pagos():
                     else "Sin fecha"
                 ),
                 "hora": (
-                    fecha_pago.strftime("%H:%M:%S")
+                    fecha_pago.strftime("%I:%M:%S %p")
                     if fecha_pago
                     else ""
                 ),
