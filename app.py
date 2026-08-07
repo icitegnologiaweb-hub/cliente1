@@ -1474,42 +1474,418 @@ def recalcular(credito_id):
 # =============================
 # NUEVA VENTA COBRADOR (CONTROL FLUJO)
 # =============================
+import re
+
+from flask import (
+    request,
+    session,
+    redirect,
+    url_for,
+    render_template,
+    jsonify
+)
+
+
+# =========================================================
+# ESTADOS QUE YA NO SE CONSIDERAN CRÉDITOS ACTIVOS
+# =========================================================
+ESTADOS_CREDITO_CERRADO = {
+    "pagado",
+    "finalizado",
+    "cancelado",
+    "anulado",
+    "eliminado",
+    "rechazado"
+}
+
+
+# =========================================================
+# NORMALIZAR NÚMERO DE IDENTIFICACIÓN
+# =========================================================
+def normalizar_identificacion(valor):
+    """
+    Elimina puntos, espacios, guiones y cualquier carácter
+    que no sea numérico.
+
+    Ejemplo:
+    1.004.626.296 -> 1004626296
+    """
+    return re.sub(r"\D", "", str(valor or "")).strip()
+
+
+# =========================================================
+# BUSCAR CLIENTE DUPLICADO Y CRÉDITOS ACTIVOS
+# =========================================================
+def buscar_cliente_existente_por_identificacion(identificacion):
+    """
+    Busca un cliente por identificación y obtiene sus créditos
+    activos y las rutas relacionadas.
+
+    Esta función solamente consulta datos.
+    No modifica clientes, créditos, pagos ni rutas.
+    """
+
+    identificacion_normalizada = normalizar_identificacion(
+        identificacion
+    )
+
+    if not identificacion_normalizada:
+        return None
+
+    # -----------------------------------------------------
+    # BUSCAR CLIENTE
+    # -----------------------------------------------------
+    cliente_resp = (
+        supabase.table("clientes")
+        .select(
+            "id,nombre,identificacion,"
+            "telefono_principal,direccion"
+        )
+        .ilike(
+            "identificacion",
+            identificacion_normalizada
+        )
+        .limit(1)
+        .execute()
+    )
+
+    clientes_encontrados = cliente_resp.data or []
+
+    if not clientes_encontrados:
+        return None
+
+    cliente = clientes_encontrados[0]
+    cliente_id = cliente.get("id")
+
+    # -----------------------------------------------------
+    # BUSCAR CRÉDITOS DEL CLIENTE
+    # -----------------------------------------------------
+    creditos_resp = (
+        supabase.table("creditos")
+        .select(
+            "id,cliente_id,ruta_id,estado,created_at"
+        )
+        .eq("cliente_id", cliente_id)
+        .order("created_at", desc=True)
+        .execute()
+    )
+
+    creditos = creditos_resp.data or []
+
+    # -----------------------------------------------------
+    # IDENTIFICAR CRÉDITOS ACTIVOS
+    # -----------------------------------------------------
+    creditos_activos = []
+
+    for credito in creditos:
+
+        estado = str(
+            credito.get("estado") or ""
+        ).strip().lower()
+
+        if estado not in ESTADOS_CREDITO_CERRADO:
+            creditos_activos.append(credito)
+
+    # -----------------------------------------------------
+    # OBTENER RUTAS RELACIONADAS
+    # -----------------------------------------------------
+    rutas_ids = []
+
+    # Primero priorizamos las rutas de créditos activos
+    for credito in creditos_activos:
+        ruta_id = credito.get("ruta_id")
+
+        if ruta_id is not None and ruta_id not in rutas_ids:
+            rutas_ids.append(ruta_id)
+
+    # Si no tiene créditos activos, buscamos la última ruta usada
+    if not rutas_ids and creditos:
+        ultima_ruta_id = creditos[0].get("ruta_id")
+
+        if ultima_ruta_id is not None:
+            rutas_ids.append(ultima_ruta_id)
+
+    rutas_encontradas = []
+
+    for ruta_id in rutas_ids:
+
+        ruta_resp = (
+            supabase.table("rutas")
+            .select("id,nombre")
+            .eq("id", ruta_id)
+            .limit(1)
+            .execute()
+        )
+
+        if ruta_resp.data:
+            rutas_encontradas.append(
+                ruta_resp.data[0]
+            )
+        else:
+            rutas_encontradas.append({
+                "id": ruta_id,
+                "nombre": f"Ruta {ruta_id}"
+            })
+
+    nombres_rutas = [
+        ruta.get("nombre") or f"Ruta {ruta.get('id')}"
+        for ruta in rutas_encontradas
+    ]
+
+    ruta_nombre = (
+        ", ".join(nombres_rutas)
+        if nombres_rutas
+        else "una ruta no identificada"
+    )
+
+    return {
+        "cliente": cliente,
+        "creditos": creditos,
+        "creditos_activos": creditos_activos,
+        "cantidad_creditos": len(creditos),
+        "cantidad_creditos_activos": len(creditos_activos),
+        "rutas": rutas_encontradas,
+        "ruta_nombre": ruta_nombre
+    }
+
+
+# =========================================================
+# API PARA VALIDAR LA CÉDULA DESDE EL FORMULARIO
+# =========================================================
+@app.route(
+    "/api/clientes/validar-identificacion",
+    methods=["GET"]
+)
+def validar_identificacion_cliente():
+
+    if (
+        "user_id" not in session
+        or session.get("rol")
+        not in [
+            "cobrador",
+            "supervisor",
+            "administrador"
+        ]
+    ):
+        return jsonify({
+            "ok": False,
+            "existe": False,
+            "puede_continuar": False,
+            "mensaje": "La sesión no es válida o ha expirado."
+        }), 401
+
+    identificacion = normalizar_identificacion(
+        request.args.get("identificacion", "")
+    )
+
+    cliente_id_actual = str(
+        request.args.get("cliente_id", "") or ""
+    ).strip()
+
+    if len(identificacion) < 4:
+        return jsonify({
+            "ok": False,
+            "existe": False,
+            "puede_continuar": False,
+            "mensaje": (
+                "Ingrese un número de identificación válido."
+            )
+        }), 400
+
+    try:
+        resultado = (
+            buscar_cliente_existente_por_identificacion(
+                identificacion
+            )
+        )
+
+        # -------------------------------------------------
+        # IDENTIFICACIÓN DISPONIBLE
+        # -------------------------------------------------
+        if not resultado:
+            return jsonify({
+                "ok": True,
+                "existe": False,
+                "puede_continuar": True,
+                "mensaje": (
+                    "Identificación disponible. "
+                    "Puede continuar con el registro."
+                )
+            })
+
+        cliente = resultado["cliente"]
+        cliente_encontrado_id = str(
+            cliente.get("id") or ""
+        )
+
+        # -------------------------------------------------
+        # ES EL MISMO CLIENTE DE RENOVACIÓN O AUMENTO
+        # -------------------------------------------------
+        if (
+            cliente_id_actual
+            and cliente_encontrado_id == cliente_id_actual
+        ):
+            return jsonify({
+                "ok": True,
+                "existe": True,
+                "es_mismo_cliente": True,
+                "puede_continuar": True,
+                "cliente_id": cliente.get("id"),
+                "cliente_nombre": cliente.get("nombre"),
+                "mensaje": (
+                    "El cliente existente está autorizado "
+                    "para este proceso."
+                )
+            })
+
+        cantidad_activos = resultado[
+            "cantidad_creditos_activos"
+        ]
+
+        ruta_nombre = resultado["ruta_nombre"]
+
+        # -------------------------------------------------
+        # MENSAJE CUANDO TIENE CRÉDITOS ACTIVOS
+        # -------------------------------------------------
+        if cantidad_activos > 0:
+
+            mensaje = (
+                f"El cliente que se está registrando ya está "
+                f"registrado en la ruta {ruta_nombre} y cuenta "
+                f"con {cantidad_activos} crédito(s) activo(s). "
+                f"Por favor, intente con otro número de cédula."
+            )
+
+        # -------------------------------------------------
+        # EXISTE, PERO NO TIENE CRÉDITOS ACTIVOS
+        # -------------------------------------------------
+        else:
+
+            mensaje = (
+                f"El cliente que se está registrando ya existe "
+                f"en la ruta {ruta_nombre}. Para evitar "
+                f"duplicidad de clientes, debe utilizarse el "
+                f"registro existente."
+            )
+
+        return jsonify({
+            "ok": True,
+            "existe": True,
+            "es_mismo_cliente": False,
+            "puede_continuar": False,
+
+            "cliente_id": cliente.get("id"),
+            "cliente_nombre": cliente.get("nombre"),
+            "identificacion": cliente.get(
+                "identificacion"
+            ),
+
+            "ruta_nombre": ruta_nombre,
+            "rutas": resultado["rutas"],
+
+            "cantidad_creditos": resultado[
+                "cantidad_creditos"
+            ],
+
+            "creditos_activos": cantidad_activos,
+
+            "mensaje": mensaje
+        })
+
+    except Exception as error:
+
+        print(
+            "ERROR VALIDANDO IDENTIFICACION:",
+            str(error)
+        )
+
+        return jsonify({
+            "ok": False,
+            "existe": False,
+            "puede_continuar": False,
+            "mensaje": (
+                "No fue posible validar la identificación. "
+                "Intente nuevamente."
+            )
+        }), 500
+
+
+# =========================================================
+# NUEVA VENTA COBRADOR
+# =========================================================
 @app.route("/nueva_venta_cobrador")
 def nueva_venta_cobrador():
 
-    if "user_id" not in session or session.get("rol") not in ["cobrador","supervisor", "administrador"]:
-        return redirect(url_for("login_app"))
+    if (
+        "user_id" not in session
+        or session.get("rol")
+        not in [
+            "cobrador",
+            "supervisor",
+            "administrador"
+        ]
+    ):
+        return redirect(
+            url_for("login_app")
+        )
 
-    user_id = int(session["user_id"])
+    user_id = int(
+        session["user_id"]
+    )
 
-    # 🔹 Traer rutas según rol
+    # =====================================================
+    # TRAER RUTAS SEGÚN EL ROL
+    # =====================================================
     if session.get("rol") == "cobrador":
 
-        rutas = supabase.table("rutas") \
-            .select("*") \
-            .eq("usuario_id", user_id) \
-            .eq("estado", "true") \
-            .order("posicion") \
-            .execute().data or []
+        rutas = (
+            supabase.table("rutas")
+            .select("*")
+            .eq("usuario_id", user_id)
+            .eq("estado", "true")
+            .order("posicion")
+            .execute()
+            .data
+            or []
+        )
 
-    else:  # supervisor / administrador
+    else:
+        # Supervisor / administrador
+        rutas = (
+            supabase.table("rutas")
+            .select("*")
+            .eq("estado", "true")
+            .order("posicion")
+            .execute()
+            .data
+            or []
+        )
 
-        rutas = supabase.table("rutas") \
-            .select("*") \
-            .eq("estado", "true") \
-            .order("posicion") \
-            .execute().data or []
+    # =====================================================
+    # RUTA ACTUAL
+    # Puede llegar por URL, renovación o sesión
+    # =====================================================
+    ruta_actual = (
+        request.args.get("ruta_id")
+        or session.get("ruta_id")
+    )
 
-    # 🔥 Permitir que la ruta llegue por URL (renovación) o por sesión
-    ruta_actual = request.args.get("ruta_id") or session.get("ruta_id")
-
-    # 🔥 Detectar si viene de aumento
+    # =====================================================
+    # DETECTAR SI VIENE DE AUMENTO APROBADO
+    # =====================================================
     cedula_aprobada = request.args.get("cedula")
     monto_aprobado = request.args.get("monto")
 
-    # 🔥 Detectar si viene de renovación
-    cliente_id_renovacion = request.args.get("cliente_id")
-    es_renovacion = request.args.get("renovar") == "1"
+    # =====================================================
+    # DETECTAR SI VIENE DE RENOVACIÓN
+    # =====================================================
+    cliente_id_renovacion = request.args.get(
+        "cliente_id"
+    )
+
+    es_renovacion = (
+        request.args.get("renovar") == "1"
+    )
 
     cliente_data = None
     ultimo_credito_data = {}
@@ -1520,86 +1896,232 @@ def nueva_venta_cobrador():
     # =====================================================
     if cliente_id_renovacion:
 
-        cliente_resp = supabase.table("clientes") \
-            .select("*") \
-            .eq("id", cliente_id_renovacion) \
-            .single() \
-            .execute()
+        try:
+            cliente_resp = (
+                supabase.table("clientes")
+                .select("*")
+                .eq(
+                    "id",
+                    cliente_id_renovacion
+                )
+                .single()
+                .execute()
+            )
 
-        print("DEBUG CLIENTE RENOVACION:", cliente_resp.data)
+            print(
+                "DEBUG CLIENTE RENOVACION:",
+                cliente_resp.data
+            )
 
-        if cliente_resp.data:
-            cliente_data = cliente_resp.data
+            if cliente_resp.data:
+                cliente_data = cliente_resp.data
+
+        except Exception as error:
+            print(
+                "ERROR CARGANDO CLIENTE RENOVACION:",
+                str(error)
+            )
 
     # =====================================================
     # PRIORIDAD 2: AUMENTO APROBADO
     # =====================================================
     elif cedula_aprobada:
 
-        cedula_busqueda = cedula_aprobada.strip()
+        try:
+            # Se conserva la búsqueda actual, pero se limpia
+            # la identificación recibida.
+            cedula_busqueda = normalizar_identificacion(
+                cedula_aprobada
+            )
 
-        cliente_resp = supabase.table("clientes") \
-            .select("*") \
-            .ilike("identificacion", cedula_busqueda) \
-            .limit(1) \
-            .execute()
+            cliente_resp = (
+                supabase.table("clientes")
+                .select("*")
+                .ilike(
+                    "identificacion",
+                    cedula_busqueda
+                )
+                .limit(1)
+                .execute()
+            )
 
-        print("DEBUG CLIENTE AUMENTO:", cliente_resp.data)
+            print(
+                "DEBUG CLIENTE AUMENTO:",
+                cliente_resp.data
+            )
 
-        if cliente_resp.data:
-            cliente_data = cliente_resp.data[0]
+            if cliente_resp.data:
+                cliente_data = cliente_resp.data[0]
+
+        except Exception as error:
+            print(
+                "ERROR CARGANDO CLIENTE AUMENTO:",
+                str(error)
+            )
 
     # =====================================================
-    # BUSCAR ÚLTIMO CRÉDITO DEL CLIENTE PARA TRAER FOTOS/FIRMA
+    # BUSCAR ÚLTIMO CRÉDITO PARA TRAER FOTOS Y FIRMA
     # =====================================================
     if cliente_data:
-        ultimo_credito_resp = supabase.table("creditos") \
-            .select("id, foto_cliente, foto_cedula, foto_negocio, firma_cliente") \
-            .eq("cliente_id", cliente_data["id"]) \
-            .order("id", desc=True) \
-            .limit(1) \
-            .execute()
 
-        if ultimo_credito_resp.data:
-            ultimo_credito_data = ultimo_credito_resp.data[0]
+        try:
+            ultimo_credito_resp = (
+                supabase.table("creditos")
+                .select(
+                    "id,"
+                    "foto_cliente,"
+                    "foto_cedula,"
+                    "foto_negocio,"
+                    "firma_cliente"
+                )
+                .eq(
+                    "cliente_id",
+                    cliente_data["id"]
+                )
+                .order(
+                    "id",
+                    desc=True
+                )
+                .limit(1)
+                .execute()
+            )
 
-        # =====================================================
+            if ultimo_credito_resp.data:
+                ultimo_credito_data = (
+                    ultimo_credito_resp.data[0]
+                )
+
+        except Exception as error:
+            print(
+                "ERROR BUSCANDO ULTIMO CREDITO:",
+                str(error)
+            )
+
+        # =================================================
         # PRECARGAR FORMULARIO SI HAY CLIENTE
-        # =====================================================
+        # =================================================
         form_data = {
-            "cliente_id": cliente_data.get("id", ""),
-            "identificacion": cliente_data.get("identificacion", ""),
-            "nombre": cliente_data.get("nombre", ""),
-            "direccion": cliente_data.get("direccion", ""),
-            "direccion_negocio": cliente_data.get("direccion_negocio", ""),
-            "codigo_pais": cliente_data.get("codigo_pais", "57"),
-            "telefono": cliente_data.get("telefono_principal", ""),
+            "cliente_id": cliente_data.get(
+                "id",
+                ""
+            ),
 
-            # 🔥 Fotos/firma del último crédito
-            "foto_cliente": ultimo_credito_data.get("foto_cliente", ""),
-            "foto_cedula": ultimo_credito_data.get("foto_cedula", ""),
-            "foto_negocio": ultimo_credito_data.get("foto_negocio", ""),
-            "firma_cliente": ultimo_credito_data.get("firma_cliente", ""),
+            "identificacion": cliente_data.get(
+                "identificacion",
+                ""
+            ),
 
-            # 🔥 También las mandamos como _actual para conservarlas si no suben nuevas
-            "foto_cliente_actual": ultimo_credito_data.get("foto_cliente", ""),
-            "foto_cedula_actual": ultimo_credito_data.get("foto_cedula", ""),
-            "foto_negocio_actual": ultimo_credito_data.get("foto_negocio", ""),
-            "firma_cliente_actual": ultimo_credito_data.get("firma_cliente", "")
+            "nombre": cliente_data.get(
+                "nombre",
+                ""
+            ),
+
+            "direccion": cliente_data.get(
+                "direccion",
+                ""
+            ),
+
+            "direccion_negocio": cliente_data.get(
+                "direccion_negocio",
+                ""
+            ),
+
+            "codigo_pais": cliente_data.get(
+                "codigo_pais",
+                "57"
+            ),
+
+            "telefono": cliente_data.get(
+                "telefono_principal",
+                ""
+            ),
+
+            # =============================================
+            # FOTOS Y FIRMA DEL ÚLTIMO CRÉDITO
+            # =============================================
+            "foto_cliente": ultimo_credito_data.get(
+                "foto_cliente",
+                ""
+            ),
+
+            "foto_cedula": ultimo_credito_data.get(
+                "foto_cedula",
+                ""
+            ),
+
+            "foto_negocio": ultimo_credito_data.get(
+                "foto_negocio",
+                ""
+            ),
+
+            "firma_cliente": ultimo_credito_data.get(
+                "firma_cliente",
+                ""
+            ),
+
+            # =============================================
+            # DATOS ACTUALES PARA CONSERVARLOS SI NO SUBEN
+            # ARCHIVOS NUEVOS
+            # =============================================
+            "foto_cliente_actual": (
+                ultimo_credito_data.get(
+                    "foto_cliente",
+                    ""
+                )
+            ),
+
+            "foto_cedula_actual": (
+                ultimo_credito_data.get(
+                    "foto_cedula",
+                    ""
+                )
+            ),
+
+            "foto_negocio_actual": (
+                ultimo_credito_data.get(
+                    "foto_negocio",
+                    ""
+                )
+            ),
+
+            "firma_cliente_actual": (
+                ultimo_credito_data.get(
+                    "firma_cliente",
+                    ""
+                )
+            )
         }
 
-    # 🔥 En aumento puedes dejar bloqueados algunos datos
-    modo_aumento = True if cedula_aprobada else False
+    # =====================================================
+    # EN AUMENTO SE PUEDEN BLOQUEAR LOS DATOS PRECARGADOS
+    # =====================================================
+    modo_aumento = bool(
+        cedula_aprobada
+    )
+
+    # =====================================================
+    # SOLO SE VALIDA DUPLICIDAD CUANDO ES CLIENTE NUEVO
+    # Renovación y aumento trabajan con cliente existente.
+    # =====================================================
+    validar_duplicidad = not bool(
+        cliente_data
+    )
 
     return render_template(
         "cobrador/nueva_venta_cobrador.html",
+
         rutas=rutas,
         ruta_actual=ruta_actual,
+
         cliente_aprobado=cliente_data,
         monto_aprobado=monto_aprobado,
+
         form_data=form_data,
+
         es_renovacion=es_renovacion,
-        modo_aumento=modo_aumento
+        modo_aumento=modo_aumento,
+
+        validar_duplicidad=validar_duplicidad
     )
 @app.route("/buzon_aumento_cupo")
 def buzon_aumento_cupo():
