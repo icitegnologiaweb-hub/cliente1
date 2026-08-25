@@ -2482,7 +2482,7 @@ def guardar_venta_cobrador():
 
     if valor_venta > venta_maxima_permitida:
         flash(
-            f"El monto supera la venta máxima permitida para esta ruta (${venta_maxima_permitida:,.0f})",
+            f"El monto supera la venta máxima permitida para esta ruta",
             "danger"
         )
         return render_template(
