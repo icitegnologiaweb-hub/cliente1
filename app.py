@@ -446,47 +446,7 @@ def verificar_token():
     return render_template("forgot_password/verificar_token.html")
 
 
-@app.route("/actualizar_posicion_cliente", methods=["POST"])
-def actualizar_posicion_cliente():
 
-    credito_id = request.form.get("credito_id")
-    nueva_posicion = request.form.get("posicion")
-
-    if not credito_id or not nueva_posicion:
-        flash("Datos inválidos", "danger")
-        return redirect(url_for("listar_ventas"))
-
-    try:
-        nueva_posicion = int(nueva_posicion)
-    except:
-        flash("Posición inválida", "danger")
-        return redirect(url_for("listar_ventas"))
-
-    # Traer todos los créditos ordenados
-    creditos = supabase.table("creditos") \
-        .select("id") \
-        .order("posicion") \
-        .execute().data
-
-    if not creditos:
-        flash("No hay registros", "danger")
-        return redirect(url_for("listar_ventas"))
-
-    # Eliminar el actual de la lista
-    ids = [c["id"] for c in creditos if c["id"] != credito_id]
-
-    # Insertarlo en la nueva posición
-    nueva_posicion = max(1, min(nueva_posicion, len(ids)+1))
-    ids.insert(nueva_posicion - 1, credito_id)
-
-    # Reordenar completamente
-    for index, cid in enumerate(ids, start=1):
-        supabase.table("creditos").update({
-            "posicion": index
-        }).eq("id", cid).execute()
-
-    flash("Posición actualizada correctamente", "success")
-    return redirect(url_for("listar_ventas"))
 
 @app.route('/forgot-password', methods=['GET', 'POST'])
 def forgot_password():
@@ -1498,7 +1458,99 @@ ESTADOS_CREDITO_CERRADO = {
     "rechazado"
 }
 
+def normalizar_posiciones_ruta(ruta_id):
+    """
+    Normaliza las posiciones de una ruta en UNA transacción PostgreSQL.
 
+    Evita:
+    - posiciones repetidas
+    - huecos
+    - choque con UNIQUE (ruta_id, posicion)
+    - cientos de requests HTTP a Supabase
+    """
+
+    conn = None
+    cur = None
+
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+
+        # ==========================================
+        # 1. CREAR MAPA TEMPORAL DEL ORDEN
+        # ==========================================
+        cur.execute("""
+            CREATE TEMP TABLE tmp_posiciones_creditos
+            ON COMMIT DROP
+            AS
+            SELECT
+                id,
+                ROW_NUMBER() OVER (
+                    ORDER BY
+                        CASE
+                            WHEN posicion IS NULL OR posicion <= 0
+                                THEN 2147483647
+                            ELSE posicion
+                        END,
+                        created_at,
+                        id
+                ) AS nueva_posicion
+            FROM creditos
+            WHERE ruta_id = %s
+        """, (ruta_id,))
+
+        # ==========================================
+        # 2. MOVER TODOS A POSICIONES TEMPORALES
+        # ==========================================
+        #
+        # -1000000001
+        # -1000000002
+        # ...
+        #
+        # No pueden chocar con 1,2,3...
+        # ==========================================
+        cur.execute("""
+            UPDATE creditos AS c
+            SET posicion = -(1000000000 + t.nueva_posicion)
+            FROM tmp_posiciones_creditos AS t
+            WHERE c.id = t.id
+              AND c.ruta_id = %s
+        """, (ruta_id,))
+
+        # ==========================================
+        # 3. ASIGNAR POSICIONES DEFINITIVAS
+        # ==========================================
+        cur.execute("""
+            UPDATE creditos AS c
+            SET posicion = t.nueva_posicion
+            FROM tmp_posiciones_creditos AS t
+            WHERE c.id = t.id
+              AND c.ruta_id = %s
+        """, (ruta_id,))
+
+        conn.commit()
+
+    except Exception as e:
+
+        if conn:
+            conn.rollback()
+
+        print(
+            "ERROR NORMALIZANDO POSICIONES RUTA",
+            ruta_id,
+            ":",
+            str(e)
+        )
+
+        raise
+
+    finally:
+
+        if cur:
+            cur.close()
+
+        if conn:
+            conn.close()
 # =========================================================
 # NORMALIZAR NÚMERO DE IDENTIFICACIÓN
 # =========================================================
@@ -2493,22 +2545,23 @@ def guardar_venta_cobrador():
             es_renovacion=request.form.get("es_renovacion") == "1"
         )
 
-    # ==========================
-    # ASIGNAR POSICIÓN AUTOMÁTICA POR RUTA
-    # ==========================
-    posicion_resp = supabase.table("creditos") \
-        .select("posicion") \
-        .eq("ruta_id", ruta_id) \
-        .eq("estado", "activo") \
+
+    # Buscar la última posición DE LA RUTA.
+    # IMPORTANTE: no filtrar por estado.
+    posicion_resp = (
+        supabase.table("creditos")
+        .select("posicion")
+        .eq("ruta_id", ruta_id)
+        .order("posicion", desc=True)
+        .limit(1)
         .execute()
+    )
 
-    posiciones = [
-        int(c["posicion"]) for c in (posicion_resp.data or [])
-        if c.get("posicion") is not None
-    ]
-
-    if posiciones:
-        nueva_posicion = max(posiciones) + 1
+    if posicion_resp.data:
+        ultima_posicion = int(
+            posicion_resp.data[0].get("posicion") or 0
+        )
+        nueva_posicion = ultima_posicion + 1
     else:
         nueva_posicion = 1
 
@@ -2816,131 +2869,186 @@ def guardar_venta_cobrador():
 
     flash("Venta registrada correctamente", "success")
     return redirect(url_for("ver_ruta", ruta_id=ruta_id))
-
 @app.route("/cambiar_posicion", methods=["POST"])
 def cambiar_posicion():
 
     credito_id = (request.form.get("credito_id") or "").strip()
-    nueva_posicion_raw = (request.form.get("nueva_posicion") or "").strip()
+    nueva_posicion_raw = (
+        request.form.get("nueva_posicion") or ""
+    ).strip()
 
     if not credito_id or not nueva_posicion_raw:
         flash("Datos incompletos para cambiar la posición", "danger")
-        return redirect(request.referrer or url_for("listar_ventas"))
+        return redirect(
+            request.referrer or url_for("dashboard_cobrador")
+        )
 
     try:
         nueva_posicion = int(float(nueva_posicion_raw))
-    except Exception:
+    except (TypeError, ValueError):
         flash("La nueva posición no es válida", "danger")
-        return redirect(request.referrer or url_for("listar_ventas"))
+        return redirect(
+            request.referrer or url_for("dashboard_cobrador")
+        )
 
     if nueva_posicion <= 0:
         flash("La posición debe ser mayor a 0", "danger")
-        return redirect(request.referrer or url_for("listar_ventas"))
+        return redirect(
+            request.referrer or url_for("dashboard_cobrador")
+        )
 
-    # ==========================
-    # 1) TRAER CRÉDITO ACTUAL
-    # ==========================
-    credito_resp = supabase.table("creditos") \
-        .select("id, ruta_id, posicion, estado") \
-        .eq("id", credito_id) \
-        .limit(1) \
+    # ==========================================
+    # TRAER CRÉDITO ACTUAL
+    # ==========================================
+
+    credito_resp = (
+        supabase.table("creditos")
+        .select("id,ruta_id,posicion")
+        .eq("id", credito_id)
+        .limit(1)
         .execute()
+    )
 
-    credito_actual = credito_resp.data[0] if credito_resp.data else None
-
-    if not credito_actual:
+    if not credito_resp.data:
         flash("Crédito no encontrado", "danger")
-        return redirect(request.referrer or url_for("listar_ventas"))
+        return redirect(
+            request.referrer or url_for("dashboard_cobrador")
+        )
+
+    credito_actual = credito_resp.data[0]
 
     ruta_id = credito_actual.get("ruta_id")
 
+    try:
+        posicion_anterior = int(
+            credito_actual.get("posicion") or 0
+        )
+    except (TypeError, ValueError):
+        posicion_anterior = 0
+
     if not ruta_id:
         flash("El crédito no tiene ruta asignada", "danger")
-        return redirect(request.referrer or url_for("listar_ventas"))
+        return redirect(
+            request.referrer or url_for("dashboard_cobrador")
+        )
 
-    try:
-        vieja_posicion = int(float(credito_actual.get("posicion") or 0))
-    except Exception:
-        vieja_posicion = 0
+    if posicion_anterior <= 0:
+        flash("El crédito no tiene una posición válida", "danger")
+        return redirect(
+            url_for("todas_las_ventas", ruta_id=ruta_id)
+        )
 
-    if vieja_posicion <= 0:
-        flash("El crédito actual no tiene una posición válida", "danger")
-        return redirect(url_for("todas_las_ventas", ruta_id=ruta_id))
-
-    if nueva_posicion == vieja_posicion:
+    if nueva_posicion == posicion_anterior:
         flash("La posición no cambió", "info")
-        return redirect(url_for("todas_las_ventas", ruta_id=ruta_id))
+        return redirect(
+            url_for("todas_las_ventas", ruta_id=ruta_id)
+        )
 
-    # ==========================
-    # 2) BUSCAR SI YA HAY ALGUIEN EN ESA POSICIÓN
-    # ==========================
-    destino_resp = supabase.table("creditos") \
-        .select("id, ruta_id, posicion") \
-        .eq("ruta_id", ruta_id) \
-        .eq("posicion", nueva_posicion) \
-        .neq("id", credito_id) \
-        .limit(1) \
+    # ==========================================
+    # BUSCAR QUIÉN TIENE LA POSICIÓN DESTINO
+    # ==========================================
+
+    destino_resp = (
+        supabase.table("creditos")
+        .select("id,posicion")
+        .eq("ruta_id", ruta_id)
+        .eq("posicion", nueva_posicion)
+        .neq("id", credito_id)
+        .limit(1)
         .execute()
+    )
 
-    credito_destino = destino_resp.data[0] if destino_resp.data else None
-
-    posicion_temporal = -999999
+    credito_destino = (
+        destino_resp.data[0]
+        if destino_resp.data
+        else None
+    )
 
     try:
+
         if credito_destino:
-            # ==========================
-            # CASO 1:
-            # La posición está ocupada.
-            # Se hace intercambio:
-            # Actual -> nueva posición
-            # Destino -> vieja posición
-            # ==========================
 
-            # A) Sacar temporalmente el crédito actual para evitar choque
-            supabase.table("creditos") \
-                .update({"posicion": posicion_temporal}) \
-                .eq("id", credito_id) \
-                .eq("ruta_id", ruta_id) \
+            # ------------------------------------------
+            # Posición ocupada: INTERCAMBIAR
+            # ------------------------------------------
+
+            posicion_temporal = -999999999
+
+            # Sacar temporalmente al actual
+            (
+                supabase.table("creditos")
+                .update({
+                    "posicion": posicion_temporal
+                })
+                .eq("id", credito_id)
+                .eq("ruta_id", ruta_id)
                 .execute()
+            )
 
-            # B) El que estaba en la nueva posición pasa a la vieja posición
-            supabase.table("creditos") \
-                .update({"posicion": vieja_posicion}) \
-                .eq("id", credito_destino["id"]) \
-                .eq("ruta_id", ruta_id) \
+            # El ocupante recibe la posición anterior
+            (
+                supabase.table("creditos")
+                .update({
+                    "posicion": posicion_anterior
+                })
+                .eq("id", credito_destino["id"])
+                .eq("ruta_id", ruta_id)
                 .execute()
+            )
 
-            # C) El crédito actual pasa a la nueva posición
-            supabase.table("creditos") \
-                .update({"posicion": nueva_posicion}) \
-                .eq("id", credito_id) \
-                .eq("ruta_id", ruta_id) \
+            # El actual recibe la posición nueva
+            (
+                supabase.table("creditos")
+                .update({
+                    "posicion": nueva_posicion
+                })
+                .eq("id", credito_id)
+                .eq("ruta_id", ruta_id)
                 .execute()
+            )
 
-            flash("Posición intercambiada correctamente", "success")
+            flash(
+                "Posiciones intercambiadas correctamente",
+                "success"
+            )
 
         else:
-            # ==========================
-            # CASO 2:
-            # La posición está libre.
-            # Solo se asigna la nueva posición.
-            # No se toca ningún otro crédito.
-            # ==========================
-            supabase.table("creditos") \
-                .update({"posicion": nueva_posicion}) \
-                .eq("id", credito_id) \
-                .eq("ruta_id", ruta_id) \
-                .execute()
 
-            flash("Posición asignada correctamente", "success")
+            # ------------------------------------------
+            # Posición libre
+            # ------------------------------------------
+
+            (
+                supabase.table("creditos")
+                .update({
+                    "posicion": nueva_posicion
+                })
+                .eq("id", credito_id)
+                .eq("ruta_id", ruta_id)
+                .execute()
+            )
+
+            flash(
+                "Posición actualizada correctamente",
+                "success"
+            )
 
     except Exception as e:
-        print("ERROR CAMBIANDO POSICIÓN:", str(e))
-        flash(f"Error cambiando posición: {str(e)}", "danger")
-        return redirect(url_for("todas_las_ventas", ruta_id=ruta_id))
 
-    return redirect(url_for("todas_las_ventas", ruta_id=ruta_id))
-    
+        print("ERROR CAMBIANDO POSICIÓN:", str(e))
+
+        flash(
+            f"Error cambiando posición: {str(e)}",
+            "danger"
+        )
+
+    return redirect(
+        url_for(
+            "todas_las_ventas",
+            ruta_id=ruta_id
+        )
+    )
+
 @app.route("/rutas/asignar-cobrador", methods=["POST"])
 def asignar_cobrador_ruta():
 
@@ -2984,7 +3092,7 @@ def todas_las_ventas(ruta_id):
 
     if "user_id" not in session or session.get("rol") not in ["cobrador", "supervisor", "administrador"]:
         return redirect(url_for("login_app"))
-
+# Reparar automáticamente posiciones de esta ruta
     hoy = date.today().isoformat()
     hoy_fecha = date.today()
 
