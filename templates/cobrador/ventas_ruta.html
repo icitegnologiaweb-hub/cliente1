@@ -7,85 +7,99 @@
 {% block content %}
 
 <div class="max-w-md mx-auto px-4 pt-4 pb-24 space-y-4">
-<div class="flex items-center gap-3 mb-2">
 
+    <div class="flex items-center gap-3 mb-2">
 
-    <h1 class="text-white text-lg font-semibold">
-        Ventas pendientes o vencidas
-    </h1>
-<!-- BUSCADOR -->
-<div class="mb-4">
-    <input type="text"
-           id="buscador"
-           placeholder="Buscar por nombre..."
-           onkeyup="filtrarClientes()"
-           class="w-full rounded-xl p-3 text-sm
-                  bg-white/10 text-white placeholder-white/60
-                  border border-white/20
-                  focus:outline-none focus:ring-2 focus:ring-blue-400">
+        <h1 class="text-white text-lg font-semibold">
+            Ventas pendientes o vencidas
+        </h1>
+
+        <!-- BUSCADOR -->
+        <div class="mb-4">
+            <input
+                type="text"
+                id="buscador"
+                placeholder="Buscar por nombre..."
+                onkeyup="filtrarClientes()"
+                class="w-full rounded-xl p-3 text-sm
+                       bg-white/10 text-white placeholder-white/60
+                       border border-white/20
+                       focus:outline-none focus:ring-2 focus:ring-blue-400"
+            >
+        </div>
+
     </div>
-</div>
-<div class="text-white text-xs mb-2">
-    Total créditos cargados: {{ creditos|length }}
-</div>
 
-{% for credito in creditos %}
-    <div class="text-yellow-300 text-[10px]">
-        DEBUG → {{ credito.id }} | {{ credito.cliente }} | mora: {{ credito.dias_mora }} | prox: {{ credito.proxima_cuota }} | saldo: {{ credito.saldo }}
-    </div>
-{% endfor %}
     {% if creditos %}
 
         {% for credito in creditos %}
 
-        <a href="{{ url_for('detalle_credito', credito_id=credito.id) }}"
-        data-nombre="{{ credito.cliente|lower }}"
-        class="credito-item block
-            bg-gradient-to-br from-[#123b63] to-[#0b2847]
-            rounded-2xl p-4 shadow-lg
-            transition hover:scale-[1.02]
-            text-white relative overflow-hidden">
+        <a
+            href="{{ url_for('detalle_credito', credito_id=credito.id) }}"
+            data-nombre="{{ credito.cliente|lower }}"
+            class="credito-item block
+                   bg-gradient-to-br from-[#123b63] to-[#0b2847]
+                   rounded-2xl p-4 shadow-lg
+                   transition hover:scale-[1.02]
+                   text-white relative overflow-hidden"
+        >
 
             <div class="flex gap-4 items-start">
-            {% if credito.color_estado == 'rojo' %}
-            <div class="absolute -top-2 -right-8 rotate-45 bg-red-600
-                        text-white text-[10px] px-10 py-1 font-semibold shadow-md">
-                30+ DÍAS
-            </div>
 
-            {% elif credito.color_estado == 'naranja' %}
-            <div class="absolute -top-2 -right-8 rotate-45 bg-orange-500
-                        text-white text-[10px] px-10 py-1 font-semibold shadow-md">
-                7+ DÍAS
-            </div>
+                {% if credito.color_estado == 'rojo' %}
 
-            {% elif credito.color_estado == 'verde' and credito.dias_mora > 0 %}
-            <div class="absolute -top-2 -right-8 rotate-45 bg-green-500
-                        text-white text-[10px] px-10 py-1 font-semibold shadow-md">
-                {{ credito.dias_mora }} DÍAS
-            </div>
-            {% endif %}
+                <div class="absolute -top-2 -right-8 rotate-45 bg-red-600
+                            text-white text-[10px] px-10 py-1 font-semibold shadow-md">
+                    30+ DÍAS
+                </div>
+
+                {% elif credito.color_estado == 'naranja' %}
+
+                <div class="absolute -top-2 -right-8 rotate-45 bg-orange-500
+                            text-white text-[10px] px-10 py-1 font-semibold shadow-md">
+                    7+ DÍAS
+                </div>
+
+                {% elif credito.color_estado == 'verde' and credito.dias_mora > 0 %}
+
+                <div class="absolute -top-2 -right-8 rotate-45 bg-green-500
+                            text-white text-[10px] px-10 py-1 font-semibold shadow-md">
+                    {{ credito.dias_mora }} DÍAS
+                </div>
+
+                {% endif %}
+
+
                 <!-- CÍRCULO POSICIÓN -->
+
                 <div class="flex-shrink-0 h-12 w-12 rounded-full
                             bg-gradient-to-br from-gray-300 to-blue-600
                             flex items-center justify-center
                             text-sm font-bold text-white">
+
                     {{ credito.posicion }}
+
                 </div>
 
+
                 <!-- CONTENIDO -->
+
                 <div class="flex-1">
 
                     <!-- HEADER -->
+
                     <div class="flex justify-between items-start">
 
                         <div>
+
                             <div class="text-sm font-semibold">
                                 {{ credito.cliente }}
                             </div>
+
                             <div class="text-xs opacity-70">
                                 {{ credito.identificacion }}
                             </div>
+
                         </div>
 
                         <span class="text-blue-400 text-lg opacity-70">
@@ -94,49 +108,70 @@
 
                     </div>
 
+
                     <!-- INFO -->
+
                     <div class="mt-2 space-y-1 text-xs">
 
                         {% if credito.telefono %}
+
                         <div class="text-blue-300">
                             📱 {{ credito.telefono }}
                         </div>
+
                         {% endif %}
 
+
                         {% if credito.direccion %}
+
                         <div class="opacity-70">
                             📍 {{ credito.direccion }}
                         </div>
+
                         {% endif %}
 
+
                         {% if credito.tipo_prestamo %}
+
                         <div class="opacity-70">
                             💳 {{ credito.tipo_prestamo }}
                         </div>
+
                         {% endif %}
 
+
                         {% if credito.proxima_cuota %}
+
                         <div class="text-blue-300">
                             📆 Próx: {{ credito.proxima_cuota }}
                         </div>
+
                         {% else %}
+
                         <div class="text-green-400">
                             ✔ Crédito Pagado
                         </div>
+
                         {% endif %}
+
 
                         <div class="text-green-400">
                             Saldo Actual: ${{ "{:,.0f}".format(credito.saldo) }}
                         </div>
 
+
                         {% if credito.dias_mora > 0 %}
-                            <div class="text-red-400">
-                                {{ credito.dias_mora }} días en mora
-                            </div>
+
+                        <div class="text-red-400">
+                            {{ credito.dias_mora }} días en mora
+                        </div>
+
                         {% else %}
-                            <div class="text-green-400">
-                                Al día
-                            </div>
+
+                        <div class="text-green-400">
+                            Al día
+                        </div>
+
                         {% endif %}
 
                     </div>
@@ -159,26 +194,37 @@
 
 </div>
 
-<!-- BOTÓN FLOTANTE -->
-<a href="{{ url_for('nueva_venta_cobrador') }}"
-   class="fixed bottom-6 right-6
-          bg-blue-600 hover:bg-blue-700
-          text-white text-3xl
-          h-16 w-16
-          rounded-full
-          flex items-center justify-center
-          shadow-2xl
-          transition active:scale-95">
 
+<!-- BOTÓN FLOTANTE -->
+
+<a
+    href="{{ url_for('nueva_venta_cobrador') }}"
+    class="fixed bottom-6 right-6
+           bg-blue-600 hover:bg-blue-700
+           text-white text-3xl
+           h-16 w-16
+           rounded-full
+           flex items-center justify-center
+           shadow-2xl
+           transition active:scale-95"
+>
     +
 </a>
+
+
 <script>
+
 function filtrarClientes() {
 
-    let input = document.getElementById("buscador").value.toLowerCase();
+    let input = document
+        .getElementById("buscador")
+        .value
+        .toLowerCase();
+
     let items = document.querySelectorAll(".credito-item");
 
     items.forEach(item => {
+
         let nombre = item.getAttribute("data-nombre");
 
         if (nombre.includes(input)) {
@@ -186,7 +232,11 @@ function filtrarClientes() {
         } else {
             item.style.display = "none";
         }
+
     });
+
 }
+
 </script>
+
 {% endblock %}

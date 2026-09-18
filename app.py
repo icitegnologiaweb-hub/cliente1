@@ -1861,10 +1861,10 @@ def validar_identificacion_cliente():
             )
         }), 500
 
-
 # =========================================================
 # NUEVA VENTA COBRADOR
 # =========================================================
+
 @app.route("/nueva_venta_cobrador")
 def nueva_venta_cobrador():
 
@@ -1877,6 +1877,7 @@ def nueva_venta_cobrador():
             "administrador"
         ]
     ):
+
         return redirect(
             url_for("login_app")
         )
@@ -1888,6 +1889,7 @@ def nueva_venta_cobrador():
     # =====================================================
     # TRAER RUTAS SEGÚN EL ROL
     # =====================================================
+
     if session.get("rol") == "cobrador":
 
         rutas = (
@@ -1902,7 +1904,9 @@ def nueva_venta_cobrador():
         )
 
     else:
+
         # Supervisor / administrador
+
         rutas = (
             supabase.table("rutas")
             .select("*")
@@ -1917,6 +1921,7 @@ def nueva_venta_cobrador():
     # RUTA ACTUAL
     # Puede llegar por URL, renovación o sesión
     # =====================================================
+
     ruta_actual = (
         request.args.get("ruta_id")
         or session.get("ruta_id")
@@ -1925,12 +1930,14 @@ def nueva_venta_cobrador():
     # =====================================================
     # DETECTAR SI VIENE DE AUMENTO APROBADO
     # =====================================================
+
     cedula_aprobada = request.args.get("cedula")
     monto_aprobado = request.args.get("monto")
 
     # =====================================================
     # DETECTAR SI VIENE DE RENOVACIÓN
     # =====================================================
+
     cliente_id_renovacion = request.args.get(
         "cliente_id"
     )
@@ -1939,6 +1946,26 @@ def nueva_venta_cobrador():
         request.args.get("renovar") == "1"
     )
 
+    # =====================================================
+    # DATOS DEL CRÉDITO ANTERIOR
+    #
+    # Estos valores solamente se reciben.
+    # Todavía NO modificamos posiciones.
+    # =====================================================
+
+    credito_anterior_id = None
+    posicion_anterior = None
+
+    if es_renovacion:
+
+        credito_anterior_id = request.args.get(
+            "credito_anterior_id"
+        )
+
+        posicion_anterior = request.args.get(
+            "posicion_anterior"
+        )
+
     cliente_data = None
     ultimo_credito_data = {}
     form_data = {}
@@ -1946,9 +1973,11 @@ def nueva_venta_cobrador():
     # =====================================================
     # PRIORIDAD 1: RENOVACIÓN
     # =====================================================
+
     if cliente_id_renovacion:
 
         try:
+
             cliente_resp = (
                 supabase.table("clientes")
                 .select("*")
@@ -1966,9 +1995,11 @@ def nueva_venta_cobrador():
             )
 
             if cliente_resp.data:
+
                 cliente_data = cliente_resp.data
 
         except Exception as error:
+
             print(
                 "ERROR CARGANDO CLIENTE RENOVACION:",
                 str(error)
@@ -1977,11 +2008,14 @@ def nueva_venta_cobrador():
     # =====================================================
     # PRIORIDAD 2: AUMENTO APROBADO
     # =====================================================
+
     elif cedula_aprobada:
 
         try:
+
             # Se conserva la búsqueda actual, pero se limpia
             # la identificación recibida.
+
             cedula_busqueda = normalizar_identificacion(
                 cedula_aprobada
             )
@@ -2003,9 +2037,11 @@ def nueva_venta_cobrador():
             )
 
             if cliente_resp.data:
+
                 cliente_data = cliente_resp.data[0]
 
         except Exception as error:
+
             print(
                 "ERROR CARGANDO CLIENTE AUMENTO:",
                 str(error)
@@ -2014,9 +2050,11 @@ def nueva_venta_cobrador():
     # =====================================================
     # BUSCAR ÚLTIMO CRÉDITO PARA TRAER FOTOS Y FIRMA
     # =====================================================
+
     if cliente_data:
 
         try:
+
             ultimo_credito_resp = (
                 supabase.table("creditos")
                 .select(
@@ -2039,11 +2077,13 @@ def nueva_venta_cobrador():
             )
 
             if ultimo_credito_resp.data:
+
                 ultimo_credito_data = (
                     ultimo_credito_resp.data[0]
                 )
 
         except Exception as error:
+
             print(
                 "ERROR BUSCANDO ULTIMO CREDITO:",
                 str(error)
@@ -2052,7 +2092,9 @@ def nueva_venta_cobrador():
         # =================================================
         # PRECARGAR FORMULARIO SI HAY CLIENTE
         # =================================================
+
         form_data = {
+
             "cliente_id": cliente_data.get(
                 "id",
                 ""
@@ -2091,6 +2133,7 @@ def nueva_venta_cobrador():
             # =============================================
             # FOTOS Y FIRMA DEL ÚLTIMO CRÉDITO
             # =============================================
+
             "foto_cliente": ultimo_credito_data.get(
                 "foto_cliente",
                 ""
@@ -2115,6 +2158,7 @@ def nueva_venta_cobrador():
             # DATOS ACTUALES PARA CONSERVARLOS SI NO SUBEN
             # ARCHIVOS NUEVOS
             # =============================================
+
             "foto_cliente_actual": (
                 ultimo_credito_data.get(
                     "foto_cliente",
@@ -2147,6 +2191,7 @@ def nueva_venta_cobrador():
     # =====================================================
     # EN AUMENTO SE PUEDEN BLOQUEAR LOS DATOS PRECARGADOS
     # =====================================================
+
     modo_aumento = bool(
         cedula_aprobada
     )
@@ -2155,6 +2200,7 @@ def nueva_venta_cobrador():
     # SOLO SE VALIDA DUPLICIDAD CUANDO ES CLIENTE NUEVO
     # Renovación y aumento trabajan con cliente existente.
     # =====================================================
+
     validar_duplicidad = not bool(
         cliente_data
     )
@@ -2173,7 +2219,14 @@ def nueva_venta_cobrador():
         es_renovacion=es_renovacion,
         modo_aumento=modo_aumento,
 
-        validar_duplicidad=validar_duplicidad
+        validar_duplicidad=validar_duplicidad,
+
+        # =================================================
+        # DATOS PARA CONSERVAR POSICIÓN EN RENOVACIÓN
+        # =================================================
+
+        credito_anterior_id=credito_anterior_id,
+        posicion_anterior=posicion_anterior
     )
 @app.route("/buzon_aumento_cupo")
 def buzon_aumento_cupo():
@@ -2445,7 +2498,7 @@ def ver_solicitudes_cupo():
         "solicitudes_cupo.html",
         solicitudes=solicitudes
     )
-
+    
 @app.route("/guardar_venta_cobrador", methods=["POST"])
 def guardar_venta_cobrador():
 
@@ -2471,55 +2524,154 @@ def guardar_venta_cobrador():
 
     # 🔥 Para conservar datos y fotos si hay error y se vuelve a renderizar
     form_data_error = request.form.to_dict()
-    form_data_error["foto_cliente"] = request.form.get("foto_cliente_actual", "")
-    form_data_error["foto_cedula"] = request.form.get("foto_cedula_actual", "")
-    form_data_error["foto_negocio"] = request.form.get("foto_negocio_actual", "")
-    form_data_error["firma_cliente"] = request.form.get("firma_cliente_actual", "")
+
+    form_data_error["foto_cliente"] = request.form.get(
+        "foto_cliente_actual",
+        ""
+    )
+
+    form_data_error["foto_cedula"] = request.form.get(
+        "foto_cedula_actual",
+        ""
+    )
+
+    form_data_error["foto_negocio"] = request.form.get(
+        "foto_negocio_actual",
+        ""
+    )
+
+    form_data_error["firma_cliente"] = request.form.get(
+        "firma_cliente_actual",
+        ""
+    )
+
+    # =====================================================
+    # DETECTAR SI ESTA VENTA ES UNA RENOVACIÓN
+    # =====================================================
+
+    es_renovacion = (
+        request.form.get("es_renovacion") == "1"
+    )
 
     # ==========================
     # VALIDAR CAMPOS NUMÉRICOS
     # ==========================
-    try:
-        valor_venta_raw = request.form.get("valor_venta", "").strip()
-        tasa_raw = request.form.get("tasa", "").strip()
-        cuotas_raw = request.form.get("cuotas", "").strip()
 
-        valor_venta = float(valor_venta_raw.replace(".", "").replace(",", "."))
-        tasa = float(tasa_raw.replace(",", "."))
-        cuotas = int(cuotas_raw)
+    try:
+
+        valor_venta_raw = request.form.get(
+            "valor_venta",
+            ""
+        ).strip()
+
+        tasa_raw = request.form.get(
+            "tasa",
+            ""
+        ).strip()
+
+        cuotas_raw = request.form.get(
+            "cuotas",
+            ""
+        ).strip()
+
+        valor_venta = float(
+            valor_venta_raw
+            .replace(".", "")
+            .replace(",", ".")
+        )
+
+        tasa = float(
+            tasa_raw.replace(",", ".")
+        )
+
+        cuotas = int(
+            cuotas_raw
+        )
 
         if valor_venta <= 0 or cuotas <= 0:
             raise ValueError
 
     except Exception as e:
-        print("ERROR NUMERICO:", e)
-        flash("Datos numéricos inválidos", "danger")
+
+        print(
+            "ERROR NUMERICO:",
+            e
+        )
+
+        flash(
+            "Datos numéricos inválidos",
+            "danger"
+        )
+
         return render_template(
             "cobrador/nueva_venta_cobrador.html",
             rutas=rutas,
             ruta_actual=ruta_id,
             form_data=form_data_error,
-            es_renovacion=request.form.get("es_renovacion") == "1"
+            es_renovacion=es_renovacion
         )
 
-    identificacion = (request.form.get("identificacion") or "").strip()
-    nombre = request.form.get("nombre")
-    direccion = request.form.get("direccion")
-    direccion_negocio = request.form.get("direccion_negocio")
-    codigo_pais = request.form.get("codigo_pais") or "57"
-    telefono = request.form.get("telefono")
-    fecha_inicio = (date.today() + timedelta(days=1)).isoformat()
-    tipo_prestamo = request.form.get("tipo_prestamo")
+    identificacion = (
+        request.form.get("identificacion")
+        or ""
+    ).strip()
+
+    nombre = request.form.get(
+        "nombre"
+    )
+
+    direccion = request.form.get(
+        "direccion"
+    )
+
+    direccion_negocio = request.form.get(
+        "direccion_negocio"
+    )
+
+    codigo_pais = (
+        request.form.get("codigo_pais")
+        or "57"
+    )
+
+    telefono = request.form.get(
+        "telefono"
+    )
+
+    fecha_inicio = (
+        date.today()
+        + timedelta(days=1)
+    ).isoformat()
+
+    tipo_prestamo = request.form.get(
+        "tipo_prestamo"
+    )
 
     # 🔥 Fotos/firma actuales para renovación
-    foto_cliente_actual = request.form.get("foto_cliente_actual") or None
-    foto_cedula_actual = request.form.get("foto_cedula_actual") or None
-    foto_negocio_actual = request.form.get("foto_negocio_actual") or None
-    firma_cliente_actual = request.form.get("firma_cliente_actual") or None
+
+    foto_cliente_actual = (
+        request.form.get("foto_cliente_actual")
+        or None
+    )
+
+    foto_cedula_actual = (
+        request.form.get("foto_cedula_actual")
+        or None
+    )
+
+    foto_negocio_actual = (
+        request.form.get("foto_negocio_actual")
+        or None
+    )
+
+    firma_cliente_actual = (
+        request.form.get("firma_cliente_actual")
+        or None
+    )
 
     # ==========================
     # VALIDAR CUPO MÁXIMO RUTA COBRADOR
     # ==========================
+
     ruta_data = supabase.table("rutas") \
         .select("venta_maxima") \
         .eq("id", ruta_id) \
@@ -2527,27 +2679,42 @@ def guardar_venta_cobrador():
         .execute()
 
     if not ruta_data.data:
-        flash("Ruta no válida", "danger")
-        return redirect(url_for("dashboard_cobrador"))
 
-    venta_maxima_permitida = float(ruta_data.data["venta_maxima"])
-
-    if valor_venta > venta_maxima_permitida:
         flash(
-            f"El monto supera la venta máxima permitida para esta ruta",
+            "Ruta no válida",
             "danger"
         )
+
+        return redirect(
+            url_for("dashboard_cobrador")
+        )
+
+    venta_maxima_permitida = float(
+        ruta_data.data["venta_maxima"]
+    )
+
+    if valor_venta > venta_maxima_permitida:
+
+        flash(
+            "El monto supera la venta máxima permitida para esta ruta",
+            "danger"
+        )
+
         return render_template(
             "cobrador/nueva_venta_cobrador.html",
             rutas=rutas,
             ruta_actual=ruta_id,
             form_data=form_data_error,
-            es_renovacion=request.form.get("es_renovacion") == "1"
+            es_renovacion=es_renovacion
         )
 
+    # =====================================================
+    # POSICIÓN NORMAL DE UNA VENTA NUEVA
+    #
+    # Se conserva la lógica actual.
+    # En una renovación se reemplaza más adelante.
+    # =====================================================
 
-    # Buscar la última posición DE LA RUTA.
-    # IMPORTANTE: no filtrar por estado.
     posicion_resp = (
         supabase.table("creditos")
         .select("posicion")
@@ -2558,17 +2725,26 @@ def guardar_venta_cobrador():
     )
 
     if posicion_resp.data:
+
         ultima_posicion = int(
-            posicion_resp.data[0].get("posicion") or 0
+            posicion_resp.data[0].get(
+                "posicion"
+            ) or 0
         )
-        nueva_posicion = ultima_posicion + 1
+
+        nueva_posicion = (
+            ultima_posicion + 1
+        )
+
     else:
+
         nueva_posicion = 1
 
     # ==========================
-    # ✅ EVITAR CRÉDITO DUPLICADO POR CÉDULA (CLIENTE + RUTA)
-    # (ANTES de subir firma/fotos para no crear archivos huérfanos)
+    # ✅ EVITAR CRÉDITO DUPLICADO POR CÉDULA
+    # CLIENTE + RUTA
     # ==========================
+
     cliente_existente_resp = supabase.table("clientes") \
         .select("id") \
         .eq("identificacion", identificacion) \
@@ -2576,7 +2752,10 @@ def guardar_venta_cobrador():
         .execute()
 
     if cliente_existente_resp.data:
-        cliente_id_existente = cliente_existente_resp.data[0]["id"]
+
+        cliente_id_existente = (
+            cliente_existente_resp.data[0]["id"]
+        )
 
         credito_dup_resp = supabase.table("creditos") \
             .select("*") \
@@ -2587,55 +2766,107 @@ def guardar_venta_cobrador():
             .execute()
 
         if credito_dup_resp.data:
-            credito_existente = credito_dup_resp.data[0]
-            credito_existente_id = credito_existente["id"]
 
-            # 🔍 Validar si realmente sigue activo o ya está completamente pago
+            credito_existente = (
+                credito_dup_resp.data[0]
+            )
+
+            credito_existente_id = (
+                credito_existente["id"]
+            )
+
+            # 🔍 Validar si realmente sigue activo
+            # o ya está completamente pago
+
             cuotas_dup_resp = supabase.table("cuotas") \
                 .select("estado") \
-                .eq("credito_id", credito_existente_id) \
+                .eq(
+                    "credito_id",
+                    credito_existente_id
+                ) \
                 .execute()
 
-            cuotas_dup = cuotas_dup_resp.data or []
+            cuotas_dup = (
+                cuotas_dup_resp.data
+                or []
+            )
 
             pagos_dup_resp = supabase.table("pagos") \
                 .select("monto") \
-                .eq("credito_id", credito_existente_id) \
+                .eq(
+                    "credito_id",
+                    credito_existente_id
+                ) \
                 .execute()
 
-            pagos_dup = pagos_dup_resp.data or []
+            pagos_dup = (
+                pagos_dup_resp.data
+                or []
+            )
 
             total_pagado_dup = sum(
-                float(p.get("monto") or 0)
+                float(
+                    p.get("monto") or 0
+                )
                 for p in pagos_dup
             )
 
             saldo_dup = round(
-                float(credito_existente.get("valor_total") or 0) - total_pagado_dup,
+                float(
+                    credito_existente.get(
+                        "valor_total"
+                    ) or 0
+                ) - total_pagado_dup,
                 2
             )
 
-            todas_pagadas_dup = len(cuotas_dup) > 0 and all(
-                c.get("estado") == "pagado"
-                for c in cuotas_dup
+            todas_pagadas_dup = (
+                len(cuotas_dup) > 0
+                and all(
+                    c.get("estado") == "pagado"
+                    for c in cuotas_dup
+                )
             )
 
-            # ✅ Si ya está pago, lo finalizamos y dejamos continuar
-            if todas_pagadas_dup and saldo_dup <= 0:
+            # ✅ Si ya está pago, lo finalizamos
+            # y dejamos continuar
+
+            if (
+                todas_pagadas_dup
+                and saldo_dup <= 0
+            ):
+
                 supabase.table("creditos") \
-                    .update({"estado": "finalizado"}) \
-                    .eq("id", credito_existente_id) \
+                    .update({
+                        "estado": "finalizado"
+                    }) \
+                    .eq(
+                        "id",
+                        credito_existente_id
+                    ) \
                     .execute()
+
             else:
+
                 flash(
-                    "Este cliente (cédula) ya tiene un crédito activo en esta ruta. No se puede registrar duplicado.",
+                    "Este cliente (cédula) ya tiene un "
+                    "crédito activo en esta ruta. "
+                    "No se puede registrar duplicado.",
                     "danger"
                 )
-                return redirect(url_for("detalle_cliente", cliente_id=cliente_id_existente, ruta_id=ruta_id))
+
+                return redirect(
+                    url_for(
+                        "detalle_cliente",
+                        cliente_id=cliente_id_existente,
+                        ruta_id=ruta_id
+                    )
+                )
 
     # ==========================
     # CREAR O BUSCAR CLIENTE
     # ==========================
+
     cliente_resp = supabase.table("clientes") \
         .select("*") \
         .eq("identificacion", identificacion) \
@@ -2643,18 +2874,26 @@ def guardar_venta_cobrador():
         .execute()
 
     if cliente_resp.data:
-        cliente_id = cliente_resp.data[0]["id"]
+
+        cliente_id = (
+            cliente_resp.data[0]["id"]
+        )
 
         # 🔥 Actualizar datos del cliente si cambian
+
         supabase.table("clientes").update({
             "nombre": nombre,
             "direccion": direccion,
             "direccion_negocio": direccion_negocio,
             "telefono_principal": telefono,
             "codigo_pais": codigo_pais
-        }).eq("id", cliente_id).execute()
+        }).eq(
+            "id",
+            cliente_id
+        ).execute()
 
     else:
+
         nuevo_cliente = supabase.table("clientes").insert({
             "identificacion": identificacion,
             "nombre": nombre,
@@ -2665,158 +2904,866 @@ def guardar_venta_cobrador():
         }).execute()
 
         if not nuevo_cliente.data:
-            flash("Error creando cliente", "danger")
+
+            flash(
+                "Error creando cliente",
+                "danger"
+            )
+
             return render_template(
                 "cobrador/nueva_venta_cobrador.html",
                 rutas=rutas,
                 ruta_actual=ruta_id,
                 form_data=form_data_error,
-                es_renovacion=request.form.get("es_renovacion") == "1"
+                es_renovacion=es_renovacion
             )
 
-        cliente_id = nuevo_cliente.data[0]["id"]
+        cliente_id = (
+            nuevo_cliente.data[0]["id"]
+        )
+
+    # =====================================================
+    # PREPARAR POSICIÓN EN CASO DE RENOVACIÓN
+    # =====================================================
+
+    credito_anterior_id = None
+    posicion_anterior = None
+    posicion_historica = None
+    posicion_anterior_liberada = False
+
+    if es_renovacion:
+
+        # =================================================
+        # 1. INTENTAR OBTENER ID DEL FORMULARIO
+        # =================================================
+
+        credito_anterior_id = (
+            request.form.get(
+                "credito_anterior_id"
+            )
+            or session.get(
+                "renovacion_credito_id"
+            )
+        )
+
+        posicion_guardada = (
+            request.form.get(
+                "posicion_anterior"
+            )
+            or session.get(
+                "renovacion_posicion"
+            )
+        )
+
+        credito_anterior = None
+
+        # =================================================
+        # 2. SI TENEMOS EL ID, BUSCAR EXACTAMENTE ESE
+        # =================================================
+
+        if credito_anterior_id:
+
+            credito_anterior_resp = (
+                supabase.table("creditos")
+                .select(
+                    "id,"
+                    "cliente_id,"
+                    "ruta_id,"
+                    "posicion,"
+                    "estado,"
+                    "created_at"
+                )
+                .eq(
+                    "id",
+                    credito_anterior_id
+                )
+                .eq(
+                    "cliente_id",
+                    cliente_id
+                )
+                .eq(
+                    "ruta_id",
+                    ruta_id
+                )
+                .limit(1)
+                .execute()
+            )
+
+            if credito_anterior_resp.data:
+
+                credito_anterior = (
+                    credito_anterior_resp.data[0]
+                )
+
+        # =================================================
+        # 3. FALLBACK:
+        # SI NO LLEGÓ EL ID O NO SE ENCONTRÓ,
+        # BUSCAR EL ÚLTIMO CRÉDITO FINALIZADO/PAGADO
+        # QUE TODAVÍA TENGA POSICIÓN POSITIVA
+        # =================================================
+
+        if not credito_anterior:
+
+            credito_anterior_resp = (
+                supabase.table("creditos")
+                .select(
+                    "id,"
+                    "cliente_id,"
+                    "ruta_id,"
+                    "posicion,"
+                    "estado,"
+                    "created_at"
+                )
+                .eq(
+                    "cliente_id",
+                    cliente_id
+                )
+                .eq(
+                    "ruta_id",
+                    ruta_id
+                )
+                .in_(
+                    "estado",
+                    [
+                        "finalizado",
+                        "pagado"
+                    ]
+                )
+                .gt(
+                    "posicion",
+                    0
+                )
+                .order(
+                    "created_at",
+                    desc=True
+                )
+                .limit(1)
+                .execute()
+            )
+
+            if credito_anterior_resp.data:
+
+                credito_anterior = (
+                    credito_anterior_resp.data[0]
+                )
+
+                credito_anterior_id = (
+                    credito_anterior["id"]
+                )
+
+        # =================================================
+        # 4. VALIDAR QUE LO ENCONTRAMOS
+        # =================================================
+
+        if not credito_anterior:
+
+            print(
+                "RENOVACION - NO SE ENCONTRO CREDITO ANTERIOR",
+                "| cliente:",
+                cliente_id,
+                "| ruta:",
+                ruta_id,
+                "| session credito:",
+                session.get(
+                    "renovacion_credito_id"
+                ),
+                "| session posicion:",
+                session.get(
+                    "renovacion_posicion"
+                )
+            )
+
+            flash(
+                "No fue posible identificar el crédito "
+                "anterior de esta renovación.",
+                "danger"
+            )
+
+            return redirect(
+                url_for(
+                    "detalle_cliente",
+                    cliente_id=cliente_id,
+                    ruta_id=ruta_id
+                )
+            )
+
+        # =================================================
+        # 5. VALIDAR ESTADO DEL CRÉDITO ANTERIOR
+        # =================================================
+
+        estado_anterior = str(
+            credito_anterior.get(
+                "estado"
+            ) or ""
+        ).strip().lower()
+
+        if estado_anterior not in [
+            "finalizado",
+            "pagado"
+        ]:
+
+            flash(
+                "El crédito anterior todavía no está "
+                "disponible para renovación.",
+                "warning"
+            )
+
+            return redirect(
+                url_for(
+                    "detalle_cliente",
+                    cliente_id=cliente_id,
+                    ruta_id=ruta_id
+                )
+            )
+
+        # Si todavía quedó como pagado,
+        # lo dejamos definitivamente finalizado.
+
+        if estado_anterior == "pagado":
+
+            supabase.table("creditos") \
+                .update({
+                    "estado": "finalizado"
+                }) \
+                .eq(
+                    "id",
+                    credito_anterior_id
+                ) \
+                .execute()
+
+        # =================================================
+        # 6. RECUPERAR POSICIÓN ANTERIOR
+        # =================================================
+
+        posicion_db = (
+            credito_anterior.get(
+                "posicion"
+            )
+        )
+
+        try:
+
+            posicion_db_int = int(
+                posicion_db
+            )
+
+        except (
+            TypeError,
+            ValueError
+        ):
+
+            posicion_db_int = None
+
+        # Primero utilizamos la posición real de la BD
+        # si todavía es positiva.
+
+        if (
+            posicion_db_int is not None
+            and posicion_db_int > 0
+        ):
+
+            posicion_anterior = (
+                posicion_db_int
+            )
+
+        else:
+
+            # Si por alguna razón el crédito viejo
+            # ya quedó con posición negativa,
+            # intentamos recuperar la posición guardada.
+
+            try:
+
+                posicion_anterior = int(
+                    posicion_guardada
+                )
+
+            except (
+                TypeError,
+                ValueError
+            ):
+
+                posicion_anterior = None
+
+        if (
+            posicion_anterior is None
+            or posicion_anterior <= 0
+        ):
+
+            flash(
+                "El crédito anterior no tiene una "
+                "posición válida para renovar.",
+                "danger"
+            )
+
+            return redirect(
+                url_for(
+                    "detalle_cliente",
+                    cliente_id=cliente_id,
+                    ruta_id=ruta_id
+                )
+            )
+
+        # =================================================
+        # 7. BUSCAR UNA POSICIÓN NEGATIVA PARA HISTÓRICO
+        # =================================================
+
+        posicion_negativa_resp = (
+            supabase.table("creditos")
+            .select("posicion")
+            .eq(
+                "ruta_id",
+                ruta_id
+            )
+            .lt(
+                "posicion",
+                0
+            )
+            .order(
+                "posicion"
+            )
+            .limit(1)
+            .execute()
+        )
+
+        if posicion_negativa_resp.data:
+
+            menor_posicion = int(
+                posicion_negativa_resp.data[0]
+                .get("posicion")
+                or -1
+            )
+
+            posicion_historica = (
+                menor_posicion - 1
+            )
+
+        else:
+
+            posicion_historica = -1
+
+        # =================================================
+        # 8. EL NUEVO CRÉDITO HEREDARÁ ESTA POSICIÓN
+        # =================================================
+
+        nueva_posicion = (
+            posicion_anterior
+        )
+
+        print(
+            "RENOVACION PREPARADA:",
+            "credito anterior =",
+            credito_anterior_id,
+            "| posicion anterior =",
+            posicion_anterior,
+            "| posicion historica =",
+            posicion_historica,
+            "| cliente =",
+            cliente_id,
+            "| ruta =",
+            ruta_id
+        )
 
     # ==========================
     # PROCESAR FIRMA
     # ==========================
+
     firma_url = firma_cliente_actual
-    firma_base64 = request.form.get("firma_cliente")
 
-    if firma_base64 and "base64," in firma_base64:
+    firma_base64 = request.form.get(
+        "firma_cliente"
+    )
+
+    if (
+        firma_base64
+        and "base64," in firma_base64
+    ):
+
         try:
-            header, encoded = firma_base64.split(",", 1)
-            firma_bytes = base64.b64decode(encoded)
 
-            image = Image.open(BytesIO(firma_bytes)).convert("RGBA")
-
-            # 🔹 Crear fondo blanco
-            background = Image.new("RGB", image.size, (255, 255, 255))
-
-            # 🔹 Pegar firma sobre fondo blanco usando canal alpha
-            background.paste(image, mask=image.split()[3])
-
-            firma_filename = f"{cliente_id}_{uuid.uuid4()}_firma.jpg"
-
-            buffer = BytesIO()
-            background.save(buffer, format="JPEG", quality=70)
-            buffer.seek(0)
-
-            supabase.storage.from_("clientes").upload(
-                firma_filename,
-                buffer.read(),
-                {"content-type": "image/jpeg"}
+            header, encoded = (
+                firma_base64.split(
+                    ",",
+                    1
+                )
             )
 
-            firma_url = supabase.storage.from_("clientes").get_public_url(firma_filename)
+            firma_bytes = base64.b64decode(
+                encoded
+            )
+
+            image = Image.open(
+                BytesIO(
+                    firma_bytes
+                )
+            ).convert(
+                "RGBA"
+            )
+
+            # 🔹 Crear fondo blanco
+
+            background = Image.new(
+                "RGB",
+                image.size,
+                (
+                    255,
+                    255,
+                    255
+                )
+            )
+
+            # 🔹 Pegar firma sobre fondo blanco
+            # usando canal alpha
+
+            background.paste(
+                image,
+                mask=image.split()[3]
+            )
+
+            firma_filename = (
+                f"{cliente_id}_"
+                f"{uuid.uuid4()}_firma.jpg"
+            )
+
+            buffer = BytesIO()
+
+            background.save(
+                buffer,
+                format="JPEG",
+                quality=70
+            )
+
+            buffer.seek(0)
+
+            supabase.storage.from_(
+                "clientes"
+            ).upload(
+                firma_filename,
+                buffer.read(),
+                {
+                    "content-type":
+                    "image/jpeg"
+                }
+            )
+
+            firma_url = (
+                supabase.storage
+                .from_("clientes")
+                .get_public_url(
+                    firma_filename
+                )
+            )
 
         except Exception as e:
-            print("Error procesando firma:", e)
+
+            print(
+                "Error procesando firma:",
+                e
+            )
 
     # ==========================
     # SUBIR FOTOS
     # ==========================
-    foto_cliente = request.files.get("foto_cliente")
-    foto_cedula = request.files.get("foto_cedula")
-    foto_negocio = request.files.get("foto_negocio")
+
+    foto_cliente = request.files.get(
+        "foto_cliente"
+    )
+
+    foto_cedula = request.files.get(
+        "foto_cedula"
+    )
+
+    foto_negocio = request.files.get(
+        "foto_negocio"
+    )
 
     # 🔥 Si no suben nuevas, conservar las anteriores
-    cliente_url = foto_cliente_actual
-    if foto_cliente and foto_cliente.filename:
-        try:
-            cliente_path = f"{cliente_id}_{uuid.uuid4()}_cliente.jpg"
 
-            supabase.storage.from_("clientes").upload(
+    cliente_url = foto_cliente_actual
+
+    if (
+        foto_cliente
+        and foto_cliente.filename
+    ):
+
+        try:
+
+            cliente_path = (
+                f"{cliente_id}_"
+                f"{uuid.uuid4()}_cliente.jpg"
+            )
+
+            supabase.storage.from_(
+                "clientes"
+            ).upload(
                 cliente_path,
                 foto_cliente.read(),
-                {"content-type": foto_cliente.content_type}
+                {
+                    "content-type":
+                    foto_cliente.content_type
+                }
             )
 
-            cliente_url = supabase.storage.from_("clientes").get_public_url(cliente_path)
+            cliente_url = (
+                supabase.storage
+                .from_("clientes")
+                .get_public_url(
+                    cliente_path
+                )
+            )
 
         except Exception as e:
-            print("Error subiendo foto cliente:", e)
+
+            print(
+                "Error subiendo foto cliente:",
+                e
+            )
 
     cedula_url = foto_cedula_actual
-    if foto_cedula and foto_cedula.filename:
-        try:
-            cedula_path = f"{cliente_id}_{uuid.uuid4()}_cedula.jpg"
 
-            supabase.storage.from_("clientes").upload(
+    if (
+        foto_cedula
+        and foto_cedula.filename
+    ):
+
+        try:
+
+            cedula_path = (
+                f"{cliente_id}_"
+                f"{uuid.uuid4()}_cedula.jpg"
+            )
+
+            supabase.storage.from_(
+                "clientes"
+            ).upload(
                 cedula_path,
                 foto_cedula.read(),
-                {"content-type": foto_cedula.content_type}
+                {
+                    "content-type":
+                    foto_cedula.content_type
+                }
             )
 
-            cedula_url = supabase.storage.from_("clientes").get_public_url(cedula_path)
+            cedula_url = (
+                supabase.storage
+                .from_("clientes")
+                .get_public_url(
+                    cedula_path
+                )
+            )
 
         except Exception as e:
-            print("Error subiendo cédula:", e)
+
+            print(
+                "Error subiendo cédula:",
+                e
+            )
 
     negocio_url = foto_negocio_actual
-    if foto_negocio and foto_negocio.filename:
-        try:
-            negocio_path = f"{cliente_id}_{uuid.uuid4()}_negocio.jpg"
 
-            supabase.storage.from_("clientes").upload(
-                negocio_path,
-                foto_negocio.read(),
-                {"content-type": foto_negocio.content_type}
+    if (
+        foto_negocio
+        and foto_negocio.filename
+    ):
+
+        try:
+
+            negocio_path = (
+                f"{cliente_id}_"
+                f"{uuid.uuid4()}_negocio.jpg"
             )
 
-            negocio_url = supabase.storage.from_("clientes").get_public_url(negocio_path)
+            supabase.storage.from_(
+                "clientes"
+            ).upload(
+                negocio_path,
+                foto_negocio.read(),
+                {
+                    "content-type":
+                    foto_negocio.content_type
+                }
+            )
+
+            negocio_url = (
+                supabase.storage
+                .from_("clientes")
+                .get_public_url(
+                    negocio_path
+                )
+            )
 
         except Exception as e:
-            print("Error subiendo negocio:", e)
+
+            print(
+                "Error subiendo negocio:",
+                e
+            )
 
     # ==========================
     # UBICACIÓN
     # ==========================
-    latitud = request.form.get("latitud")
-    longitud = request.form.get("longitud")
+
+    latitud = request.form.get(
+        "latitud"
+    )
+
+    longitud = request.form.get(
+        "longitud"
+    )
 
     # ==========================
     # CREAR CRÉDITO
     # ==========================
-    valor_total = valor_venta + (valor_venta * tasa / 100)
-    valor_cuota = valor_total / cuotas
 
-    credito_resp = supabase.table("creditos").insert({
-        "cliente_id": cliente_id,
-        "ruta_id": ruta_id,
-        "posicion": nueva_posicion,
-        "tipo_prestamo": tipo_prestamo,
-        "valor_venta": valor_venta,
-        "tasa": tasa,
-        "valor_total": valor_total,
-        "cantidad_cuotas": cuotas,
-        "valor_cuota": valor_cuota,
-        "fecha_inicio": fecha_inicio,
-        "estado": "activo",
-        "foto_cedula": cedula_url,
-        "foto_negocio": negocio_url,
-        "foto_cliente": cliente_url,
-        "firma_cliente": firma_url,
-        "latitud": float(latitud) if latitud else None,
-        "longitud": float(longitud) if longitud else None
-    }).execute()
+    valor_total = (
+        valor_venta
+        + (
+            valor_venta
+            * tasa
+            / 100
+        )
+    )
 
-    if not credito_resp.data:
-        flash("Error al registrar el crédito", "danger")
+    valor_cuota = (
+        valor_total
+        / cuotas
+    )
+
+    # =====================================================
+    # SI ES RENOVACIÓN:
+    # LIBERAR LA POSICIÓN ANTERIOR JUSTO ANTES DEL INSERT
+    # =====================================================
+
+    if (
+        es_renovacion
+        and credito_anterior_id
+        and posicion_anterior
+        and posicion_historica is not None
+    ):
+
+        try:
+
+            resultado_liberar = supabase.table("creditos") \
+                .update({
+                    "posicion":
+                    posicion_historica,
+                    "estado":
+                    "finalizado"
+                }) \
+                .eq(
+                    "id",
+                    credito_anterior_id
+                ) \
+                .eq(
+                    "cliente_id",
+                    cliente_id
+                ) \
+                .eq(
+                    "ruta_id",
+                    ruta_id
+                ) \
+                .execute()
+
+            if not resultado_liberar.data:
+
+                raise Exception(
+                    "No se actualizó el crédito anterior"
+                )
+
+            posicion_anterior_liberada = True
+
+            nueva_posicion = (
+                posicion_anterior
+            )
+
+            print(
+                "RENOVACION - POSICION LIBERADA:",
+                "credito anterior =",
+                credito_anterior_id,
+                "| anterior =",
+                posicion_anterior,
+                "| historica =",
+                posicion_historica,
+                "| nuevo =",
+                nueva_posicion
+            )
+
+        except Exception as error_posicion:
+
+            print(
+                "ERROR LIBERANDO POSICION "
+                "DE RENOVACION:",
+                str(error_posicion)
+            )
+
+            flash(
+                "No fue posible conservar la posición "
+                "del crédito anterior.",
+                "danger"
+            )
+
+            return render_template(
+                "cobrador/nueva_venta_cobrador.html",
+                rutas=rutas,
+                ruta_actual=ruta_id,
+                form_data=form_data_error,
+                es_renovacion=es_renovacion
+            )
+
+    # =====================================================
+    # INSERTAR CRÉDITO
+    # =====================================================
+
+    try:
+
+        credito_resp = supabase.table(
+            "creditos"
+        ).insert({
+            "cliente_id": cliente_id,
+            "ruta_id": ruta_id,
+            "posicion": nueva_posicion,
+            "tipo_prestamo": tipo_prestamo,
+            "valor_venta": valor_venta,
+            "tasa": tasa,
+            "valor_total": valor_total,
+            "cantidad_cuotas": cuotas,
+            "valor_cuota": valor_cuota,
+            "fecha_inicio": fecha_inicio,
+            "estado": "activo",
+            "foto_cedula": cedula_url,
+            "foto_negocio": negocio_url,
+            "foto_cliente": cliente_url,
+            "firma_cliente": firma_url,
+            "latitud": (
+                float(latitud)
+                if latitud
+                else None
+            ),
+            "longitud": (
+                float(longitud)
+                if longitud
+                else None
+            )
+        }).execute()
+
+    except Exception as error_credito:
+
+        print(
+            "ERROR CREANDO CREDITO:",
+            str(error_credito)
+        )
+
+        # =================================================
+        # SI FALLÓ LA RENOVACIÓN,
+        # RESTAURAR POSICIÓN AL CRÉDITO ANTERIOR
+        # =================================================
+
+        if (
+            es_renovacion
+            and posicion_anterior_liberada
+            and credito_anterior_id
+            and posicion_anterior
+        ):
+
+            try:
+
+                supabase.table("creditos") \
+                    .update({
+                        "posicion":
+                        posicion_anterior
+                    }) \
+                    .eq(
+                        "id",
+                        credito_anterior_id
+                    ) \
+                    .execute()
+
+                print(
+                    "POSICION RESTAURADA:",
+                    posicion_anterior
+                )
+
+            except Exception as error_restaurando:
+
+                print(
+                    "ERROR RESTAURANDO POSICION:",
+                    str(error_restaurando)
+                )
+
+        flash(
+            "Error al registrar el crédito",
+            "danger"
+        )
+
         return render_template(
             "cobrador/nueva_venta_cobrador.html",
             rutas=rutas,
             ruta_actual=ruta_id,
             form_data=form_data_error,
-            es_renovacion=request.form.get("es_renovacion") == "1"
+            es_renovacion=es_renovacion
         )
 
-    credito_id = credito_resp.data[0]["id"]
+    # =====================================================
+    # VALIDAR RESPUESTA DE CREACIÓN
+    # =====================================================
+
+    if not credito_resp.data:
+
+        if (
+            es_renovacion
+            and posicion_anterior_liberada
+            and credito_anterior_id
+            and posicion_anterior
+        ):
+
+            try:
+
+                supabase.table("creditos") \
+                    .update({
+                        "posicion":
+                        posicion_anterior
+                    }) \
+                    .eq(
+                        "id",
+                        credito_anterior_id
+                    ) \
+                    .execute()
+
+            except Exception as error_restaurando:
+
+                print(
+                    "ERROR RESTAURANDO POSICION:",
+                    str(error_restaurando)
+                )
+
+        flash(
+            "Error al registrar el crédito",
+            "danger"
+        )
+
+        return render_template(
+            "cobrador/nueva_venta_cobrador.html",
+            rutas=rutas,
+            ruta_actual=ruta_id,
+            form_data=form_data_error,
+            es_renovacion=es_renovacion
+        )
+
+    credito_id = (
+        credito_resp.data[0]["id"]
+    )
 
     # ==========================
     # CREAR CUOTAS SEGÚN TIPO
     # ==========================
-    fecha_base = datetime.strptime(fecha_inicio, "%Y-%m-%d")
+
+    fecha_base = datetime.strptime(
+        fecha_inicio,
+        "%Y-%m-%d"
+    )
+
     fecha_actual = fecha_base
+
     cuotas_creadas = 0
 
     while cuotas_creadas < cuotas:
@@ -2826,49 +3773,109 @@ def guardar_venta_cobrador():
         # ==========================
         # 🔵 SEMANAL
         # ==========================
+
         if tipo_prestamo == "Semanal":
-            fecha_pago = fecha_base + timedelta(days=(cuotas_creadas + 1) * 7)
+
+            fecha_pago = (
+                fecha_base
+                + timedelta(
+                    days=(
+                        cuotas_creadas + 1
+                    ) * 7
+                )
+            )
+
             crear_cuota = True
 
         # ==========================
         # 🟢 DIARIO LUNES A VIERNES
         # ==========================
+
         elif tipo_prestamo == "Diario Lunes a Viernes":
+
             if fecha_actual.weekday() < 5:
+
                 fecha_pago = fecha_actual
                 crear_cuota = True
 
         # ==========================
         # 🟡 DIARIO LUNES A SÁBADO
         # ==========================
+
         elif tipo_prestamo == "Diario Lunes a Sábado":
+
             if fecha_actual.weekday() < 6:
+
                 fecha_pago = fecha_actual
                 crear_cuota = True
 
         # ==========================
         # 🔹 DEFAULT
         # ==========================
+
         else:
+
             fecha_pago = fecha_actual
             crear_cuota = True
 
         if crear_cuota:
+
             supabase.table("cuotas").insert({
                 "credito_id": credito_id,
                 "numero": cuotas_creadas + 1,
                 "valor": valor_cuota,
                 "estado": "pendiente",
-                "fecha_pago": fecha_pago.date().isoformat()
+                "fecha_pago":
+                fecha_pago.date().isoformat()
             }).execute()
 
             cuotas_creadas += 1
 
         if tipo_prestamo != "Semanal":
-            fecha_actual += timedelta(days=1)
 
-    flash("Venta registrada correctamente", "success")
-    return redirect(url_for("ver_ruta", ruta_id=ruta_id))
+            fecha_actual += timedelta(
+                days=1
+            )
+
+    # =====================================================
+    # LIMPIAR DATOS TEMPORALES DE RENOVACIÓN
+    # SOLAMENTE DESPUÉS DE CREAR TODO CORRECTAMENTE
+    # =====================================================
+
+    if es_renovacion:
+
+        session.pop(
+            "renovacion_credito_id",
+            None
+        )
+
+        session.pop(
+            "renovacion_posicion",
+            None
+        )
+
+        session.pop(
+            "renovacion_cliente_id",
+            None
+        )
+
+        session.pop(
+            "renovacion_ruta_id",
+            None
+        )
+
+    flash(
+        "Venta registrada correctamente",
+        "success"
+    )
+
+    return redirect(
+        url_for(
+            "ver_ruta",
+            ruta_id=ruta_id
+        )
+    )
+
 @app.route("/cambiar_posicion", methods=["POST"])
 def cambiar_posicion():
 
@@ -4764,11 +5771,15 @@ def detalle_cliente(cliente_id, ruta_id):
         fotos=fotos,
         tiene_credito_activo=tiene_credito_activo
     )
-    
+
 @app.route("/renovar_credito/<cliente_id>/<ruta_id>")
 def renovar_credito(cliente_id, ruta_id):
 
-    if "user_id" not in session or session.get("rol") not in ["cobrador", "supervisor", "administrador"]:
+    if (
+        "user_id" not in session
+        or session.get("rol")
+        not in ["cobrador", "supervisor", "administrador"]
+    ):
         return redirect(url_for("login_app"))
 
     # =====================================================
@@ -4796,12 +5807,28 @@ def renovar_credito(cliente_id, ruta_id):
         .limit(1) \
         .execute()
 
-    credito_activo = credito_activo_resp.data[0] if credito_activo_resp.data else None
+    credito_activo = (
+        credito_activo_resp.data[0]
+        if credito_activo_resp.data
+        else None
+    )
+
+    posicion_anterior = None
+    credito_anterior_id = None
 
     # =====================================================
-    # SI HAY CRÉDITO ACTIVO, VALIDAR QUE ESTÉ TOTALMENTE PAGO
+    # VALIDAR QUE EL CRÉDITO ESTÉ TOTALMENTE PAGO
     # =====================================================
     if credito_activo:
+
+        credito_anterior_id = credito_activo["id"]
+
+        try:
+            posicion_anterior = int(
+                credito_activo.get("posicion")
+            )
+        except (TypeError, ValueError):
+            posicion_anterior = None
 
         cuotas_resp = supabase.table("cuotas") \
             .select("estado") \
@@ -4823,34 +5850,59 @@ def renovar_credito(cliente_id, ruta_id):
         )
 
         saldo_credito = round(
-            float(credito_activo.get("valor_total") or 0) - total_pagado_credito,
+            float(
+                credito_activo.get("valor_total") or 0
+            ) - total_pagado_credito,
             2
         )
 
-        todas_pagadas = len(cuotas) > 0 and all(
-            c.get("estado") == "pagado"
-            for c in cuotas
+        todas_pagadas = (
+            len(cuotas) > 0
+            and all(
+                (c.get("estado") or "").lower() == "pagado"
+                for c in cuotas
+            )
         )
 
-        if not (todas_pagadas and saldo_credito <= 0):
-            flash("No se puede renovar este crédito porque aún no está totalmente pago.", "warning")
-            return redirect(url_for("detalle_cliente", cliente_id=cliente_id, ruta_id=ruta_id))
+        if not (
+            todas_pagadas
+            and saldo_credito <= 0
+        ):
+            flash(
+                "No se puede renovar este crédito porque "
+                "aún no está totalmente pago.",
+                "warning"
+            )
 
-        # 🔥 Si ya quedó pago, lo finalizamos antes de renovar
+            return redirect(
+                url_for(
+                    "detalle_cliente",
+                    cliente_id=cliente_id,
+                    ruta_id=ruta_id1
+                )
+            )
+
+        # ===============================================
+        # FINALIZAR CRÉDITO ANTERIOR
+        # ===============================================
         supabase.table("creditos") \
-            .update({"estado": "finalizado"}) \
+            .update({
+                "estado": "finalizado"
+            }) \
             .eq("id", credito_activo["id"]) \
             .execute()
 
     # =====================================================
-    # REDIRIGIR AL FORMULARIO DE NUEVA VENTA PRECARGADO
+    # ENVIAR DATOS DE RENOVACIÓN
     # =====================================================
     return redirect(
         url_for(
             "nueva_venta_cobrador",
             cliente_id=cliente_id,
             ruta_id=ruta_id,
-            renovar=1
+            renovar=1,
+            credito_anterior_id=credito_anterior_id,
+            posicion_anterior=posicion_anterior
         )
     )
 
@@ -6225,7 +7277,14 @@ def vista_pagos():
 @app.route("/eliminar_pago/<pago_id>")
 def eliminar_pago(pago_id):
 
-    # Traer el pago
+    # ==========================================
+    # GUARDAR PÁGINA DE ORIGEN
+    # ==========================================
+    volver_a = request.referrer
+
+    # ==========================================
+    # TRAER PAGO ANTES DE ELIMINARLO
+    # ==========================================
     pago = supabase.table("pagos") \
         .select("*") \
         .eq("id", pago_id) \
@@ -6234,28 +7293,97 @@ def eliminar_pago(pago_id):
 
     if not pago:
         flash("Pago no encontrado", "danger")
-        return redirect(request.referrer)
 
-    cuota_id = pago["cuota_id"]
+        if volver_a:
+            return redirect(volver_a)
+
+        return redirect(url_for("clientes"))
+
     credito_id = pago["credito_id"]
 
-    # 1️⃣ Eliminar el pago
-    supabase.table("pagos") \
-        .delete() \
-        .eq("id", pago_id) \
-        .execute()
+    # ==========================================
+    # TRAER CRÉDITO PARA TENER CLIENTE
+    # COMO RESPALDO DEL REDIRECT
+    # ==========================================
+    credito = supabase.table("creditos") \
+        .select("id, cliente_id") \
+        .eq("id", credito_id) \
+        .single() \
+        .execute().data
 
-    # 2️⃣ Volver cuota a pendiente
-    supabase.table("cuotas") \
-        .update({
-            "estado": "pendiente"
-        }) \
-        .eq("id", cuota_id) \
-        .execute()
+    cliente_id = (
+        credito.get("cliente_id")
+        if credito
+        else None
+    )
 
-    flash("Pago eliminado correctamente", "success")
+    try:
 
-    return redirect(request.referrer)
+        # ==========================================
+        # 1. ELIMINAR PAGO
+        # ==========================================
+        supabase.table("pagos") \
+            .delete() \
+            .eq("id", pago_id) \
+            .execute()
+
+        # ==========================================
+        # 2. RECALCULAR TODO EL CRÉDITO
+        # ==========================================
+        resultado = recalcular_credito(
+            credito_id
+        )
+
+        if not resultado.get("ok"):
+
+            flash(
+                "El pago fue eliminado, pero ocurrió un problema "
+                "al recalcular el crédito.",
+                "warning"
+            )
+
+        else:
+
+            flash(
+                "Pago eliminado y crédito recalculado correctamente",
+                "success"
+            )
+
+    except Exception as e:
+
+        print(
+            "ERROR ELIMINANDO PAGO:",
+            pago_id,
+            "CREDITO:",
+            credito_id,
+            str(e)
+        )
+
+        flash(
+            f"Error al eliminar el pago: {str(e)}",
+            "danger"
+        )
+
+    # ==========================================
+    # REGRESAR A DONDE ESTABA EL USUARIO
+    # ==========================================
+    if volver_a:
+        return redirect(volver_a)
+
+    # Si por alguna razón no existe referrer,
+    # volver al historial del cliente.
+    if cliente_id:
+        return redirect(
+            url_for(
+                "historial_creditos",
+                cliente_id=cliente_id
+            )
+        )
+
+    return redirect(
+        url_for("clientes")
+    )
+
 
 TZ_COLOMBIA = ZoneInfo("America/Bogota")
 
